@@ -1,0 +1,34 @@
+# Local handoff and account-specific configuration
+HANDOFF.md
+.sender-sync/
+*.local.json
+*.local.toml
+
+# OAuth credentials, tokens, and secrets (store outside the repository)
+.env
+.env.*
+credentials*
+client_secret*
+token.json
+token.*
+tokens*
+secrets/
+*.pem
+*.key
+
+# Python environments, caches, and build output
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# macOS
+.DS_Store
