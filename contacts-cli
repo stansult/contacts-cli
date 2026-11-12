@@ -1,0 +1,5 @@
+#!/bin/sh
+# Run this checkout's CLI while preserving arguments and the caller's directory.
+set -eu
+project_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec uv run --project "$project_dir" --locked contacts-cli "$@"

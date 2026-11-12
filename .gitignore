@@ -1,6 +1,6 @@
 # Local handoff and account-specific configuration
 HANDOFF.md
-.sender-sync/
+.contacts-cli/
 *.local.json
 *.local.toml
 

@@ -1,0 +1,14 @@
+{
+  "resourceName": "people/c123",
+  "etag": "person-v1",
+  "metadata": {"sources": [{"type": "CONTACT", "id": "123", "etag": "source-v1"}]},
+  "names": [{"displayName": "Example Delivery", "givenName": "Example Delivery"}],
+  "emailAddresses": [
+    {"value": "Existing@Example.com", "type": "Dispatch desk", "displayName": "Delivery desk", "metadata": {"source": {"type": "CONTACT", "id": "123"}, "primary": true, "sourcePrimary": true}},
+    {"value": "archive@example.com", "type": "other", "metadata": {"source": {"type": "CONTACT", "id": "123"}}}
+  ],
+  "phoneNumbers": [{"value": "+1 202-555-0100", "type": "work"}],
+  "biographies": [{"value": "Keep these notes", "contentType": "TEXT_PLAIN"}],
+  "userDefined": [{"key": "Account", "value": "Synthetic fixture"}],
+  "memberships": [{"contactGroupMembership": {"contactGroupResourceName": "contactGroups/myContacts"}}]
+}

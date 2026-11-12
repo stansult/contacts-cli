@@ -1,0 +1,11 @@
+{
+  "labels": [{"id": "Label_1", "name": "Example/Delivery"}, {"id": "Label_2", "name": "Elsewhere"}],
+  "messages": [
+    {"id": "m1", "threadId": "t1", "labelIds": ["Label_1"], "payload": {"headers": [{"name": "From", "value": "Existing <existing@example.com>"}]}},
+    {"id": "m2", "threadId": "t1", "labelIds": ["Label_1"], "payload": {"headers": [{"name": "From", "value": "New sender <new@example.com>"}]}},
+    {"id": "m3", "threadId": "t2", "labelIds": ["Label_1", "SPAM"], "payload": {"headers": [{"name": "From", "value": "NEW@EXAMPLE.COM"}]}},
+    {"id": "m4", "threadId": "t3", "labelIds": ["Label_1", "TRASH"], "payload": {"headers": [{"name": "from", "value": "trash@example.com"}]}},
+    {"id": "m5", "threadId": "t4", "labelIds": ["Label_1", "SPAM"], "payload": {"headers": [{"name": "From", "value": "spam@example.com"}]}},
+    {"id": "unrelated", "threadId": "t1", "labelIds": ["Label_2"], "payload": {"headers": [{"name": "From", "value": "unrelated@example.com"}]}}
+  ]
+}
