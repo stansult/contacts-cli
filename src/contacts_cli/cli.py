@@ -10,19 +10,30 @@ from .errors import SyncError, WriteUnverified
 
 
 def parser() -> argparse.ArgumentParser:
-    result = argparse.ArgumentParser(
-        description="Preview missing From addresses from a Gmail label for one existing contact."
+    result = argparse.ArgumentParser(description="Work with Google contacts.")
+    commands = result.add_subparsers(dest="command", required=True)
+    sync = commands.add_parser(
+        "sender-sync",
+        help="Preview or append Gmail label senders to an existing contact",
+        description="Preview missing From addresses from a Gmail label for one existing contact.",
     )
-    result.add_argument("--label", help="Exact Gmail label name (includes labeled Spam and Trash)")
-    result.add_argument("--contact", help="Google Contacts person URL or people/c… resource")
-    result.add_argument(
+    sync.add_argument(
+        "--label", required=True, help="Exact Gmail label name (includes labeled Spam and Trash)"
+    )
+    sync.add_argument(
+        "--contact", required=True, help="Google Contacts person URL or people/c… resource"
+    )
+    sync.add_argument(
         "--apply", action="store_true", help="Append missing emails and verify the result"
     )
-    result.add_argument("--authorize", action="store_true", help="Run explicit initial OAuth setup")
-    result.add_argument("--credentials", type=Path, help="Desktop OAuth client JSON, outside Git")
-    result.add_argument(
-        "--token", type=Path, default=default_token_path(), help="Token path outside Git"
+    setup = commands.add_parser("authorize", help="Run explicit initial OAuth setup")
+    setup.add_argument(
+        "--credentials", required=True, type=Path, help="Desktop OAuth client JSON, outside Git"
     )
+    for command in (sync, setup):
+        command.add_argument(
+            "--token", type=Path, default=default_token_path(), help="Token path outside Git"
+        )
     return result
 
 
@@ -61,17 +72,8 @@ def run(args, api) -> int:
 def main(argv=None) -> int:
     arguments = parser()
     args = arguments.parse_args(argv)
-    if args.authorize:
-        if not args.credentials or args.label or args.contact or args.apply:
-            arguments.error(
-                "--authorize requires --credentials and cannot be combined with sync options"
-            )
-    elif not args.label or not args.contact or args.credentials:
-        arguments.error(
-            "sync requires --label and --contact; --credentials is for --authorize only"
-        )
     try:
-        if args.authorize:
+        if args.command == "authorize":
             authorize(args.credentials, args.token)
             print("Authorization saved. Future sync runs use the saved token without a browser.")
             return 0

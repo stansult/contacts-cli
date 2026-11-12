@@ -19,6 +19,7 @@ tests must never use real credentials or Google accounts.
 | `test_fixture_contract.py` | Fixture filtering, pagination, read masks, replacement semantics, etags, and full email lists |
 | `test_core.py` | Parsing, deduplication, identifiers, preservation, limits, and saved-state verification |
 | `test_sync.py` | CLI preview/apply, real Google client request construction, multiple pages, conflicts, error outcomes, and reruns |
+| `test_cli.py` | Subcommand routing, required options, rejected legacy/mixed options, and token forwarding |
 | `test_auth.py` | Explicit OAuth setup, no automatic browser, token paths/permissions, refresh, and denied consent |
 
 Synthetic contact and message inputs live in [tests/fixtures](../tests/fixtures).

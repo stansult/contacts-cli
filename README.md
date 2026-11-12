@@ -1,7 +1,9 @@
 # contacts-cli
 
-Preview unique `From` addresses from every Gmail message carrying one label, then
-optionally append missing addresses to one existing Google contact. Existing emails,
+A local command-line tool for working with Google contacts.
+
+The `sender-sync` command previews unique `From` addresses from every Gmail message
+carrying one label, then optionally appends missing addresses to one existing Google contact. Existing emails,
 custom email labels, and other contact details are retained. Addresses are never removed.
 
 This is a local Python CLI. It has no hosted service or database. A temporary loopback
@@ -25,6 +27,14 @@ The longer `uv run --locked contacts-cli` invocation still works from the checko
 Alternatively, install into an existing virtual environment with `python -m pip install .`.
 That provides the `contacts-cli` command, but does not use the repository's dependency lock.
 
+## Commands
+
+- `sender-sync`: preview or append missing Gmail label senders to an existing contact.
+- `authorize`: explicitly set up Google OAuth credentials.
+
+Use `./contacts-cli <command> --help` for command-specific options. A subcommand is
+required; the former top-level sync flags and `--authorize` flag are no longer accepted.
+
 ## Google setup
 
 1. Create or select your Google Cloud project and enable the **Gmail API** and **People API**.
@@ -35,7 +45,7 @@ That provides the `contacts-cli` command, but does not use the repository's depe
 4. Authorize explicitly:
 
    ```sh
-   ./contacts-cli --authorize \
+   ./contacts-cli authorize \
      --credentials "$HOME/.config/contacts-cli/credentials.json"
    ```
 
@@ -53,7 +63,8 @@ See Google's [desktop OAuth setup](https://developers.google.com/identity/protoc
 and [Gmail scope descriptions](https://developers.google.com/workspace/gmail/api/auth/scopes).
 
 Tokens default to `~/.config/contacts-cli/token.json`. Use `--token /outside/git/token.json`
-on both authorization and sync commands to select another token/account. A contact URL's
+after the subcommand on both `authorize` and `sender-sync` commands to select another
+token/account. A contact URL's
 `/u/0/` or `/u/1/` segment does **not** select the API account; the token does.
 
 Token writes are atomic, with owner-only file permissions on POSIX systems. The CLI
@@ -71,7 +82,7 @@ scopes; see [token expiration](https://developers.google.com/identity/protocols/
 Preview is the default:
 
 ```sh
-./contacts-cli \
+./contacts-cli sender-sync \
   --label 'Example/Delivery' \
   --contact 'https://contacts.google.com/person/c123456789'
 ```
@@ -82,7 +93,7 @@ label, counts scanned messages, unique senders and existing email entries, and l
 After reviewing a preview, explicitly request a write:
 
 ```sh
-./contacts-cli \
+./contacts-cli sender-sync \
   --label 'Example/Delivery' \
   --contact 'https://contacts.google.com/person/c123456789' \
   --apply

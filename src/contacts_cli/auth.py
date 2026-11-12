@@ -90,7 +90,7 @@ def authorize(client_path: Path, token_path: Path) -> None:
 def load_credentials(token_path: Path) -> Credentials:
     token_path = private_path(token_path)
     if not token_path.is_file():
-        raise SyncError("No token found. Run contacts-cli --authorize --credentials <path> first.")
+        raise SyncError("No token found. Run contacts-cli authorize --credentials <path> first.")
     try:
         # Do not pass scopes here: that could mask missing scopes in the saved token.
         credentials = Credentials.from_authorized_user_file(str(token_path))

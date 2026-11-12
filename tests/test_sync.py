@@ -10,7 +10,7 @@ from contacts_cli.api import execute
 from contacts_cli.core import make_plan
 from contacts_cli.errors import SyncError, WriteUnverified
 
-ARGS = ["--label", "Example/Delivery", "--contact", "people/c123"]
+ARGS = ["sender-sync", "--label", "Example/Delivery", "--contact", "people/c123"]
 
 
 def test_preview_reads_all_pages_and_writes_nothing(api, server, monkeypatch, capsys):
@@ -143,7 +143,7 @@ def test_server_error_write_outcome_unknown():
 def test_bad_contact_does_not_connect(monkeypatch):
     connection = Mock()
     monkeypatch.setattr(cli, "connect", connection)
-    assert cli.main(["--label", "Example", "--contact", "bad"]) == 1
+    assert cli.main(["sender-sync", "--label", "Example", "--contact", "bad"]) == 1
     connection.assert_not_called()
 
 
