@@ -23,11 +23,13 @@ Use Python 3.11+ and uv:
 uv sync --locked
 make check
 make build
+make check-package
 git diff --check
 ```
 
 `make check` runs Ruff lint and formatting checks plus the complete pytest suite with network
-sockets disabled. `make format` formats Python files. Update `uv.lock` with `uv lock` when
+sockets disabled, plus local documentation link checks. `make check-package` verifies fresh archives
+and a clean wheel installation. `make format` formats Python files. Update `uv.lock` with `uv lock` when
 dependencies change. Build output belongs in ignored `dist/`.
 
 Before adding or changing tests, establish expected behavior from the README and API references.

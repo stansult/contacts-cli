@@ -52,6 +52,13 @@ class GoogleAPI:
     def __init__(self, gmail, people):
         self.gmail = gmail
         self.people = people
+        self.write_started = False
+
+    def write(self, request, *, operation="update"):
+        # Keep this set through subsequent reads: an interruption during
+        # verification must not claim that no contact changes were made.
+        self.write_started = True
+        return execute(request, write=True, operation=operation)
 
     def scan(self, label_name: str) -> Scan:
         response = execute(self.gmail.users().labels().list(userId="me"))
@@ -136,7 +143,7 @@ class GoogleAPI:
             latest.get("emailAddresses", []), sort_keys=True
         ) != json.dumps(plan.person.get("emailAddresses", []), sort_keys=True):
             raise SyncError("Contact changed since preview; no update made. Rerun preview.")
-        result = execute(
+        result = self.write(
             self.people.people().updateContact(
                 resourceName=plan.person["resourceName"],
                 updatePersonFields="emailAddresses",
@@ -144,7 +151,6 @@ class GoogleAPI:
                 sources=["READ_SOURCE_TYPE_CONTACT"],
                 body=body,
             ),
-            write=True,
         )
         try:
             verify_saved(plan, result)
@@ -173,11 +179,10 @@ class GoogleAPI:
                     "Contact has a system group Google cannot copy; no contact created."
                 )
         try:
-            result = execute(
+            result = self.write(
                 self.people.people().createContact(
                     body=plan.body, personFields=READ_FIELDS, sources=["READ_SOURCE_TYPE_CONTACT"]
                 ),
-                write=True,
                 operation="creation",
             )
         except WriteUnverified as exc:
@@ -200,7 +205,7 @@ class GoogleAPI:
             # returned person resource for a /person/ link, without converting IDs.
             location = "https://contacts.google.com/person/" + resource.removeprefix("people/")
             if photo:
-                execute(
+                self.write(
                     self.people.people().updateContactPhoto(
                         resourceName=resource,
                         body={
@@ -209,7 +214,6 @@ class GoogleAPI:
                             "sources": ["READ_SOURCE_TYPE_CONTACT"],
                         },
                     ),
-                    write=True,
                 )
             saved = self.get_contact(resource, READ_FIELDS)
             if contact_source(saved)["id"] != source["id"]:

@@ -176,6 +176,7 @@ def connect_with_authorization(token: Path, timeout_seconds: int = 300):
 def main(argv=None) -> int:
     arguments = parser()
     args = arguments.parse_args(argv)
+    api = None
     try:
         if args.command == "authorize":
             authorize(
@@ -193,6 +194,7 @@ def main(argv=None) -> int:
         api = connect_with_authorization(args.token, args.auth_timeout)
         if api is None:
             return 1
+        api.write_started = False
         return run_duplicate(args, api) if args.command == "duplicate" else run(args, api)
     except WriteUnverified as exc:
         label = "Unverified copy" if args.command == "duplicate" else "Unverified update"
@@ -202,10 +204,14 @@ def main(argv=None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
-        print(
-            "Interrupted. If a write was in progress, inspect Google Contacts before retrying.",
-            file=sys.stderr,
-        )
+        if api is not None and api.write_started:
+            print(
+                "Interrupted. A contact write was started; "
+                "inspect Google Contacts before retrying.",
+                file=sys.stderr,
+            )
+        else:
+            print("Interrupted; no contact changes made.", file=sys.stderr)
         return 130
 
 

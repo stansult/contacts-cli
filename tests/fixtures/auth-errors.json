@@ -1,0 +1,10 @@
+[
+  {"case": "missing-client", "command": "authorize", "file": "client", "content": null, "message": "Authorization failed"},
+  {"case": "malformed-client", "command": "authorize", "file": "client", "content": "{broken json", "message": "Authorization failed"},
+  {"case": "web-client", "command": "authorize", "file": "client", "content": "{\"web\": {}}", "message": "Desktop app"},
+  {"case": "incomplete-client", "command": "authorize", "file": "client", "content": "{\"installed\": {}}", "message": "Authorization failed"},
+  {"case": "missing-token", "command": "sender-sync", "file": "token", "content": null, "message": "You're not authorized"},
+  {"case": "malformed-token", "command": "sender-sync", "file": "token", "content": "{broken json", "message": "Token could not be loaded"},
+  {"case": "incomplete-token", "command": "duplicate", "file": "token", "content": "{}", "message": "Token could not be loaded"},
+  {"case": "missing-scopes", "command": "duplicate", "file": "token", "content": "{\"client_id\": \"synthetic\", \"client_secret\": \"synthetic\", \"refresh_token\": \"synthetic\", \"scopes\": []}", "message": "Saved token lacks required scopes"}
+]

@@ -8,8 +8,9 @@ client library's bundled discovery schemas validate request construction.
 
 ## Suite
 
-`make check` is the complete local entry point. Pytest disables network sockets globally; tests must
-never use real credentials or Google accounts.
+`make check` runs the offline suite, lint, formatting, and local Markdown link checks.
+`make check-package` adds fresh builds, archive inspection, and clean wheel installation tests.
+Pytest disables network sockets globally; tests must never use real credentials or Google accounts.
 
 | Tests | Contract |
 | --- | --- |
@@ -18,7 +19,10 @@ never use real credentials or Google accounts.
 | `test_sync.py` | CLI preview/apply, real Google client request construction, multiple pages, conflicts, error outcomes, and reruns |
 | `test_cli.py` | Subcommand routing, required options, rejected legacy/mixed options, token forwarding, authorization defaults, and missing-token consent/resumption |
 | `test_duplicate.py` | Copy fixture identity/storage, all editable field families, full email lists, preview/apply, optional name, source changes, photo handling, partial outcomes, and independent verification |
+| `test_interrupt.py` | Ctrl+C during connection, scanning, consent, pre-write reads, writes, and post-write verification |
 | `test_apply_prompt.py` | Preview before consent, yes/no/empty/EOF handling, redirected streams, explicit apply bypass, and no-addition runs |
+| `test_installed_cli.py` | Real entry point help, missing/malformed client and token files, wrong client type, incomplete credentials, missing scopes, and subprocess guard contracts |
+| `test_repository_checks.py` | Rejection of private archive files, missing runtime modules, and broken local links/headings |
 | `test_auth.py` | Explicit OAuth setup, browser opt-out, token paths/permissions, refresh, and denied consent |
 
 Synthetic contact and message inputs live in [tests/fixtures](../tests/fixtures). [FakeGoogle](../tests/fake_google.py) is an in-memory HTTP
@@ -75,3 +79,31 @@ Duplicate-link regression: a created fixture contact uses resource `people/c456`
 `1c8`. The independent fixture test confirms those distinct identifiers. Success and partial-failure
 output must link to `/person/c456`, not `/person/c1c8`. The success assertion failed against the
 original link construction before the fix. Live browser navigation remains separately unverified.
+
+## GitHub Actions
+
+[Tests workflow](../.github/workflows/ci.yml) runs on pushes, pull requests, and manual dispatch.
+The explicit matrix covers Linux with Python 3.11 (the minimum supported version) and macOS with
+Python 3.13. Each job installs the locked dependencies and runs `make check`, `make check-package`,
+and whitespace checks. Actions are pinned to commit SHAs and uv to a specific version. Jobs have
+read-only repository permissions, a 15-minute timeout, and require no Google credentials.
+
+`make check-package` builds into a fresh temporary directory, checks both archives for private
+filenames and required runtime modules, installs locked production dependencies and the wheel into
+a separate environment, verifies imports come from that environment, and runs the CLI subprocess
+suite again. Temporary files are removed afterward. Dependency installation may use the network;
+Google-facing test paths are offline. Archive checks cover known private filename patterns and
+required modules, not arbitrary secrets embedded in otherwise allowed files.
+
+The CLI subprocess suite uses synthetic cases from [auth-errors.json](../tests/fixtures/auth-errors.json), with explicit client/token
+paths outside Git. It runs outside the checkout with piped input. Cases check exit codes, useful
+errors, absence of tracebacks and browser prompts, and that token files remain absent or unchanged.
+The parent pytest socket restriction does not extend to child processes, so each child loads a
+separate guard that blocks and records socket creation, DNS lookup, and browser requests. The
+urllib3 local IPv6 import probe completes before the guard is installed; no Google modules or
+credentials are loaded during that initialization. Independent tests prove socket and browser
+attempts are rejected. The suite requires the guard's ready marker and no attempted actions.
+
+Existing unit tests cover simulated OAuth denial, timeout, missing scopes, and refresh failures.
+CI does not establish live Google consent behavior, account permissions, server normalization, or
+contact correctness. Live account tests remain separate and require explicit authorization.

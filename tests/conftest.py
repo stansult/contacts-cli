@@ -13,3 +13,7 @@ def server():
 @pytest.fixture
 def api(server):
     return GoogleAPI(*server.clients())
+
+
+def pytest_addoption(parser):
+    parser.addoption("--installed-cli", help="Absolute CLI executable for clean-wheel checks")

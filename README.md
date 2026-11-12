@@ -182,10 +182,12 @@ Exit codes:
 | `1` | Input/data/API/setup error; no successful update reported |
 | `2` | Invalid command-line arguments |
 | `3` | Write may have occurred or was submitted, but was not verified |
-| `130` | Interrupted; inspect a new preview if an update was in progress |
+| `130` | Interrupted; the message states whether a contact write had started |
 
 ## Development
 
-Run `make check` for all offline tests, lint, and format checks, and `make build` for wheel and
-source archives. See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow rules and [docs/testing.md](docs/testing.md) for test contracts
+Run `make check` for offline tests, lint, formatting, and local documentation links. Run
+`make check-package` to build and inspect packages and test a clean wheel installation.
+GitHub Actions runs both checks on Linux/Python 3.11 and macOS/Python 3.13 for pushes and pull requests.
+`make build` creates wheel and source archives in `dist/`. See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow rules and [docs/testing.md](docs/testing.md) for test contracts
 and validation boundaries.
