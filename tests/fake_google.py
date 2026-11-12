@@ -19,6 +19,10 @@ class FakeGoogle:
     def __init__(self):
         self.person = json.loads((FIXTURES / "contact.json").read_text())
         self.mailbox = json.loads((FIXTURES / "mailbox.json").read_text())
+        self.created = {}
+        self.create_status = 200
+        self.photo_status = 200
+        self.drop_copy_field = None
         self.calls = []
         self.writes = 0
         self.batch_reads = 0
@@ -83,7 +87,17 @@ class FakeGoogle:
                 return reply({"error": {"message": "Synthetic read failure"}}, 403)
             assert query.get("sources") == ["READ_SOURCE_TYPE_CONTACT"]
             fields = set(query["personFields"][0].split(",")) | {"resourceName", "etag"}
-            result = {key: value for key, value in self.person.items() if key in fields}
+            resource = query["resourceNames"][0]
+            person = (
+                self.person
+                if resource == self.person["resourceName"]
+                else self.created.get(resource)
+            )
+            if person is None:
+                return reply(
+                    {"responses": [{"requestedResourceName": resource, "status": {"code": 5}}]}
+                )
+            result = {key: value for key, value in person.items() if key in fields}
             return reply(
                 {
                     "responses": [
@@ -95,6 +109,46 @@ class FakeGoogle:
                     ]
                 }
             )
+        if method == "GET" and url.path.startswith("/v1/contactGroups/"):
+            resource = url.path.removeprefix("/v1/")
+            kind = (
+                "SYSTEM_CONTACT_GROUP"
+                if resource
+                in {"contactGroups/myContacts", "contactGroups/starred", "contactGroups/friends"}
+                else "USER_CONTACT_GROUP"
+            )
+            return reply({"resourceName": resource, "groupType": kind})
+        if method == "POST" and url.path == "/v1/people:createContact":
+            if self.create_status != 200:
+                return reply({"error": {"message": "Synthetic create failure"}}, self.create_status)
+            assert not {"resourceName", "etag", "metadata", "photos"}.intersection(data)
+            self.writes += 1
+            identity = str(456 + len(self.created))
+            resource = "people/c" + identity
+            person = deepcopy(data)
+            if self.drop_copy_field:
+                person.pop(self.drop_copy_field, None)
+            person.update(
+                resourceName=resource,
+                etag="new-person",
+                metadata={
+                    "sources": [
+                        {"type": "CONTACT", "id": format(int(identity), "x"), "etag": "new-source"}
+                    ]
+                },
+            )
+            self.created[resource] = person
+            return reply(person)
+        if method == "PATCH" and url.path.endswith(":updateContactPhoto"):
+            if self.photo_status != 200:
+                return reply({"error": {"message": "Synthetic photo failure"}}, self.photo_status)
+            resource = url.path.removeprefix("/v1/").removesuffix(":updateContactPhoto")
+            assert data["photoBytes"]
+            self.writes += 1
+            self.created[resource]["photos"] = [
+                {"url": "https://lh3.googleusercontent.com/copy", "default": False}
+            ]
+            return reply({"person": self.created[resource]})
         if method == "PATCH" and url.path.endswith(":updateContact"):
             incoming = data.get("metadata", {}).get("sources", [{}])[0].get("etag")
             current = self.person["metadata"]["sources"][0]["etag"]

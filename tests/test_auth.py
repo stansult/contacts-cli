@@ -93,6 +93,11 @@ def test_authorization_browser_choice(tmp_path, monkeypatch, manual):
     assert factory.call_args.kwargs["autogenerate_code_verifier"] is True
     assert flow.run_local_server.call_args.kwargs["open_browser"] is (not manual)
     assert flow.run_local_server.call_args.kwargs["host"] == "127.0.0.1"
+    assert flow.run_local_server.call_args.kwargs["timeout_seconds"] == 300
+    message = flow.run_local_server.call_args.kwargs["authorization_prompt_message"]
+    assert message.format(url="https://example.com/authorize") + "\n" == (
+        "\nAuthorization URL (open manually if needed):\nhttps://example.com/authorize\n\n"
+    )
 
 
 def test_denied_scopes_do_not_save_token(tmp_path, monkeypatch):
@@ -108,15 +113,25 @@ def test_denied_scopes_do_not_save_token(tmp_path, monkeypatch):
     assert not (tmp_path / "token.json").exists()
 
 
-@pytest.mark.parametrize("error", [AccessDeniedError(), WSGITimeoutError("synthetic timeout")])
-def test_oauth_denial_or_timeout_is_clean_error(tmp_path, monkeypatch, error):
+@pytest.mark.parametrize(
+    ("error", "message"),
+    [
+        (AccessDeniedError(), "Authorization failed"),
+        (
+            WSGITimeoutError("synthetic timeout"),
+            "Authorization timed out after 5 minutes. Run the command again to retry.",
+        ),
+    ],
+)
+def test_oauth_denial_or_timeout_is_clean_error(tmp_path, monkeypatch, error, message):
     client = tmp_path / "client.json"
     client.write_text('{"installed": {"client_id": "synthetic"}}')
     flow = Mock()
     flow.run_local_server.side_effect = error
     monkeypatch.setattr(auth.InstalledAppFlow, "from_client_config", lambda *a, **k: flow)
-    with pytest.raises(SyncError, match="Authorization failed"):
+    with pytest.raises(SyncError) as failure:
         auth.authorize(client, tmp_path / "token.json")
+    assert message in str(failure.value)
     assert not (tmp_path / "token.json").exists()
 
 
@@ -136,3 +151,15 @@ def test_transport_does_not_replay_writes_after_401(tmp_path, monkeypatch):
         ).execute(num_retries=0)
     assert http.request.call_count == 1
     credentials.refresh.assert_not_called()
+
+
+def test_custom_authorization_timeout_is_passed_and_reported(tmp_path, monkeypatch):
+    client = tmp_path / "client.json"
+    client.write_text('{"installed": {"client_id": "synthetic"}}')
+    flow = Mock()
+    flow.run_local_server.side_effect = WSGITimeoutError("synthetic timeout")
+    monkeypatch.setattr(auth.InstalledAppFlow, "from_client_config", lambda *a, **k: flow)
+    with pytest.raises(SyncError, match="timed out after 5 seconds"):
+        auth.authorize(client, tmp_path / "token.json", timeout_seconds=5)
+    assert flow.run_local_server.call_args.kwargs["timeout_seconds"] == 5
+    assert not (tmp_path / "token.json").exists()

@@ -2,97 +2,61 @@
 
 A local command-line tool for working with Google contacts.
 
-The `sender-sync` command previews unique `From` addresses from every Gmail message
-carrying one label, then optionally appends missing addresses to one existing Google contact. Existing emails,
+The `sender-sync` command previews unique `From` addresses from every Gmail message carrying one
+label, then optionally appends missing addresses to one existing Google contact. Existing emails,
 custom email labels, and other contact details are retained. Addresses are never removed.
 
-This is a local Python CLI. It has no hosted service or database. A temporary loopback
-callback listener runs only during explicit OAuth setup.
+The `duplicate` command previews and creates a copy of a contact, with an optional replacement
+name. It preserves the original and adds a Duplicate custom field identifying the script and
+creation date/time.
+
+This is a local Python CLI. It has no hosted service or database. A temporary loopback callback
+listener runs only during explicit OAuth setup.
 
 ## Install
 
-Requires Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
-From a checkout:
+Requires Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). From a checkout:
 
 ```sh
 uv sync --locked
 ./contacts-cli --help
 ```
 
-The executable `./contacts-cli` launcher runs the CLI through uv with the locked
-dependencies. It forwards all arguments and also works when invoked by its full path
-from another directory. Relative file arguments are relative to your current directory.
-The longer `uv run --locked contacts-cli` invocation still works from the checkout.
+The executable `./contacts-cli` launcher runs the CLI through uv with the locked dependencies. It
+forwards all arguments and also works when invoked by its full path from another directory. Relative
+file arguments are relative to your current directory. The longer `uv run --locked contacts-cli`
+invocation still works from the checkout.
 
-Alternatively, install into an existing virtual environment with `python -m pip install .`.
-That provides the `contacts-cli` command, but does not use the repository's dependency lock.
+Alternatively, install into an existing virtual environment with `python -m pip install .`. That
+provides the `contacts-cli` command, but does not use the repository's dependency lock.
 
 ## Commands
 
-- `sender-sync`: preview or append missing Gmail label senders to an existing contact.
+- [`sender-sync`](#sender-sync-preview-and-apply): preview or append missing Gmail label senders to an existing contact.
+- [`duplicate`](#duplicate-a-contact): preview or create a new contact by copying an existing contact.
 - `authorize`: explicitly set up Google OAuth credentials.
 
-Use `./contacts-cli <command> --help` for command-specific options. A subcommand is
-required; the former top-level sync flags and `--authorize` flag are no longer accepted.
+Use `./contacts-cli <command> --help` for command-specific options. A subcommand is required; the
+former top-level sync flags and `--authorize` flag are no longer accepted.
+
+Both commands require terminal input, output, and error streams before asking for write
+confirmation. Piped or redirected runs without `--apply` remain preview-only. End-of-input at the
+prompt makes no changes. `--apply` skips write confirmation in both interactive and scripted runs.
 
 ## Google setup
 
-1. Create or select your Google Cloud project and enable the **Gmail API** and **People API**.
-2. Configure the OAuth consent screen for your own use. If the app is in Testing mode,
-   add the intended Google account as a test user.
-3. Create an OAuth client with application type **Desktop app**. Download its JSON file
-   outside this repository at `~/.config/contacts-cli/credentials.json`.
-4. Authorize explicitly:
+Configure Google API access and authorize the CLI to use your account.
 
-   ```sh
-   ./contacts-cli authorize
-   ```
+1. [Create a Google Cloud project](https://console.cloud.google.com/projectcreate) and enable [Gmail API](https://console.cloud.google.com/apis/library/gmail.googleapis.com) and [Google People API](https://console.cloud.google.com/apis/library/people.googleapis.com).
+2. Configure OAuth consent and add your account as a test user.
+3. Download a Desktop app client file to `~/.config/contacts-cli/credentials.json`.
+4. Run `./contacts-cli authorize` and complete browser sign-in.
 
-5. The command opens your default browser. Select the account that owns both the Gmail
-   label and the contact. Complete authorization within five minutes, while the terminal
-   command is running. The URL is also printed so you can open it manually if needed.
+See [detailed Google setup instructions](docs/google-setup.md).
 
-Use `--credentials /outside/git/client.json` to override the default client file.
-Use `./contacts-cli authorize --no-browser` to print the URL without launching a browser.
-The Desktop OAuth client file must already exist; the command does not create it.
+## Sender-sync preview and apply
 
-The requested scopes are `gmail.metadata` and `contacts` (with Google's
-`https://www.googleapis.com/auth/` prefix). Gmail access covers headers and labels, not
-message bodies or mail changes. Contacts permission allows writes across the account;
-Google does not offer a scope restricted to the selected contact. The CLI only calls
-the contact update endpoint when `--apply` is present.
-
-See Google's [desktop OAuth setup](https://developers.google.com/identity/protocols/oauth2/native-app)
-and [Gmail scope descriptions](https://developers.google.com/workspace/gmail/api/auth/scopes).
-
-Tokens default to `~/.config/contacts-cli/token.json`. Use `--token /outside/git/token.json`
-after the subcommand on both `authorize` and `sender-sync` commands to select another
-token/account. A contact URL's
-`/u/0/` or `/u/1/` segment does **not** select the API account; the token does.
-
-Token writes are atomic, with owner-only file permissions on POSIX systems. The CLI
-rejects client and token paths inside a Git worktree, including resolved symlinks.
-Keep downloaded clients, tokens, and backups outside Git. Never paste their contents
-into issues or logs. Repository ignore rules are an additional safeguard, not secret detection.
-
-Ordinary runs refresh saved credentials without a browser. If the token file is missing,
-`sender-sync` lists authorization options. In an interactive terminal it asks
-`Authorize now in your browser? [y/N]`. Only `y` or `yes` starts authorization with the
-default client file; on success the original command resumes, including `--apply` if
-supplied. Declining or reaching end-of-input exits with code 1. Noninteractive runs
-show the options and exit without prompting. A custom `--token` path is preserved
-through authorization and in the suggested commands.
-
-The default client file must already exist. For a different client file or manual
-browser opening, use the listed standalone `authorize` commands and rerun sender-sync.
-Invalid or revoked tokens still require explicit authorization; other errors do not
-trigger the missing-token prompt. Google documents that external
-apps in Testing mode generally receive refresh tokens valid for seven days with these
-scopes; see [token expiration](https://developers.google.com/identity/protocols/oauth2#expiration).
-
-## Preview and apply
-
-Preview is the default:
+The command shows a preview first:
 
 ```sh
 ./contacts-cli sender-sync \
@@ -100,10 +64,14 @@ Preview is the default:
   --contact 'https://contacts.google.com/person/c123456789'
 ```
 
-The contact may also be given as `people/c123456789`. Output identifies the contact and
-label, counts scanned messages, unique senders and existing email entries, and lists additions.
+The contact may also be given as `people/c123456789`. Output identifies the contact and label,
+counts scanned messages, unique senders and existing email entries, and lists additions.
 
-After reviewing a preview, explicitly request a write:
+In an interactive terminal, the preview is followed by `Apply these additions? [y/N]`.
+Answer `y` or `yes` to save; Enter, `n`, or any other answer leaves the contact unchanged.
+No prompt appears when there are no additions.
+
+To save without the confirmation prompt, use `--apply`:
 
 ```sh
 ./contacts-cli sender-sync \
@@ -112,63 +80,112 @@ After reviewing a preview, explicitly request a write:
   --apply
 ```
 
-Each command scans current data; `--apply` is not approval of a frozen previous preview.
-Reuse the same flags after changing a Gmail filter and applying it to matching messages.
-There is no need to maintain an exclusion query or a filter ID. A run with no missing
-addresses sends no contact update.
+Each command scans current data; `--apply` is not approval of a frozen previous preview. Reuse the
+same flags after changing a Gmail filter and applying it to matching messages. There is no need to
+maintain an exclusion query or a filter ID. A run with no missing addresses sends no contact update.
 
-## Behavior and limits
+## Duplicate a contact
 
-- Labels must match by exact name. Every results page is read, including labeled Spam
-  and Trash. Only individual messages carrying the label are considered; unrelated
-  messages in the same conversation are excluded.
-- `From` is the source, not `Reply-To`, `Sender`, or the envelope sender. Display names,
-  comments, folded headers, and multiple valid mailboxes are parsed. Missing, duplicate,
-  malformed, or unsupported headers are reported by message ID and block all writes.
-  Raw headers are not printed. Internationalized local parts that the Python parser
-  reports as defective are unsupported.
-- Comparison ignores case and surrounding whitespace. Gmail dot variants and `+tags`
-  remain distinct. New entries retain the first observed spelling and have no custom
-  label. Existing values, labels, display names, and source-primary choices are retained.
-- The People API is read directly using `getBatchGet`, with contact-only sources and
-  an explicit field mask. Profile-only data is not copied. Multiple editable contact
-  sources and incomplete/error responses are rejected. Full-list retrieval relies on
-  Google's documented API contract; there is no independent count to detect silent
-  server omissions.
-- Only `emailAddresses` is updated. A fresh read and source etag protect against
-  concurrent edits. Conflicts stop the run; they are not automatically merged or retried.
-  The response and an independent subsequent read are checked for additions and preservation.
-- Local guards reject projected contacts over 500 top-level field entries or 128 KiB
-  of JSON, and new addresses over 1,024 characters are rejected by parsing. These are
-  estimates, not Google's internal storage accounting; the server may reject a smaller
-  contact. Existing oversized contacts can still be processed as no-ops.
-- Gmail pagination is not an atomic mailbox snapshot. Messages arriving or being
-  relabeled during a scan may require another run. A deleted message or observed loss
-  of the selected label aborts the scan. Large labels take time: requests are sequential,
-  with one metadata read per message, plus listing and contact requests.
-- Read requests allow up to three retries. Updates are never automatically retried by
-  the application. After an uncertain write or failed verification, inspect the contact
-  and run a new preview before deciding whether another apply is needed. No rollback
-  write is attempted.
+Preview a copy, optionally choosing a replacement name:
 
-Sources: [Gmail listing contract](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/list),
-[message metadata](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/get),
-[People email fields](https://developers.google.com/people/api/rest/v1/people#Person),
-[contact update contract](https://developers.google.com/people/api/rest/v1/people/updateContact),
-[Google Contacts limits](https://support.google.com/contacts/answer/148779?hl=en).
+```sh
+./contacts-cli duplicate \
+  --contact 'https://contacts.google.com/person/c123456789' \
+  --name 'Delivery backup'
+```
+
+In an interactive terminal, the preview is followed by `Create this duplicate? [y/N]`.
+Answer `y` or `yes` to create it; Enter, `n`, or any other answer makes no changes.
+
+Add `--apply` to create it without the confirmation prompt:
+
+```sh
+./contacts-cli duplicate \
+  --contact 'https://contacts.google.com/person/c123456789' \
+  --name 'Delivery backup' \
+  --apply
+```
+
+Omit `--name` to keep the original name. A replacement replaces all name components and is stored
+as the given name without guessing how to split it. Preview lists entry counts for each copied
+field and whether a custom photo will be copied. Success prints the new contact's link, using
+the person identifier returned by Google.
+
+Each copy adds a **Duplicate** custom field, for example:
+`Created by contacts-cli on November 11, 2026 at 2:30 PM (UTC−08:00)`.
+The timestamp uses the computer's local time when that run prepares the copy, including its UTC
+offset. Existing custom fields, including earlier Duplicate entries, are preserved. A separate
+preview run does not fix the timestamp for a later `--apply` run.
+
+The copy includes editable contact fields exposed by the People API: names, emails and custom
+labels, phones, addresses, notes, dates, organizations, relationships, URLs, custom fields, and
+other editable details, including file-as and skills. User contact groups, My Contacts, and Starred
+memberships are retained. Unsupported system groups stop creation. Profile-only data, generated
+IDs, timestamps, verification flags, and read-only domain memberships are not copied.
+
+Custom photos are downloaded before creation and uploaded in a separate request afterward. Only
+HTTPS Googleusercontent photo URLs are accepted, without redirects, with a 10 MiB local limit.
+Default avatars are generated by Google. Verification confirms a custom photo exists; it does not
+compare image bytes or guarantee the original upload resolution.
+
+The source contact is never updated. A fresh source read catches changes before creation, but the
+read and creation are not atomic. Each `--apply` creates another contact, even with identical flags.
+Creation and photo writes are never automatically retried. If the result is uncertain or a photo
+write fails, inspect Google Contacts before retrying. The error includes the new contact's link
+when available; no automatic deletion or rollback is attempted.
+
+An independent read verifies editable fields and primary choices after saving. Server
+normalization can cause a conservative verification failure. The same local 500-entry and 128 KiB
+limits apply. Existing authorization is reused; this command does not read Gmail messages.
+
+Sources: [contact creation](https://developers.google.com/people/api/rest/v1/people/createContact), [editable Person fields](https://developers.google.com/people/api/rest/v1/people#Person), and [photo updates](https://developers.google.com/people/api/rest/v1/people/updateContactPhoto).
+
+## Sender-sync behavior and limits
+
+- Labels must match by exact name. Every results page is read, including labeled Spam and Trash.
+  Only individual messages carrying the label are considered; unrelated messages in the same
+  conversation are excluded.
+- `From` is the source, not `Reply-To`, `Sender`, or the envelope sender. Display names, comments,
+  folded headers, and multiple valid mailboxes are parsed. Missing, duplicate, malformed, or
+  unsupported headers are reported by message ID and block all writes. Raw headers are not printed.
+  Internationalized local parts that the Python parser reports as defective are unsupported.
+- Comparison ignores case and surrounding whitespace. Gmail dot variants and `+tags` remain
+  distinct. New entries retain the first observed spelling and have no custom label. Existing
+  values, labels, display names, and source-primary choices are retained.
+- The People API is read directly using `getBatchGet`, with contact-only sources and an explicit
+  field mask. Profile-only data is not copied. Multiple editable contact sources and
+  incomplete/error responses are rejected. Full-list retrieval relies on Google's documented API
+  contract; there is no independent count to detect silent server omissions.
+- Only `emailAddresses` is updated. A fresh read and source etag protect against concurrent edits.
+  Conflicts stop the run; they are not automatically merged or retried. The response and an
+  independent subsequent read are checked for additions and preservation.
+- Local guards reject projected contacts over 500 top-level field entries or 128 KiB of JSON, and
+  new addresses over 1,024 characters are rejected by parsing. These are estimates, not Google's
+  internal storage accounting; the server may reject a smaller contact. Existing oversized contacts
+  can still be processed as no-ops.
+- Gmail pagination is not an atomic mailbox snapshot. Messages arriving or being relabeled during a
+  scan may require another run. A deleted message or observed loss of the selected label aborts the
+  scan. Large labels take time: requests are sequential, with one metadata read per message, plus
+  listing and contact requests.
+- Read requests allow up to three retries. Updates are never automatically retried by the
+  application. After an uncertain write or failed verification, inspect the contact and run a new
+  preview before deciding whether another apply is needed. No rollback write is attempted.
+
+Sources: [Gmail listing contract](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/list), [message metadata](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/get), [People email fields](https://developers.google.com/people/api/rest/v1/people#Person),
+[contact update contract](https://developers.google.com/people/api/rest/v1/people/updateContact), [Google Contacts limits](https://support.google.com/contacts/answer/148779?hl=en).
 
 Exit codes:
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Complete preview, verified update, successful authorization, or no-op |
+| `0` | Complete preview, verified write, successful authorization, or no-op |
 | `1` | Input/data/API/setup error; no successful update reported |
 | `2` | Invalid command-line arguments |
-| `3` | Update may have occurred or was submitted, but was not verified |
+| `3` | Write may have occurred or was submitted, but was not verified |
 | `130` | Interrupted; inspect a new preview if an update was in progress |
 
 ## Development
 
-Run `make check` for all offline tests, lint, and format checks, and `make build` for
-wheel and source archives. See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow rules
-and [docs/testing.md](docs/testing.md) for test contracts and validation boundaries.
+Run `make check` for all offline tests, lint, and format checks, and `make build` for wheel and
+source archives. See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow rules and [docs/testing.md](docs/testing.md) for test contracts
+and validation boundaries.

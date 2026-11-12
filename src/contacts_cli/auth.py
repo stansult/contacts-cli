@@ -55,7 +55,9 @@ def save_credentials(credentials: Credentials, path: Path) -> None:
             os.unlink(temporary)
 
 
-def authorize(client_path: Path, token_path: Path, *, open_browser: bool = True) -> None:
+def authorize(
+    client_path: Path, token_path: Path, *, open_browser: bool = True, timeout_seconds: int = 300
+) -> None:
     client_path, token_path = private_path(client_path), private_path(token_path)
     try:
         config = json.loads(client_path.read_text())
@@ -68,9 +70,11 @@ def authorize(client_path: Path, token_path: Path, *, open_browser: bool = True)
             host="127.0.0.1",
             port=0,
             open_browser=open_browser,
-            timeout_seconds=300,
+            timeout_seconds=timeout_seconds,
             prompt="consent",
-            authorization_prompt_message="Authorization URL (open manually if needed):\n{url}",
+            authorization_prompt_message=(
+                "\nAuthorization URL (open manually if needed):\n{url}\n"
+            ),
         )
         granted = credentials.granted_scopes or credentials.scopes or ()
         if not set(SCOPES).issubset(granted) or not credentials.refresh_token:
@@ -78,13 +82,17 @@ def authorize(client_path: Path, token_path: Path, *, open_browser: bool = True)
                 "Required scopes or refresh token missing; repeat explicit authorization."
             )
         save_credentials(credentials, token_path)
+    except WSGITimeoutError as exc:
+        duration = "5 minutes" if timeout_seconds == 300 else f"{timeout_seconds} seconds"
+        raise SyncError(
+            f"Authorization timed out after {duration}. Run the command again to retry."
+        ) from exc
     except (
         OSError,
         ValueError,
         GoogleAuthError,
         OAuth2Error,
         RequestException,
-        WSGITimeoutError,
     ) as exc:
         raise SyncError(
             "Authorization failed; check the Desktop client file and retry setup."

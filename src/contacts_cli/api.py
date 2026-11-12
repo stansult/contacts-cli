@@ -1,5 +1,6 @@
-"""Google API boundary: metadata-only reads and one conditional contact write."""
+"""Google API boundary for Gmail metadata reads and explicit contact writes."""
 
+import base64
 import json
 
 from google.auth.exceptions import GoogleAuthError
@@ -17,10 +18,11 @@ from .core import (
     validate_contact,
     verify_saved,
 )
+from .duplicate import READ_FIELDS, download_photo, verify_duplicate
 from .errors import SyncError, WriteUnverified
 
 
-def execute(request, *, write: bool = False):
+def execute(request, *, write: bool = False, operation: str = "update"):
     try:
         # Never retry a mutation whose outcome may be unknown.
         return request.execute(num_retries=0 if write else 3)
@@ -32,7 +34,8 @@ def execute(request, *, write: bool = False):
             ) from exc
         if write and status in {400, 409, 412}:
             raise SyncError(
-                "Contact update rejected (possible conflict, limit, or bad data); rerun preview."
+                f"Contact {operation} rejected (possible conflict, limit, or bad data); "
+                "rerun preview."
             ) from exc
         raise SyncError(
             f"Google API returned HTTP {status}; check access, API setup, and quotas."
@@ -96,11 +99,11 @@ class GoogleAPI:
             seen_tokens.add(page_token)
         return Scan(len(seen_ids), tuple(senders[key] for key in sorted(senders)), tuple(problems))
 
-    def get_contact(self, resource: str) -> dict:
+    def get_contact(self, resource: str, fields: str = CONTACT_FIELDS) -> dict:
         batch = execute(
             self.people.people().getBatchGet(
                 resourceNames=[resource],
-                personFields=CONTACT_FIELDS,
+                personFields=fields,
                 sources=["READ_SOURCE_TYPE_CONTACT"],
             )
         )
@@ -152,3 +155,69 @@ class GoogleAPI:
                 f"Update was submitted but verification failed: {exc} Inspect a new preview."
             ) from exc
         return True
+
+    def duplicate(self, plan):
+        schemas = self.people._rootDesc["schemas"]
+        photo = download_photo(plan.photo_url) if plan.photo_url else None
+        latest = self.get_contact(plan.person["resourceName"], READ_FIELDS)
+        if latest != plan.person:
+            raise SyncError("Contact changed since preview; no copy created. Rerun preview.")
+        for membership in plan.body.get("memberships", []):
+            resource = membership["contactGroupMembership"]["contactGroupResourceName"]
+            group = execute(self.people.contactGroups().get(resourceName=resource))
+            if group.get("groupType") != "USER_CONTACT_GROUP" and resource not in {
+                "contactGroups/myContacts",
+                "contactGroups/starred",
+            }:
+                raise SyncError(
+                    "Contact has a system group Google cannot copy; no contact created."
+                )
+        try:
+            result = execute(
+                self.people.people().createContact(
+                    body=plan.body, personFields=READ_FIELDS, sources=["READ_SOURCE_TYPE_CONTACT"]
+                ),
+                write=True,
+                operation="creation",
+            )
+        except WriteUnverified as exc:
+            raise WriteUnverified(
+                "Contact creation outcome is unknown. Inspect Google Contacts before retrying; "
+                "another attempt may create another copy."
+            ) from exc
+        except SyncError as exc:
+            raise SyncError(f"Contact creation failed: {exc}") from exc
+        location = "Google Contacts"
+        try:
+            validate_contact(result)
+            source = contact_source(result)
+            if source["id"] == contact_source(plan.person)["id"]:
+                raise SyncError(
+                    "Creation returned the original contact; stopped before photo write."
+                )
+            resource = result["resourceName"]
+            # The source ID and person ID are different identifiers. Use the
+            # returned person resource for a /person/ link, without converting IDs.
+            location = "https://contacts.google.com/person/" + resource.removeprefix("people/")
+            if photo:
+                execute(
+                    self.people.people().updateContactPhoto(
+                        resourceName=resource,
+                        body={
+                            "photoBytes": base64.b64encode(photo).decode(),
+                            "personFields": READ_FIELDS,
+                            "sources": ["READ_SOURCE_TYPE_CONTACT"],
+                        },
+                    ),
+                    write=True,
+                )
+            saved = self.get_contact(resource, READ_FIELDS)
+            if contact_source(saved)["id"] != source["id"]:
+                raise SyncError("The saved contact identity changed during verification.")
+            verify_duplicate(plan, saved, schemas)
+        except (SyncError, KeyError, TypeError, ValueError) as exc:
+            raise WriteUnverified(
+                f"A copy was submitted but is not fully verified: {location}. "
+                f"{exc} Inspect it before retrying; another attempt creates another copy."
+            ) from exc
+        return location

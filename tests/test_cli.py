@@ -13,7 +13,7 @@ def test_authorize_subcommand_routes_credentials_and_token(monkeypatch, tmp_path
     monkeypatch.setattr(cli, "connect", connect)
     client, token = tmp_path / "client.json", tmp_path / "token.json"
     assert cli.main(["authorize", "--credentials", str(client), "--token", str(token)]) == 0
-    authorize.assert_called_once_with(client, token, open_browser=True)
+    authorize.assert_called_once_with(client, token, open_browser=True, timeout_seconds=300)
     connect.assert_not_called()
 
 
@@ -77,7 +77,10 @@ def test_authorize_defaults_and_browser_choice(monkeypatch, tmp_path, manual):
     assert cli.main(["authorize"] + (["--no-browser"] if manual else [])) == 0
     config = tmp_path / ".config" / "contacts-cli"
     authorize.assert_called_once_with(
-        config / "credentials.json", config / "token.json", open_browser=not manual
+        config / "credentials.json",
+        config / "token.json",
+        open_browser=not manual,
+        timeout_seconds=300,
     )
 
 
@@ -112,11 +115,14 @@ def test_missing_token_accepts_and_resumes_preview(missing_token_flow, monkeypat
     args, token, connect, authorize = missing_token_flow
     monkeypatch.setattr("builtins.input", lambda: "Yes")
     assert cli.main(args) == 0
-    authorize.assert_called_once_with(auth.default_credentials_path(), token, open_browser=True)
+    authorize.assert_called_once_with(
+        auth.default_credentials_path(), token, open_browser=True, timeout_seconds=300
+    )
     assert connect.call_count == 2
     assert all(call.args == (token,) for call in connect.call_args_list)
     assert server.writes == 0
     captured = capsys.readouterr()
+    assert captured.out.startswith("Authorization succeeded.\n\nContact:")
     assert "Preview only" in captured.out
     assert "--credentials" in captured.err and "--no-browser" in captured.err
     assert "Authorize now in your browser? [y/N]" in captured.err
@@ -167,3 +173,40 @@ def test_other_connection_errors_do_not_offer_authorization(monkeypatch, capsys)
     authorize.assert_not_called()
     read.assert_not_called()
     assert "Authorize now" not in capsys.readouterr().err
+
+
+def test_authorization_success_is_reported_before_contact_error(
+    missing_token_flow, monkeypatch, capsys, api
+):
+    interactive_terminal(monkeypatch)
+    args, _, _, _ = missing_token_flow
+    monkeypatch.setattr("builtins.input", lambda: "y")
+
+    def fail_contact(resource):
+        assert capsys.readouterr().out == "Authorization succeeded.\n\n"
+        raise SyncError("Synthetic invalid contact")
+
+    monkeypatch.setattr(api, "get_contact", fail_contact)
+    assert cli.main(args) == 1
+    assert "Synthetic invalid contact" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("command", ["authorize", "sender-sync"])
+def test_custom_auth_timeout(missing_token_flow, monkeypatch, command):
+    interactive_terminal(monkeypatch)
+    args, _, _, authorize = missing_token_flow
+    monkeypatch.setattr("builtins.input", lambda: "y")
+    if command == "authorize":
+        args = ["authorize"]
+    assert cli.main(args + ["--auth-timeout", "5"]) == 0
+    assert authorize.call_args.kwargs["timeout_seconds"] == 5
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "abc", "1.5"])
+def test_auth_timeout_rejects_invalid_values(monkeypatch, value):
+    authorize = Mock()
+    monkeypatch.setattr(cli, "authorize", authorize)
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["authorize", "--auth-timeout", value])
+    assert exc.value.code == 2
+    authorize.assert_not_called()

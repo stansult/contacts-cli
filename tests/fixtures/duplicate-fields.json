@@ -1,0 +1,122 @@
+{
+  "addresses": [
+    {
+      "streetAddress": "123 Example St",
+      "type": "custom",
+      "formattedType": "Custom"
+    }
+  ],
+  "birthdays": [
+    {
+      "date": {
+        "month": 3,
+        "day": 4
+      }
+    }
+  ],
+  "calendarUrls": [
+    {
+      "url": "https://example.com/calendar",
+      "type": "home"
+    }
+  ],
+  "clientData": [
+    {
+      "key": "test",
+      "value": "data"
+    }
+  ],
+  "events": [
+    {
+      "date": {
+        "year": 2000,
+        "month": 1,
+        "day": 2
+      },
+      "type": "anniversary"
+    }
+  ],
+  "externalIds": [
+    {
+      "value": "external",
+      "type": "account"
+    }
+  ],
+  "fileAses": [
+    {
+      "value": "Delivery, Example"
+    }
+  ],
+  "genders": [
+    {
+      "value": "unspecified"
+    }
+  ],
+  "imClients": [
+    {
+      "username": "example",
+      "protocol": "custom"
+    }
+  ],
+  "interests": [
+    {
+      "value": "Cycling"
+    }
+  ],
+  "locales": [
+    {
+      "value": "en-US"
+    }
+  ],
+  "locations": [
+    {
+      "value": "Desk",
+      "type": "desk"
+    }
+  ],
+  "miscKeywords": [
+    {
+      "value": "keyword",
+      "type": "OUTLOOK_BILLING_INFORMATION"
+    }
+  ],
+  "nicknames": [
+    {
+      "value": "Example"
+    }
+  ],
+  "occupations": [
+    {
+      "value": "Courier"
+    }
+  ],
+  "organizations": [
+    {
+      "name": "Example",
+      "title": "Dispatcher"
+    }
+  ],
+  "relations": [
+    {
+      "person": "Example Person",
+      "type": "friend"
+    }
+  ],
+  "sipAddresses": [
+    {
+      "value": "sip:example@example.com",
+      "type": "work"
+    }
+  ],
+  "skills": [
+    {
+      "value": "Delivery"
+    }
+  ],
+  "urls": [
+    {
+      "value": "https://example.com",
+      "type": "work"
+    }
+  ]
+}
