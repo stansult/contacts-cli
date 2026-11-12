@@ -5,7 +5,9 @@ It does not emulate all Google behavior or claim to validate real account permis
 """
 
 import json
+import re
 from copy import deepcopy
+from email.utils import getaddresses
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -19,6 +21,8 @@ class FakeGoogle:
     def __init__(self):
         self.person = json.loads((FIXTURES / "contact.json").read_text())
         self.mailbox = json.loads((FIXTURES / "mailbox.json").read_text())
+        self.send_as = json.loads((FIXTURES / "send-as.json").read_text())
+        self.send_as_status = 200
         self.created = {}
         self.create_status = 200
         self.photo_status = 200
@@ -49,6 +53,8 @@ class FakeGoogle:
         def reply(payload, status=200):
             return httplib2.Response({"status": str(status)}), json.dumps(payload).encode()
 
+        if method == "GET" and url.path == "/gmail/v1/users/me/settings/sendAs":
+            return reply(self.send_as, self.send_as_status)
         if method == "GET" and url.path == "/gmail/v1/users/me/labels":
             return reply({"labels": self.mailbox["labels"]})
         if method == "GET" and url.path == "/gmail/v1/users/me/messages":
@@ -60,15 +66,34 @@ class FakeGoogle:
                 if labels.issubset(item["labelIds"])
                 and (include_spam or not {"SPAM", "TRASH"}.intersection(item["labelIds"]))
             ]
+            search = query.get("q", [""])[0]
+            terms = re.findall(r'-from:"([^"\\]+)"', search)
+            assert " ".join(f'-from:"{term}"' for term in terms) == search
+            excluded = {term.casefold() for term in terms}
+            matches = [
+                item
+                for item in matches
+                if not excluded.intersection(
+                    address.casefold()
+                    for _, address in getaddresses(
+                        [
+                            h["value"]
+                            for h in item["payload"]["headers"]
+                            if h["name"].lower() == "from"
+                        ]
+                    )
+                )
+            ]
+            page_size = min(2, int(query.get("maxResults", ["2"])[0]))
             offset = int(query.get("pageToken", ["0"])[0])
             result = {
                 "messages": [
                     {"id": item["id"], "threadId": item["threadId"]}
-                    for item in matches[offset : offset + 2]
+                    for item in matches[offset : offset + page_size]
                 ]
             }
-            if offset + 2 < len(matches) or self.repeat_token:
-                result["nextPageToken"] = "2" if self.repeat_token else str(offset + 2)
+            if offset + page_size < len(matches) or self.repeat_token:
+                result["nextPageToken"] = "2" if self.repeat_token else str(offset + page_size)
             return reply(result)
         if method == "GET" and url.path.startswith("/gmail/v1/users/me/messages/"):
             message_id = url.path.rsplit("/", 1)[-1]

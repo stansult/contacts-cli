@@ -39,7 +39,16 @@ def check_archive(path):
         for part in parts:
             lower = part.lower()
             if (
-                lower in {"handoff.md", ".venv", "venv", "__pycache__", ".git", "secrets"}
+                lower
+                in {
+                    "handoff.md",
+                    ".venv",
+                    "venv",
+                    "__pycache__",
+                    ".git",
+                    "secrets",
+                    ".contacts-cli",
+                }
                 or lower.startswith(("credentials", "client_secret", "tokens", ".env"))
                 or lower == "token.json"
                 or lower.startswith("token.")
@@ -54,6 +63,7 @@ def check_archive(path):
         "duplicate.py",
         "errors.py",
         "progress.py",
+        "metrics.py",
     ):
         if not any(PurePosixPath(name).parts[-2:] == ("contacts_cli", module) for name in names):
             raise ValueError(f"{path.name}: missing module {module}")

@@ -13,13 +13,13 @@ from contacts_cli.errors import SyncError, WriteUnverified
 ARGS = ["sender-sync", "--label", "Example/Delivery", "--contact", "people/c123"]
 
 
-def test_preview_reads_all_pages_and_writes_nothing(api, server, monkeypatch, capsys):
+def test_preview_searches_new_senders_and_writes_nothing(api, server, monkeypatch, capsys):
     monkeypatch.setattr(cli, "connect", lambda _: api)
     original = deepcopy(server.person)
     assert cli.main(ARGS) == 0
     out = capsys.readouterr().out
-    assert "Scanned messages: 5" in out
-    assert "Unique senders: 4" in out
+    assert "Inspected messages:" not in out
+    assert "New unique senders:" not in out
     assert "Proposed additions: 3" in out
     assert "+ new@example.com" in out
     assert "+ spam@example.com" in out
@@ -28,7 +28,7 @@ def test_preview_reads_all_pages_and_writes_nothing(api, server, monkeypatch, ca
     assert server.writes == 0
     assert all(method == "GET" for method, *_ in server.calls)
     assert server.person == original
-    assert len([call for call in server.calls if call[1].endswith("/messages")]) == 3
+    assert len([call for call in server.calls if call[1].endswith("/messages")]) == 4
 
 
 def test_apply_preserves_contact_and_rerun_is_noop(api, server, monkeypatch, capsys):
@@ -67,9 +67,7 @@ def test_invalid_header_prevents_any_apply(api, server, monkeypatch, capsys):
     assert server.writes == 0
 
 
-@pytest.mark.parametrize(
-    "fault", ["missing_message", "repeat_token", "batch_status", "concurrent_edit"]
-)
+@pytest.mark.parametrize("fault", ["missing_message", "batch_status", "concurrent_edit"])
 def test_incomplete_scan_or_contact_change_prevents_write(api, server, monkeypatch, fault):
     setattr(server, fault, {"missing_message": "m4", "batch_status": 7}.get(fault, True))
     monkeypatch.setattr(cli, "connect", lambda _: api)

@@ -2,7 +2,7 @@
 
 A local command-line tool for working with Google contacts.
 
-The `sender-sync` command previews unique `From` addresses from every Gmail message carrying one
+The `sender-sync` command previews missing `From` addresses by searching Gmail messages carrying one
 label, then optionally appends missing addresses to one existing Google contact. Existing emails,
 custom email labels, and other contact details are retained. Addresses are never removed.
 
@@ -39,6 +39,11 @@ provides the `contacts-cli` command, but does not use the repository's dependenc
 Use `./contacts-cli <command> --help` for command-specific options. A subcommand is required; the
 former top-level sync flags and `--authorize` flag are no longer accepted.
 
+Both previews identify the contact as `Contact: 'name: Jane' (people/c123456789)`. A nonblank
+name takes precedence over the company. Without a name, they show
+`Contact: 'company: Example Company' (people/c123456789)`; without either, they show
+`Contact: 'Unnamed' (people/c123456789)`.
+
 Both commands require terminal input, output, and error streams before asking for write
 confirmation. Piped or redirected runs without `--apply` remain preview-only. End-of-input at the
 prompt makes no changes. `--apply` skips write confirmation in both interactive and scripted runs.
@@ -56,7 +61,7 @@ See [detailed Google setup instructions](docs/google-setup.md). Existing `gmail.
 `gmail.readonly`; the CLI detects insufficient permissions and offers browser reauthorization.
 See [upgrading an existing authorization](docs/google-setup.md#upgrading-an-existing-authorization).
 The new permission permits reading message bodies, although this CLI continues to request only
-headers and labels. This authorization update does not yet change the scanning algorithm.
+headers and labels. Sender searches use the Gmail read-only permission.
 
 ## Sender-sync preview and apply
 
@@ -69,14 +74,21 @@ The command shows a preview first:
 ```
 
 The contact may also be given as `people/c123456789`. Output identifies the contact and label,
-counts scanned messages, unique senders and existing email entries, and lists additions.
+shows inspected-message and new-sender counts in progress, then existing email entries and additions.
+
+The search excludes existing contact addresses and all configured Gmail “Send mail as” addresses,
+including your primary address and aliases. It requests one matching message, reads its From
+header, and excludes newly discovered addresses from the next search. It stops when no matching
+messages remain. For many messages from a few senders, this avoids reading each message header.
 
 Progress appears automatically on stderr: reading the contact, finding the label, then messages
-processed and unique senders found. In a terminal, the scan counter updates in place at most once
-per second; redirected output uses separate lines at most once every ten seconds. Stage changes
-and final counts appear immediately. Updates occur as requests finish; there is no estimated total
-or percentage. Invalid From headers are counted when encountered and detailed in the final preview.
-The complete preview stays on stdout. This progress display does not change scanning speed.
+inspected and new senders found. In a terminal, the scan counter updates in place at most once
+per second; redirected output uses separate lines at most once every ten seconds. The contact and
+label details appear immediately after their lookups, with blank lines separating sections. The
+last counter update always appears, bypassing throttling, followed by `Search finished.` and the
+existing-email count. Updates occur as requests finish; there is no estimated total or percentage. Invalid From
+headers stop the search and block all writes.
+The complete preview stays on stdout. Counts describe inspected messages, not the label’s total size.
 
 In an interactive terminal, the preview is followed by `Apply these additions? [y/N]`.
 Answer `y` or `yes` to save; Enter, `n`, or any other answer leaves the contact unchanged.
@@ -153,16 +165,26 @@ Sources: [contact creation](https://developers.google.com/people/api/rest/v1/peo
 
 ## Sender-sync behavior and limits
 
-- Labels must match by exact name. Every results page is read, including labeled Spam and Trash.
+- Each sync reads Gmail's [Send mail as list](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.settings.sendAs/list)
+  once, using the existing `gmail.readonly` permission. No new authorization scope is needed.
+  Retrieval errors, missing primary identity, or malformed addresses stop before searching or
+  writing. Configured sending addresses are excluded from both searches and parsed candidates.
+  Addresses already stored in the contact remain unchanged; this feature does not remove them.
+- Labels must match by exact name. Searches include labeled Spam and Trash.
   Only individual messages carrying the label are considered; unrelated messages in the same
   conversation are excluded.
 - `From` is the source, not `Reply-To`, `Sender`, or the envelope sender. Display names, comments,
-  folded headers, and multiple valid mailboxes are parsed. Missing, duplicate, malformed, or
-  unsupported headers are reported by message ID and block all writes. Raw headers are not printed.
+  folded headers, and multiple valid mailboxes are parsed. Encountered missing, duplicate,
+  malformed, or unsupported headers are reported by message ID and block all writes. Raw headers
+  are not printed.
   Internationalized local parts that the Python parser reports as defective are unsupported.
 - Comparison ignores case and surrounding whitespace. Gmail dot variants and `+tags` remain
-  distinct. New entries retain the first observed spelling and have no custom label. Existing
-  values, labels, display names, and source-primary choices are retained.
+  distinct. New entries retain the first observed spelling. The display name from the inspected
+  From header becomes the new email's custom label, shown as `address@example.com — Display Name`.
+  Without a display name, or when it matches the email address ignoring case and surrounding
+  whitespace, the address is shown and saved without a custom label. The search does not
+  fetch other messages to look for alternate names. Existing values, labels, display names, and
+  source-primary choices are retained. Saved additions are checked for their proposed labels.
 - The People API is read directly using `getBatchGet`, with contact-only sources and an explicit
   field mask. Profile-only data is not copied. Multiple editable contact sources and
   incomplete/error responses are rejected. Full-list retrieval relies on Google's documented API
@@ -174,10 +196,19 @@ Sources: [contact creation](https://developers.google.com/people/api/rest/v1/peo
   new addresses over 1,024 characters are rejected by parsing. These are estimates, not Google's
   internal storage accounting; the server may reject a smaller contact. Existing oversized contacts
   can still be processed as no-ops.
-- Gmail pagination is not an atomic mailbox snapshot. Messages arriving or being relabeled during a
-  scan may require another run. A deleted message or observed loss of the selected label aborts the
-  scan. Large labels take time: requests are sequential, with one metadata read per message, plus
-  listing and contact requests.
+- Gmail search is not an atomic mailbox snapshot. Messages arriving or being relabeled during a
+  search may require another run. A deleted message or observed loss of the selected label aborts
+  the search. Repeated message IDs or results with no new sender also stop it before any write.
+- Exclusions use quoted full addresses. Unsupported address syntax stops the run instead of being
+  inserted into the search query. A local guard limits the URL-encoded query to 6,000 bytes; this
+  is a conservative CLI limit, not a documented Google maximum. Exceeding it stops before writing.
+  API errors also stop the run; partial discoveries are never applied after a search failure.
+- This relies on Gmail's sender matching, rather than inspecting every header. Excluded messages
+  are not checked for malformed headers or additional authors. The multiple-author case is deferred
+  in [issue #4](https://github.com/stansult/contacts-cli/issues/4). Gmail matching of unusual addresses remains subject to live verification.
+- Requests are sequential: normally one header read and one search per new sender, plus a final
+  empty search and contact/label requests. When most messages have different senders, this can use
+  more requests than the old full scan. Local metrics allow comparisons with the previous baseline.
 - Read requests allow up to three retries. Updates are never automatically retried by the
   application. After an uncertain write or failed verification, inspect the contact and run a new
   preview before deciding whether another apply is needed. No rollback write is attempted.
@@ -202,3 +233,9 @@ Run `make check` for offline tests, lint, formatting, and local documentation li
 GitHub Actions runs both checks on Linux/Python 3.11 and macOS/Python 3.13 for pushes and pull requests.
 `make build` creates wheel and source archives in `dist/`. See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow rules and [docs/testing.md](docs/testing.md) for test contracts
 and validation boundaries.
+
+## Run metrics
+
+Sender sync records local timing, API counts, and scan totals in the ignored
+`.contacts-cli/runs.jsonl`. Run `make metrics` to summarize runs. See [metric definitions and privacy](docs/metrics.md)
+for recorded fields, interrupted runs, storage overrides, and comparison guidance.

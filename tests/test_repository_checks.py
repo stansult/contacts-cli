@@ -7,7 +7,9 @@ import pytest
 from scripts.check_repository import check_archive, check_links
 
 
-@pytest.mark.parametrize("bad_file", ["HANDOFF.md", "credentials.json", ".env", "token.json"])
+@pytest.mark.parametrize(
+    "bad_file", ["HANDOFF.md", "credentials.json", ".env", "token.json", ".contacts-cli/runs.jsonl"]
+)
 def test_archive_rejects_private_files(tmp_path, bad_file):
     archive = tmp_path / "bad.whl"
     with zipfile.ZipFile(archive, "w") as output:
@@ -42,7 +44,16 @@ def test_archive_accepts_valid_runtime_layout(tmp_path, kind):
     import io
     import tarfile
 
-    modules = ("cli.py", "auth.py", "api.py", "core.py", "duplicate.py", "errors.py", "progress.py")
+    modules = (
+        "cli.py",
+        "auth.py",
+        "api.py",
+        "core.py",
+        "duplicate.py",
+        "errors.py",
+        "progress.py",
+        "metrics.py",
+    )
     if kind == "wheel":
         path = tmp_path / "valid.whl"
         with zipfile.ZipFile(path, "w") as archive:

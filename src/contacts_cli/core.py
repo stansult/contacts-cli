@@ -40,7 +40,7 @@ def address_key(value: str) -> str:
     return value.strip().casefold()
 
 
-def parse_from(values: list[str]) -> tuple[str, ...]:
+def parse_from_details(values: list[str]) -> tuple[tuple[str, str], ...]:
     """Reject ambiguous headers instead of accepting a partial parser recovery."""
     if len(values) != 1 or not isinstance(values[0], str):
         raise SyncError("expected exactly one From header")
@@ -60,10 +60,17 @@ def parse_from(values: list[str]) -> tuple[str, ...]:
             result = address.addr_spec
             if len(result) > 1024:
                 raise ValueError
-            addresses.append(result)
+            label = address.display_name.strip()
+            if any(ord(char) < 32 or ord(char) == 127 for char in label):
+                raise ValueError
+            addresses.append((result, label))
         return tuple(addresses)
     except (ValueError, IndexError, AttributeError) as exc:
         raise SyncError("malformed or unsupported From header") from exc
+
+
+def parse_from(values: list[str]) -> tuple[str, ...]:
+    return tuple(address for address, _ in parse_from_details(values))
 
 
 def contact_source(person: dict) -> dict:
@@ -105,6 +112,7 @@ class Scan:
     messages: int
     senders: tuple[str, ...]
     problems: tuple[str, ...] = ()
+    labels: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -124,12 +132,20 @@ def make_plan(person: dict, scan: Scan) -> Plan:
     return Plan(deepcopy(person), scan, additions)
 
 
+def addition_entry(plan: Plan, value: str) -> dict:
+    entry = {"value": value}
+    label = dict(plan.scan.labels).get(address_key(value), "")
+    if label and address_key(label) != address_key(value):
+        entry["type"] = label
+    return entry
+
+
 def update_body(plan: Plan) -> dict:
     """Only replace emailAddresses; retain every existing entry verbatim."""
     if plan.scan.problems:
         raise SyncError("Unparseable messages make this preview incomplete; no update is allowed.")
     emails = deepcopy(plan.person.get("emailAddresses", []))
-    emails.extend({"value": value} for value in plan.additions)
+    emails.extend(addition_entry(plan, value) for value in plan.additions)
     projected = deepcopy(plan.person)
     projected["emailAddresses"] = emails
     # These are conservative local estimates, not Google's internal storage accounting.
@@ -178,6 +194,14 @@ def verify_saved(plan: Plan, saved: dict) -> None:
     saved_keys = {address_key(item["value"]) for item in saved.get("emailAddresses", [])}
     if any(address_key(value) not in saved_keys for value in plan.additions):
         raise SyncError("Some proposed email additions were not found in the saved contact.")
+    for value in plan.additions:
+        expected = addition_entry(plan, value)
+        if "type" in expected and not any(
+            address_key(item["value"]) == address_key(value)
+            and item.get("type") == expected["type"]
+            for item in saved.get("emailAddresses", [])
+        ):
+            raise SyncError("A proposed email label was not preserved in the saved contact.")
     for field in CONTACT_FIELDS.split(","):
         if field not in {"emailAddresses", "metadata"}:
             if _stable(plan.person.get(field, [])) != _stable(saved.get(field, [])):

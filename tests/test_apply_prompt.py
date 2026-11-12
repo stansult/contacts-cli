@@ -41,7 +41,9 @@ def test_apply_consent(
         output = capsys.readouterr()
         assert prompt in output.err
         assert (
-            "Proposed additions: 3" if command == "sender-sync" else "Source contact:"
+            "Proposed additions: 3"
+            if command == "sender-sync"
+            else "Contact: 'name: Example Delivery' (people/c123)"
         ) in output.out
         assert server.writes == 0
         asked.append(True)

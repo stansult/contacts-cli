@@ -50,3 +50,48 @@ def test_fixture_read_mask_and_full_email_list(server):
     person = result["responses"][0]["person"]
     assert len(person["emailAddresses"]) == 150
     assert "phoneNumbers" not in person
+
+
+def test_fixture_search_excludes_addresses_and_honors_one_result(server):
+    from urllib.parse import urlencode
+
+    path = "/gmail/v1/users/me/messages?" + urlencode(
+        {
+            "labelIds": "Label_1",
+            "includeSpamTrash": "true",
+            "maxResults": 1,
+            "q": '-from:"existing@example.com" -from:"NEW@EXAMPLE.COM"',
+        }
+    )
+    _, result = fetch(server, path)
+    assert result["messages"] == [{"id": "m4", "threadId": "t3"}]
+    assert result["nextPageToken"] == "1"
+    _, next_page = fetch(server, path + "&pageToken=1")
+    assert next_page["messages"] == [{"id": "m5", "threadId": "t4"}]
+    assert "nextPageToken" not in next_page
+    _, empty = fetch(server, path.replace("includeSpamTrash=true", "includeSpamTrash=false"))
+    assert empty == {"messages": []}
+
+
+def test_fixture_search_does_not_collapse_plus_or_dot_variants(server):
+    from urllib.parse import urlencode
+
+    variants = ["a.b@example.com", "ab@example.com", "a.b+tag@example.com"]
+    template = deepcopy(server.mailbox["messages"][0])
+    server.mailbox["messages"] = []
+    for index, address in enumerate(variants):
+        message = deepcopy(template)
+        message["id"] = str(index)
+        message["payload"]["headers"][0]["value"] = address
+        server.mailbox["messages"].append(message)
+    _, result = fetch(
+        server,
+        "/gmail/v1/users/me/messages?"
+        + urlencode(
+            {
+                "labelIds": "Label_1",
+                "q": '-from:"a.b@example.com"',
+            }
+        ),
+    )
+    assert [item["id"] for item in result["messages"]] == ["1", "2"]

@@ -20,3 +20,7 @@ check-docs:
 
 check-package:
 	uv run --locked python scripts/check_package.py
+
+.PHONY: metrics
+metrics:
+	uv run --locked python -m contacts_cli.metrics

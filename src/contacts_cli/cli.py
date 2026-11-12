@@ -6,9 +6,10 @@ import sys
 from pathlib import Path
 
 from .auth import authorize, connect, default_credentials_path, default_token_path
-from .core import contact_resource, make_plan, update_body
+from .core import addition_entry, contact_resource, make_plan, update_body
 from .duplicate import READ_FIELDS, make_duplicate_plan, replacement_name
 from .errors import InsufficientScopes, MissingToken, SyncError, WriteUnverified
+from .metrics import ACTIVE, RunMetrics, counts, outcome
 from .progress import ScanProgress
 
 
@@ -86,23 +87,44 @@ def confirm_apply(question: str) -> bool:
         return False
 
 
+def contact_heading(person):
+    for field, key, label in (
+        ("names", "displayName", "name"),
+        ("organizations", "name", "company"),
+    ):
+        for entry in person.get(field, []):
+            value = entry.get(key)
+            if isinstance(value, str) and value.strip():
+                return f"Contact: {f'{label}: {value.strip()}'!r} ({person['resourceName']})"
+    return f"Contact: 'Unnamed' ({person['resourceName']})"
+
+
 def run(args, api) -> int:
     resource = contact_resource(args.contact)
     with ScanProgress() as progress:
         progress("Reading contact")
         person = api.get_contact(resource)
-        scan = api.scan(args.label, progress=progress)
+        progress.finish_line()
+        print(contact_heading(person) + "\n", flush=True)
+
+        def label_found(name):
+            progress.finish_line()
+            print(f"Label: {name!r} (including Spam and Trash)\n", flush=True)
+
+        counts(existing_entries=len(person.get("emailAddresses", [])))
+        scan = api.scan(
+            args.label,
+            existing_emails=[entry["value"] for entry in person.get("emailAddresses", [])],
+            progress=progress,
+            label_found=label_found,
+        )
     plan = make_plan(person, scan)
-    names = person.get("names", [])
-    name = names[0].get("displayName", "Unnamed contact") if names else "Unnamed contact"
-    print(f"Contact: {name!r} ({person['resourceName']})")
-    print(f"Label: {args.label!r} (including Spam and Trash)")
-    print(f"Scanned messages: {scan.messages}")
-    print(f"Unique senders: {len(scan.senders)}")
+    counts(existing_entries=len(person.get("emailAddresses", [])), additions=len(plan.additions))
     print(f"Existing email entries: {len(person.get('emailAddresses', []))}")
-    print(f"Proposed additions: {len(plan.additions)}")
+    print(f"\nProposed additions: {len(plan.additions)}")
     for address in plan.additions:
-        print(f"  + {address}")
+        label = addition_entry(plan, address).get("type")
+        print(f"  + {address}" + (f" — {label}" if label else ""))
     for problem in scan.problems:
         print(f"Warning: {problem}", file=sys.stderr)
     if scan.problems:
@@ -112,23 +134,25 @@ def run(args, api) -> int:
         update_body(plan)
     if not plan.additions:
         print("No additions needed; no update made.")
+        outcome("no_changes")
         return 0
     if args.apply or confirm_apply("Apply these additions?"):
         if api.apply(plan):
             print(f"Saved and verified {len(plan.additions)} additions.")
+            outcome("applied")
         else:
             print("No additions needed; no update made.")
+            outcome("no_changes")
     else:
         print("Preview only; no changes made. Use --apply to save additions.")
+        outcome("preview")
     return 0
 
 
 def run_duplicate(args, api):
     person = api.get_contact(contact_resource(args.contact), READ_FIELDS)
     plan = make_duplicate_plan(person, api.people._rootDesc["schemas"], args.name)
-    names = person.get("names", [])
-    name = names[0].get("displayName", "Unnamed contact") if names else "Unnamed contact"
-    print(f"Source contact: {name!r} ({person['resourceName']})")
+    print(contact_heading(person))
     if args.name is not None:
         print(f"Replacement name: {args.name!r}")
     for field, values in plan.body.items():
@@ -187,6 +211,20 @@ def connect_with_authorization(token: Path, timeout_seconds: int = 300):
 def main(argv=None) -> int:
     arguments = parser()
     args = arguments.parse_args(argv)
+    if args.command != "sender-sync":
+        return run_command(args)
+    metrics = RunMetrics()
+    token = ACTIVE.set(metrics)
+    result = 1
+    try:
+        result = run_command(args)
+        return result
+    finally:
+        ACTIVE.reset(token)
+        metrics.finish(result)
+
+
+def run_command(args):
     api = None
     try:
         if args.command == "authorize":

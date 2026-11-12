@@ -25,13 +25,24 @@ class ScanProgress:
             print(file=self.stream, flush=True)
             self.width = 0
 
-    def __call__(self, stage, processed=0, senders=0, problems=0):
+    def __call__(self, stage, processed=0, senders=0, problems=0, *, force=False):
+        if stage == "Search finished":
+            self("Searching senders", processed, senders, problems, force=True)
+            self.finish_line()
+            print("Search finished.", file=self.stream, flush=True)
+            self.last_stage = stage
+            return
         now = self.clock()
         changed = stage != self.last_stage
-        if not changed and self.last_time is not None and now - self.last_time < self.interval:
+        if (
+            not force
+            and not changed
+            and self.last_time is not None
+            and now - self.last_time < self.interval
+        ):
             return
-        if stage in {"Scanning messages", "Scan finished"}:
-            message = f"{stage}: {processed} processed, {senders} unique senders"
+        if stage in {"Searching senders", "Search finished", "Search stopped"}:
+            message = f"{stage}: {processed} inspected, {senders} new senders"
             if problems:
                 message += f", {problems} invalid headers"
         else:

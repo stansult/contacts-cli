@@ -16,7 +16,8 @@ Pytest disables network sockets globally; tests must never use real credentials 
 | --- | --- |
 | `test_fixture_contract.py` | Fixture filtering, pagination, read masks, replacement semantics, etags, and full email lists |
 | `test_core.py` | Parsing, deduplication, identifiers, preservation, limits, and saved-state verification |
-| `test_sync.py` | CLI preview/apply, real Google client request construction, multiple pages, conflicts, error outcomes, and reruns |
+| `test_search.py` | One-result searches, exclusions, request counts, query limits, malformed responses, and no-progress guards |
+| `test_sync.py` | CLI preview/apply, real Google client request construction, sender exclusions, conflicts, error outcomes, and reruns |
 | `test_cli.py` | Subcommand routing, required options, rejected legacy/mixed options, token forwarding, authorization defaults, and missing-token consent/resumption |
 | `test_duplicate.py` | Copy fixture identity/storage, all editable field families, full email lists, preview/apply, optional name, source changes, photo handling, partial outcomes, and independent verification |
 | `test_progress.py` | Status before API requests, real scan counters, invalid/empty scans, throttled terminal/redirected output, and clean error/interruption endings |
@@ -44,7 +45,7 @@ Otherwise introduce one temporary fault at a time and run the targeted test:
 | Temporary fault | Expected detection |
 | --- | --- |
 | Bypass the CLI apply switch | Preview test detects a contact write |
-| Stop after the first message page | Preview count and additions are incomplete |
+| Stop after the first sender search | Preview additions are incomplete |
 | Drop existing emails from the update body | Preservation assertion fails |
 | Supply the wrong source etag | Update is rejected; successful-apply assertion fails |
 | Skip verification of added emails | Lost-additions scenario incorrectly reports success |
@@ -113,5 +114,50 @@ contact correctness. Live account tests remain separate and require explicit aut
 Progress reporting tracks [issue #3](https://github.com/stansult/contacts-cli/issues/3). Regression tests first failed because no status was
 emitted before the contact request. Timing tests use an injected clock; no sleeps or live calls
 are required. The scan callback also runs against the independently tested Google transport
-fixture to check actual processed-message and invalid-header counts. This feature does not
-implement the search optimization tracked in [issue #2](https://github.com/stansult/contacts-cli/issues/2).
+fixture to check actual inspected-message and invalid-header counts. Sender-search optimization
+is tracked in [issue #2](https://github.com/stansult/contacts-cli/issues/2).
+
+## Metrics
+
+`test_metrics.py` checks the [metrics contract](metrics.md): real discovery-client call counts,
+partial runs, outcomes, private-data exclusion, storage failures, and summary grouping. Retry
+measurement uses a synthetic HTTP transport with independently checked attempts and disabled
+backoff sleeps. Tests redirect logs into temporary directories; they never record real runs.
+
+## Sender-search regression coverage
+
+`test_search.py` verifies one-result searches, existing/discovered exclusions, reduced request
+counts for repeated senders, and safe failure on incomplete responses, repeated results, unsupported
+addresses, and query limits. The 1,000-message/two-new-sender test first failed against the old
+scan with 1,000 header reads, then passed with two reads and three searches. This measures request
+volume in a synthetic fixture, not live latency. All-unique senders can require more requests.
+A temporary fault disabling accumulated exclusions caused a repeated result and failed the
+regression; restoring the exclusions passed.
+
+The fixture independently tests one-result limits, exclusions, case-insensitive address matching,
+Spam/Trash, and preservation of dot/plus distinctions. Its exact address matching is a deliberately
+limited model, not evidence of Gmail's live matching semantics. Google documents the
+[search query and label combination](https://developers.google.com/workspace/gmail/api/guides/filtering)
+and [list limits](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/list).
+Multiple-author search behavior is deferred to [issue #4](https://github.com/stansult/contacts-cli/issues/4).
+Do not close #2 until separately authorized live validation is recorded.
+
+## Sectioned output and sender labels
+
+`test_sender_labels.py` verifies ordered contact/label/search/additions sections and the forced final
+counter for both terminal and redirected streams. The counter and label-preview regressions failed
+against the previous implementation. New From display names populate the People email `type` field;
+encoded names and missing names are covered. The fake transport's custom-label persistence is tested
+independently. Both the update response and independent read must preserve the proposed label:
+temporarily disabling that verification caused both lost-label regressions to fail, and restoring
+it passed. Live Google normalization and UI display remain separately unverified.
+
+## Own sending identities and redundant output
+
+`test_own_addresses.py` verifies primary/alias exclusions in queries and saved data, parser-side
+protection when search exclusions are ignored, and safe failure on missing/malformed send-as data
+or access denial. Its send-as fixture uses synthetic inputs in `tests/fixtures/send-as.json` and is
+contract-tested independently. Before implementation, regressions demonstrated own addresses being
+added and redundant email labels being saved. The updated behavior omits labels matching their
+address case-insensitively and removes the two repeated summary count lines. No live account
+queries are part of these tests.

@@ -86,7 +86,7 @@ def test_scope_upgrade_prompt(old_token, api, monkeypatch, capsys, answer):
             auth.default_credentials_path(), old_token, open_browser=True, timeout_seconds=5
         )
         assert "Authorization succeeded." in output.out
-        assert "Scanned messages: 5" in output.out
+        assert "Searching senders: 3 inspected, 3 new senders" in output.err
     else:
         authorize.assert_not_called()
     assert old_token.read_bytes() == original

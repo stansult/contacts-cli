@@ -210,3 +210,28 @@ def test_auth_timeout_rejects_invalid_values(monkeypatch, value):
         cli.main(["authorize", "--auth-timeout", value])
     assert exc.value.code == 2
     authorize.assert_not_called()
+
+
+@pytest.mark.parametrize("command", ["sender-sync", "duplicate"])
+@pytest.mark.parametrize(
+    "display_name,company,expected",
+    [
+        ("Jane", "Example Company", "name: Jane"),
+        (None, "Example Company", "company: Example Company"),
+        ("  ", "Example Company", "company: Example Company"),
+        (None, None, "Unnamed"),
+        ("", "  ", "Unnamed"),
+    ],
+)
+def test_contact_heading_name_precedes_company(
+    api, server, monkeypatch, capsys, command, display_name, company, expected
+):
+    server.person["names"] = [] if display_name is None else [{"displayName": display_name}]
+    server.person["organizations"] = [] if company is None else [{"name": company}]
+    monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: api)
+    args = [command, "--contact", "people/c123"]
+    if command == "sender-sync":
+        args += ["--label", "Example/Delivery"]
+    assert cli.main(args) == 0
+    assert capsys.readouterr().out.splitlines()[0] == f"Contact: {expected!r} (people/c123)"
+    assert server.writes == 0

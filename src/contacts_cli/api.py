@@ -2,6 +2,8 @@
 
 import base64
 import json
+import re
+from urllib.parse import quote
 
 from google.auth.exceptions import GoogleAuthError
 from googleapiclient.errors import HttpError
@@ -13,19 +15,42 @@ from .core import (
     Scan,
     address_key,
     contact_source,
-    parse_from,
+    parse_from_details,
     update_body,
     validate_contact,
     verify_saved,
 )
 from .duplicate import READ_FIELDS, download_photo, verify_duplicate
 from .errors import SyncError, WriteUnverified
+from .metrics import ACTIVE, counts, execute_measured
+
+# Conservative application guard, not a claimed Gmail server limit.
+MAX_QUERY_BYTES = 6000
+
+
+def exclusion_query(addresses):
+    terms = []
+    for address in sorted(addresses):
+        # Restrict to common addr-spec syntax; never interpolate search operators,
+        # quotes, backslashes, display names, or controls from contact/header data.
+        if not re.fullmatch(r"[a-z0-9_%+-]+(?:\.[a-z0-9_%+-]+)*@[a-z0-9][a-z0-9.-]*", address):
+            raise SyncError(
+                "An email address has unsupported syntax for safe sender exclusion; "
+                "no changes made."
+            )
+        terms.append(f'-from:"{address}"')
+    query = " ".join(terms)
+    if len(quote(query, safe="")) > MAX_QUERY_BYTES:
+        raise SyncError(
+            "Sender exclusion query exceeds the local 6,000-byte limit; no changes made."
+        )
+    return query
 
 
 def execute(request, *, write: bool = False, operation: str = "update"):
     try:
         # Never retry a mutation whose outcome may be unknown.
-        return request.execute(num_retries=0 if write else 3)
+        return execute_measured(request, num_retries=0 if write else 3)
     except HttpError as exc:
         status = exc.resp.status
         if write and status >= 500:
@@ -60,61 +85,142 @@ class GoogleAPI:
         self.write_started = True
         return execute(request, write=True, operation=operation)
 
-    def scan(self, label_name: str, *, progress=None) -> Scan:
+    def sending_addresses(self):
+        response = execute(
+            self.gmail.users()
+            .settings()
+            .sendAs()
+            .list(userId="me", fields="sendAs(sendAsEmail,isPrimary)")
+        )
+        aliases = response.get("sendAs") if isinstance(response, dict) else None
+        if (
+            not isinstance(aliases, list)
+            or not aliases
+            or any(not isinstance(alias, dict) for alias in aliases)
+            or sum(alias.get("isPrimary") is True for alias in aliases) != 1
+        ):
+            raise SyncError("Incomplete Gmail sending-address list; no changes made.")
+        addresses = set()
+        for alias in aliases:
+            address = alias.get("sendAsEmail")
+            if not isinstance(address, str) or not address.strip():
+                raise SyncError("Incomplete Gmail sending-address list; no changes made.")
+            addresses.add(address_key(address))
+        exclusion_query(addresses)
+        return addresses
+
+    def scan(self, label_name: str, *, existing_emails=(), progress=None, label_found=None) -> Scan:
         def report(stage, processed=0, senders=0, problems=0):
+            if stage in {"Searching senders", "Search finished", "Search stopped"}:
+                counts(messages=processed, senders=senders, invalid_headers=problems)
+            if stage == "Search finished" and ACTIVE.get() is not None:
+                ACTIVE.get().record["scan_complete"] = True
             if progress is not None:
                 progress(stage, processed, senders, problems)
 
+        excluded = {address_key(address) for address in existing_emails}
+        query = exclusion_query(excluded)
+        report("Reading sending addresses")
+        excluded.update(self.sending_addresses())
+        query = exclusion_query(excluded)
         report("Finding label")
         response = execute(self.gmail.users().labels().list(userId="me"))
-        matches = [label for label in response.get("labels", []) if label.get("name") == label_name]
-        if len(matches) != 1 or not matches[0].get("id"):
+        if not isinstance(response, dict) or not isinstance(response.get("labels", []), list):
+            raise SyncError("Incomplete Gmail label response; search aborted.")
+        labels = response.get("labels", [])
+        if any(not isinstance(label, dict) for label in labels):
+            raise SyncError("Incomplete Gmail label response; search aborted.")
+        matches = [label for label in labels if label.get("name") == label_name]
+        if len(matches) != 1 or not isinstance(matches[0].get("id"), str) or not matches[0]["id"]:
             raise SyncError("Label name must match exactly one existing Gmail label.")
         label_id = matches[0]["id"]
+        if label_found is not None:
+            label_found(label_name)
         messages = self.gmail.users().messages()
-        seen_ids, seen_tokens = set(), set()
-        senders, problems = {}, []
-        page_token = None
+        seen_ids, senders = set(), {}
+        labels = {}
         processed = 0
-        report("Scanning messages")
+        report("Searching senders")
         while True:
-            kwargs = dict(userId="me", labelIds=[label_id], includeSpamTrash=True, maxResults=500)
-            if page_token:
-                kwargs["pageToken"] = page_token
-            page = execute(messages.list(**kwargs))
-            for item in page.get("messages", []):
-                message_id = item.get("id")
-                if not message_id:
-                    raise SyncError("Gmail returned a message without an ID; scan aborted.")
-                if message_id in seen_ids:
-                    continue
-                seen_ids.add(message_id)
-                message = execute(
-                    messages.get(
-                        userId="me", id=message_id, format="metadata", metadataHeaders=["From"]
-                    )
+            page = execute(
+                messages.list(
+                    userId="me", labelIds=[label_id], includeSpamTrash=True, maxResults=1, q=query
                 )
-                if message.get("id") != message_id or label_id not in message.get("labelIds", []):
-                    raise SyncError(
-                        "A message changed or lost its label during the scan; rerun preview."
-                    )
-                headers = message.get("payload", {}).get("headers", [])
-                values = [h.get("value") for h in headers if h.get("name", "").lower() == "from"]
-                try:
-                    for sender in parse_from(values):
-                        senders.setdefault(address_key(sender), sender)
-                except SyncError as exc:
-                    problems.append(f"Message {message_id}: {exc}")
-                processed += 1
-                report("Scanning messages", processed, len(senders), len(problems))
-            page_token = page.get("nextPageToken")
-            if not page_token:
+            )
+            if not isinstance(page, dict):
+                raise SyncError("Incomplete Gmail search response; no changes made.")
+            items = page.get("messages", [])
+            if not isinstance(items, list) or len(items) > 1:
+                raise SyncError("Unexpected Gmail search results; no changes made.")
+            if not items:
+                if page.get("nextPageToken"):
+                    raise SyncError("Empty Gmail search page has more results; no changes made.")
                 break
-            if page_token in seen_tokens:
-                raise SyncError("Gmail repeated a pagination token; scan aborted.")
-            seen_tokens.add(page_token)
-        report("Scan finished", processed, len(senders), len(problems))
-        return Scan(len(seen_ids), tuple(senders[key] for key in sorted(senders)), tuple(problems))
+            item = items[0]
+            message_id = item.get("id") if isinstance(item, dict) else None
+            if not isinstance(message_id, str) or not message_id:
+                raise SyncError("Gmail returned a message without an ID; search aborted.")
+            if message_id in seen_ids:
+                raise SyncError(
+                    "Gmail repeated a message despite sender exclusions; no changes made."
+                )
+            seen_ids.add(message_id)
+            message = execute(
+                messages.get(
+                    userId="me", id=message_id, format="metadata", metadataHeaders=["From"]
+                )
+            )
+            if (
+                not isinstance(message, dict)
+                or message.get("id") != message_id
+                or not isinstance(message.get("labelIds"), list)
+                or label_id not in message["labelIds"]
+            ):
+                raise SyncError(
+                    "A message changed or lost its label during the search; rerun preview."
+                )
+            payload = message.get("payload")
+            headers = payload.get("headers") if isinstance(payload, dict) else None
+            processed += 1
+            try:
+                if not isinstance(headers, list) or any(not isinstance(h, dict) for h in headers):
+                    raise SyncError("incomplete From header metadata")
+                values = [
+                    h.get("value") for h in headers if str(h.get("name", "")).lower() == "from"
+                ]
+                addresses = parse_from_details(values)
+            except SyncError as exc:
+                report("Search stopped", processed, len(senders), 1)
+                return Scan(
+                    processed,
+                    tuple(senders[key] for key in sorted(senders)),
+                    (f"Message {message_id}: {exc}",),
+                    tuple(sorted(labels.items())),
+                )
+            new = {
+                address_key(address): address
+                for address, label in reversed(addresses)
+                if address_key(address) not in excluded
+            }
+            if not new:
+                report("Search stopped", processed, len(senders))
+                raise SyncError(
+                    "Gmail search returned no new sender despite exclusions; no changes made."
+                )
+            for address, label in addresses:
+                key = address_key(address)
+                if key in new:
+                    labels.setdefault(key, label)
+            senders.update(new)
+            excluded.update(new)
+            report("Searching senders", processed, len(senders))
+            query = exclusion_query(excluded)
+        report("Search finished", processed, len(senders))
+        return Scan(
+            processed,
+            tuple(senders[key] for key in sorted(senders)),
+            labels=tuple(sorted(labels.items())),
+        )
 
     def get_contact(self, resource: str, fields: str = CONTACT_FIELDS) -> dict:
         batch = execute(
