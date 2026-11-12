@@ -46,7 +46,15 @@ def check_archive(path):
                 or lower.endswith((".pem", ".key", ".local.json", ".local.toml"))
             ):
                 raise ValueError(f"{path.name}: forbidden packaged file {name}")
-    for module in ("cli.py", "auth.py", "api.py", "core.py", "duplicate.py", "errors.py"):
+    for module in (
+        "cli.py",
+        "auth.py",
+        "api.py",
+        "core.py",
+        "duplicate.py",
+        "errors.py",
+        "progress.py",
+    ):
         if not any(PurePosixPath(name).parts[-2:] == ("contacts_cli", module) for name in names):
             raise ValueError(f"{path.name}: missing module {module}")
 

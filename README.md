@@ -71,6 +71,13 @@ The command shows a preview first:
 The contact may also be given as `people/c123456789`. Output identifies the contact and label,
 counts scanned messages, unique senders and existing email entries, and lists additions.
 
+Progress appears automatically on stderr: reading the contact, finding the label, then messages
+processed and unique senders found. In a terminal, the scan counter updates in place at most once
+per second; redirected output uses separate lines at most once every ten seconds. Stage changes
+and final counts appear immediately. Updates occur as requests finish; there is no estimated total
+or percentage. Invalid From headers are counted when encountered and detailed in the final preview.
+The complete preview stays on stdout. This progress display does not change scanning speed.
+
 In an interactive terminal, the preview is followed by `Apply these additions? [y/N]`.
 Answer `y` or `yes` to save; Enter, `n`, or any other answer leaves the contact unchanged.
 No prompt appears when there are no additions.

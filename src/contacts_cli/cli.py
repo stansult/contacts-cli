@@ -9,6 +9,7 @@ from .auth import authorize, connect, default_credentials_path, default_token_pa
 from .core import contact_resource, make_plan, update_body
 from .duplicate import READ_FIELDS, make_duplicate_plan, replacement_name
 from .errors import InsufficientScopes, MissingToken, SyncError, WriteUnverified
+from .progress import ScanProgress
 
 
 def positive_seconds(value: str) -> int:
@@ -87,8 +88,10 @@ def confirm_apply(question: str) -> bool:
 
 def run(args, api) -> int:
     resource = contact_resource(args.contact)
-    person = api.get_contact(resource)
-    scan = api.scan(args.label)
+    with ScanProgress() as progress:
+        progress("Reading contact")
+        person = api.get_contact(resource)
+        scan = api.scan(args.label, progress=progress)
     plan = make_plan(person, scan)
     names = person.get("names", [])
     name = names[0].get("displayName", "Unnamed contact") if names else "Unnamed contact"

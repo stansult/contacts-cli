@@ -42,7 +42,7 @@ def test_archive_accepts_valid_runtime_layout(tmp_path, kind):
     import io
     import tarfile
 
-    modules = ("cli.py", "auth.py", "api.py", "core.py", "duplicate.py", "errors.py")
+    modules = ("cli.py", "auth.py", "api.py", "core.py", "duplicate.py", "errors.py", "progress.py")
     if kind == "wheel":
         path = tmp_path / "valid.whl"
         with zipfile.ZipFile(path, "w") as archive:

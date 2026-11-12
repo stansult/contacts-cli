@@ -19,6 +19,7 @@ Pytest disables network sockets globally; tests must never use real credentials 
 | `test_sync.py` | CLI preview/apply, real Google client request construction, multiple pages, conflicts, error outcomes, and reruns |
 | `test_cli.py` | Subcommand routing, required options, rejected legacy/mixed options, token forwarding, authorization defaults, and missing-token consent/resumption |
 | `test_duplicate.py` | Copy fixture identity/storage, all editable field families, full email lists, preview/apply, optional name, source changes, photo handling, partial outcomes, and independent verification |
+| `test_progress.py` | Status before API requests, real scan counters, invalid/empty scans, throttled terminal/redirected output, and clean error/interruption endings |
 | `test_interrupt.py` | Ctrl+C during connection, scanning, consent, pre-write reads, writes, and post-write verification |
 | `test_apply_prompt.py` | Preview before consent, yes/no/empty/EOF handling, redirected streams, explicit apply bypass, and no-addition runs |
 | `test_installed_cli.py` | Real entry point help, missing/malformed client and token files, wrong client type, incomplete credentials, missing scopes, and subprocess guard contracts |
@@ -108,3 +109,9 @@ attempts are rejected. The suite requires the guard's ready marker and no attemp
 Existing unit tests cover simulated OAuth denial, timeout, missing scopes, and refresh failures.
 CI does not establish live Google consent behavior, account permissions, server normalization, or
 contact correctness. Live account tests remain separate and require explicit authorization.
+
+Progress reporting tracks [issue #3](https://github.com/stansult/contacts-cli/issues/3). Regression tests first failed because no status was
+emitted before the contact request. Timing tests use an injected clock; no sleeps or live calls
+are required. The scan callback also runs against the independently tested Google transport
+fixture to check actual processed-message and invalid-header counts. This feature does not
+implement the search optimization tracked in [issue #2](https://github.com/stansult/contacts-cli/issues/2).

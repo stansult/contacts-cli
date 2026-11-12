@@ -60,7 +60,12 @@ class GoogleAPI:
         self.write_started = True
         return execute(request, write=True, operation=operation)
 
-    def scan(self, label_name: str) -> Scan:
+    def scan(self, label_name: str, *, progress=None) -> Scan:
+        def report(stage, processed=0, senders=0, problems=0):
+            if progress is not None:
+                progress(stage, processed, senders, problems)
+
+        report("Finding label")
         response = execute(self.gmail.users().labels().list(userId="me"))
         matches = [label for label in response.get("labels", []) if label.get("name") == label_name]
         if len(matches) != 1 or not matches[0].get("id"):
@@ -70,6 +75,8 @@ class GoogleAPI:
         seen_ids, seen_tokens = set(), set()
         senders, problems = {}, []
         page_token = None
+        processed = 0
+        report("Scanning messages")
         while True:
             kwargs = dict(userId="me", labelIds=[label_id], includeSpamTrash=True, maxResults=500)
             if page_token:
@@ -98,12 +105,15 @@ class GoogleAPI:
                         senders.setdefault(address_key(sender), sender)
                 except SyncError as exc:
                     problems.append(f"Message {message_id}: {exc}")
+                processed += 1
+                report("Scanning messages", processed, len(senders), len(problems))
             page_token = page.get("nextPageToken")
             if not page_token:
                 break
             if page_token in seen_tokens:
                 raise SyncError("Gmail repeated a pagination token; scan aborted.")
             seen_tokens.add(page_token)
+        report("Scan finished", processed, len(senders), len(problems))
         return Scan(len(seen_ids), tuple(senders[key] for key in sorted(senders)), tuple(problems))
 
     def get_contact(self, resource: str, fields: str = CONTACT_FIELDS) -> dict:
