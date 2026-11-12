@@ -207,4 +207,3 @@ Exit codes:
 | `2` | Invalid command-line arguments |
 | `3` | Write may have occurred or was submitted, but was not verified |
 | `130` | Interrupted; the message states whether a contact write had started |
-
