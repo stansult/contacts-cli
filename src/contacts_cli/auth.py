@@ -16,10 +16,10 @@ from oauthlib.oauth2 import OAuth2Error
 from requests.exceptions import RequestException
 
 from .api import GoogleAPI
-from .errors import MissingToken, SyncError
+from .errors import InsufficientScopes, MissingToken, SyncError
 
 SCOPES = (
-    "https://www.googleapis.com/auth/gmail.metadata",
+    "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/contacts",
 )
 
@@ -107,7 +107,10 @@ def load_credentials(token_path: Path) -> Credentials:
         # Do not pass scopes here: that could mask missing scopes in the saved token.
         credentials = Credentials.from_authorized_user_file(str(token_path))
         if not credentials.has_scopes(SCOPES):
-            raise SyncError("Saved token lacks required scopes; repeat explicit authorization.")
+            raise InsufficientScopes(
+                "Saved token lacks required scopes. This CLI requires gmail.readonly for sender "
+                "search and contacts access. Reauthorization is required."
+            )
         if not credentials.valid:
             if not credentials.refresh_token:
                 raise SyncError("No refresh token available; repeat explicit authorization.")

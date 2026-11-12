@@ -8,7 +8,7 @@ from pathlib import Path
 from .auth import authorize, connect, default_credentials_path, default_token_path
 from .core import contact_resource, make_plan, update_body
 from .duplicate import READ_FIELDS, make_duplicate_plan, replacement_name
-from .errors import MissingToken, SyncError, WriteUnverified
+from .errors import InsufficientScopes, MissingToken, SyncError, WriteUnverified
 
 
 def positive_seconds(value: str) -> int:
@@ -142,13 +142,20 @@ def run_duplicate(args, api):
 def connect_with_authorization(token: Path, timeout_seconds: int = 300):
     try:
         return connect(token)
-    except MissingToken:
+    except (MissingToken, InsufficientScopes) as exc:
+        reauthorize = isinstance(exc, InsufficientScopes)
+        reason = (
+            f"{exc}\nGmail read-only permission allows reading message bodies; "
+            "this CLI requests only headers and labels."
+            if reauthorize
+            else "You're not authorized: no token file was found."
+        )
         token_option = f" --token {shlex.quote(str(token))}"
         command = f"./contacts-cli authorize{token_option}"
         if timeout_seconds != 300:
             command += f" --auth-timeout {timeout_seconds}"
         print(
-            "You're not authorized: no token file was found.\n\n"
+            f"{reason}\n\n"
             "Options:\n"
             f"  - Authorize in your browser: {command}\n"
             f"    Requires the Desktop OAuth client file at {default_credentials_path()}.\n"
@@ -158,7 +165,8 @@ def connect_with_authorization(token: Path, timeout_seconds: int = 300):
         )
         if not (sys.stdin.isatty() and sys.stderr.isatty()):
             return None
-        print("\nAuthorize now in your browser? [y/N] ", end="", file=sys.stderr, flush=True)
+        action = "Reauthorize" if reauthorize else "Authorize"
+        print(f"\n{action} now in your browser? [y/N] ", end="", file=sys.stderr, flush=True)
         try:
             answer = input().strip().casefold()
         except EOFError:
@@ -206,12 +214,12 @@ def main(argv=None) -> int:
     except KeyboardInterrupt:
         if api is not None and api.write_started:
             print(
-                "Interrupted. A contact write was started; "
+                "\nInterrupted. A contact write was started; "
                 "inspect Google Contacts before retrying.",
                 file=sys.stderr,
             )
         else:
-            print("Interrupted; no contact changes made.", file=sys.stderr)
+            print("\nInterrupted; no contact changes made.", file=sys.stderr)
         return 130
 
 

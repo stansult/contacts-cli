@@ -34,7 +34,7 @@ If setup is already complete, edit the settings in [Branding](https://console.cl
    and paste the following scopes, one per line:
 
    ```text
-   https://www.googleapis.com/auth/gmail.metadata
+   https://www.googleapis.com/auth/gmail.readonly
    https://www.googleapis.com/auth/contacts
    ```
 
@@ -107,11 +107,12 @@ with your own values.
 
 ## Permissions, tokens, and repeat authorization
 
-The requested scopes are `gmail.metadata` and `contacts` (with Google's
-`https://www.googleapis.com/auth/` prefix). Gmail access covers headers and labels, not message
-bodies or mail changes. Contacts permission allows writes across the account; Google does not offer
-a scope restricted to the selected contact. The CLI writes contacts only after interactive confirmation or when
-`--apply` is present.
+The requested scopes are `gmail.readonly` and `contacts` (with Google's
+`https://www.googleapis.com/auth/` prefix). Gmail read-only access permits reading messages,
+including bodies, but no mail changes. The CLI requests only headers and labels; sender search
+requires this permission. Contacts permission
+allows writes across the account; Google does not offer a scope restricted to the selected contact.
+The CLI writes contacts only after interactive confirmation or when `--apply` is present.
 
 See Google's [desktop OAuth setup](https://developers.google.com/identity/protocols/oauth2/native-app) and [Gmail scope descriptions](https://developers.google.com/workspace/gmail/api/auth/scopes).
 
@@ -136,3 +137,20 @@ use the listed standalone `authorize` commands and rerun sender-sync. Invalid or
 still require explicit authorization; other errors do not trigger the missing-token prompt. Google
 documents that external apps in Testing mode generally receive refresh tokens valid for seven days
 with these scopes; see [token expiration](https://developers.google.com/identity/protocols/oauth2#expiration).
+
+## Upgrading an existing authorization
+
+If you previously authorized `gmail.metadata`, update [Data Access](https://console.cloud.google.com/auth/scopes) to include
+`https://www.googleapis.com/auth/gmail.readonly` alongside the contacts scope, using **Add or Remove
+Scopes → Manually add scopes → Add to table → Update → Save**. The Desktop client file stays the same.
+
+The CLI checks saved permissions before refreshing or making API requests. If permissions are
+insufficient, it explains the new Gmail permission, lists authorization options, and asks
+`Reauthorize now in your browser? [y/N]` in an interactive terminal. Answer `y` or `yes` to authorize
+and resume the original command. Enter, `n`, or end-of-input exits without changing contacts or the
+existing token. Noninteractive runs print the authorization command and exit without prompting.
+
+A successful authorization replaces the saved token only after checking the required scopes and
+refresh token. A denied, timed-out, or incomplete authorization leaves the existing token intact.
+Alternatively, run `./contacts-cli authorize` explicitly. Other token errors do not trigger this
+permission-upgrade prompt.

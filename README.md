@@ -52,7 +52,11 @@ Configure Google API access and authorize the CLI to use your account.
 3. Download a Desktop app client file to `~/.config/contacts-cli/credentials.json`.
 4. Run `./contacts-cli authorize` and complete browser sign-in.
 
-See [detailed Google setup instructions](docs/google-setup.md).
+See [detailed Google setup instructions](docs/google-setup.md). Existing `gmail.metadata` authorizations need upgrading to
+`gmail.readonly`; the CLI detects insufficient permissions and offers browser reauthorization.
+See [upgrading an existing authorization](docs/google-setup.md#upgrading-an-existing-authorization).
+The new permission permits reading message bodies, although this CLI continues to request only
+headers and labels. This authorization update does not yet change the scanning algorithm.
 
 ## Sender-sync preview and apply
 

@@ -23,6 +23,7 @@ Pytest disables network sockets globally; tests must never use real credentials 
 | `test_apply_prompt.py` | Preview before consent, yes/no/empty/EOF handling, redirected streams, explicit apply bypass, and no-addition runs |
 | `test_installed_cli.py` | Real entry point help, missing/malformed client and token files, wrong client type, incomplete credentials, missing scopes, and subprocess guard contracts |
 | `test_repository_checks.py` | Rejection of private archive files, missing runtime modules, and broken local links/headings |
+| `test_reauthorization.py` | Old-scope detection before refresh, consent/decline/EOF, noninteractive guidance, scope requests, and existing-token preservation |
 | `test_auth.py` | Explicit OAuth setup, browser opt-out, token paths/permissions, refresh, and denied consent |
 
 Synthetic contact and message inputs live in [tests/fixtures](../tests/fixtures). [FakeGoogle](../tests/fake_google.py) is an in-memory HTTP

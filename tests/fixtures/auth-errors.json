@@ -6,5 +6,6 @@
   {"case": "missing-token", "command": "sender-sync", "file": "token", "content": null, "message": "You're not authorized"},
   {"case": "malformed-token", "command": "sender-sync", "file": "token", "content": "{broken json", "message": "Token could not be loaded"},
   {"case": "incomplete-token", "command": "duplicate", "file": "token", "content": "{}", "message": "Token could not be loaded"},
-  {"case": "missing-scopes", "command": "duplicate", "file": "token", "content": "{\"client_id\": \"synthetic\", \"client_secret\": \"synthetic\", \"refresh_token\": \"synthetic\", \"scopes\": []}", "message": "Saved token lacks required scopes"}
+  {"case": "missing-scopes", "command": "duplicate", "file": "token", "content": "{\"client_id\": \"synthetic\", \"client_secret\": \"synthetic\", \"refresh_token\": \"synthetic\", \"scopes\": []}", "message": "Saved token lacks required scopes"},
+  {"case": "old-metadata-scope", "command": "sender-sync", "file": "token", "content": "{\"client_id\": \"synthetic\", \"client_secret\": \"synthetic\", \"refresh_token\": \"synthetic\", \"scopes\": [\"https://www.googleapis.com/auth/gmail.metadata\", \"https://www.googleapis.com/auth/contacts\"], \"expiry\": \"2000-01-01T00:00:00Z\"}", "message": "gmail.readonly"}
 ]
