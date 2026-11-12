@@ -2,7 +2,8 @@
 
 ## Project contract
 
-[README.md](README.md) defines behavior. Verify relevant official API contracts before changing scopes,
+[README.md](README.md) covers usage; the [command reference](docs/command-reference.md) defines
+detailed behavior. Verify relevant official API contracts before changing scopes,
 pagination, field masks, limits, or contact update semantics. Keep user-facing documentation
 synchronized with the implementation.
 
@@ -30,11 +31,13 @@ git diff --check
 `make check` runs Ruff lint and formatting checks plus the complete pytest suite with network
 sockets disabled, plus local documentation link checks. `make check-package` verifies fresh archives
 and a clean wheel installation. `make format` formats Python files. Update `uv.lock` with `uv lock` when
-dependencies change. Build output belongs in ignored `dist/`.
+dependencies change. `make build` creates wheel and source archives in ignored `dist/`.
+GitHub Actions runs both checks on Linux/Python 3.11 and macOS/Python 3.13 for pushes and pull
+requests.
 
-Before adding or changing tests, establish expected behavior from the README and API references.
-Verify supporting fixtures independently. For important regression coverage, run the test against
-the unfixed implementation or a narrow reversible fault, confirm the intended assertion fails,
+Before adding or changing tests, establish expected behavior from the README, command reference,
+and API references. Verify supporting fixtures independently. For important regression coverage,
+run the test against the unfixed implementation or a narrow reversible fault, confirm the intended assertion fails,
 restore the implementation, and confirm it passes. See [testing guidance](docs/testing.md). Diagnose unexpected
 failures from actual inputs and outputs before changing assertions or product behavior.
 

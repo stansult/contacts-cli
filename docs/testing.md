@@ -2,7 +2,8 @@
 
 ## Sources of truth
 
-The [README](../README.md) defines the product contract. API-specific expectations come from Google's
+The [README](../README.md) and [command reference](command-reference.md) define the product contract.
+API-specific expectations come from Google's
 [Gmail list](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/list), [Gmail metadata](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/get), [People batch retrieval](https://developers.google.com/people/api/rest/v1/people/getBatchGet), and [contact update](https://developers.google.com/people/api/rest/v1/people/updateContact) documentation. The
 client library's bundled discovery schemas validate request construction.
 
