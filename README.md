@@ -75,8 +75,18 @@ rejects client and token paths inside a Git worktree, including resolved symlink
 Keep downloaded clients, tokens, and backups outside Git. Never paste their contents
 into issues or logs. Repository ignore rules are an additional safeguard, not secret detection.
 
-Ordinary runs refresh saved credentials without a browser. Missing, revoked, or expired
-refresh tokens require repeating explicit authorization. Google documents that external
+Ordinary runs refresh saved credentials without a browser. If the token file is missing,
+`sender-sync` lists authorization options. In an interactive terminal it asks
+`Authorize now in your browser? [y/N]`. Only `y` or `yes` starts authorization with the
+default client file; on success the original command resumes, including `--apply` if
+supplied. Declining or reaching end-of-input exits with code 1. Noninteractive runs
+show the options and exit without prompting. A custom `--token` path is preserved
+through authorization and in the suggested commands.
+
+The default client file must already exist. For a different client file or manual
+browser opening, use the listed standalone `authorize` commands and rerun sender-sync.
+Invalid or revoked tokens still require explicit authorization; other errors do not
+trigger the missing-token prompt. Google documents that external
 apps in Testing mode generally receive refresh tokens valid for seven days with these
 scopes; see [token expiration](https://developers.google.com/identity/protocols/oauth2#expiration).
 

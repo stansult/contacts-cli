@@ -1,12 +1,13 @@
 """Command-line interface, with a preview default and explicit write switch."""
 
 import argparse
+import shlex
 import sys
 from pathlib import Path
 
 from .auth import authorize, connect, default_credentials_path, default_token_path
 from .core import contact_resource, make_plan, update_body
-from .errors import SyncError, WriteUnverified
+from .errors import MissingToken, SyncError, WriteUnverified
 
 
 def parser() -> argparse.ArgumentParser:
@@ -77,6 +78,35 @@ def run(args, api) -> int:
     return 0
 
 
+def connect_with_authorization(token: Path):
+    try:
+        return connect(token)
+    except MissingToken:
+        token_option = f" --token {shlex.quote(str(token))}"
+        command = f"./contacts-cli authorize{token_option}"
+        print(
+            "You're not authorized: no token file was found.\n\n"
+            "Options:\n"
+            f"  - Authorize in your browser: {command}\n"
+            f"    Requires the Desktop OAuth client file at {default_credentials_path()}.\n"
+            f"  - Use a different client file: {command} --credentials /path/to/client.json\n"
+            f"  - Open the URL manually: {command} --no-browser",
+            file=sys.stderr,
+        )
+        if not (sys.stdin.isatty() and sys.stderr.isatty()):
+            return None
+        print("\nAuthorize now in your browser? [y/N] ", end="", file=sys.stderr, flush=True)
+        try:
+            answer = input().strip().casefold()
+        except EOFError:
+            answer = ""
+        if answer not in {"y", "yes"}:
+            print("Authorization skipped; no changes made.", file=sys.stderr)
+            return None
+        authorize(default_credentials_path(), token, open_browser=True)
+        return connect(token)
+
+
 def main(argv=None) -> int:
     arguments = parser()
     args = arguments.parse_args(argv)
@@ -87,7 +117,8 @@ def main(argv=None) -> int:
             return 0
         # Reject bad input before touching credentials or the network.
         contact_resource(args.contact)
-        return run(args, connect(args.token))
+        api = connect_with_authorization(args.token)
+        return run(args, api) if api is not None else 1
     except WriteUnverified as exc:
         print(f"Unverified update: {exc}", file=sys.stderr)
         return 3

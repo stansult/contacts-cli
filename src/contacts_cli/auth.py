@@ -1,4 +1,4 @@
-"""Explicit local OAuth authorization; ordinary sync never launches a browser."""
+"""Local OAuth authorization and token storage; loading tokens never launches a browser."""
 
 import json
 import os
@@ -16,7 +16,7 @@ from oauthlib.oauth2 import OAuth2Error
 from requests.exceptions import RequestException
 
 from .api import GoogleAPI
-from .errors import SyncError
+from .errors import MissingToken, SyncError
 
 SCOPES = (
     "https://www.googleapis.com/auth/gmail.metadata",
@@ -94,7 +94,7 @@ def authorize(client_path: Path, token_path: Path, *, open_browser: bool = True)
 def load_credentials(token_path: Path) -> Credentials:
     token_path = private_path(token_path)
     if not token_path.is_file():
-        raise SyncError("No token found. Run contacts-cli authorize first.")
+        raise MissingToken("No token found. Run contacts-cli authorize first.")
     try:
         # Do not pass scopes here: that could mask missing scopes in the saved token.
         credentials = Credentials.from_authorized_user_file(str(token_path))

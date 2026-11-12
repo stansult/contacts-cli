@@ -3,7 +3,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from contacts_cli import cli
+from contacts_cli import auth, cli
+from contacts_cli.errors import SyncError
 
 
 def test_authorize_subcommand_routes_credentials_and_token(monkeypatch, tmp_path):
@@ -78,3 +79,91 @@ def test_authorize_defaults_and_browser_choice(monkeypatch, tmp_path, manual):
     authorize.assert_called_once_with(
         config / "credentials.json", config / "token.json", open_browser=not manual
     )
+
+
+@pytest.fixture
+def missing_token_flow(monkeypatch, tmp_path, api):
+    token = tmp_path / "custom token.json"
+    with pytest.raises(SyncError) as failure:
+        auth.load_credentials(token)
+    connect = Mock(side_effect=[failure.value, api])
+    authorize = Mock()
+    monkeypatch.setattr(cli, "connect", connect)
+    monkeypatch.setattr(cli, "authorize", authorize)
+    args = [
+        "sender-sync",
+        "--label",
+        "Example/Delivery",
+        "--contact",
+        "people/c123",
+        "--token",
+        str(token),
+    ]
+    return args, token, connect, authorize
+
+
+def interactive_terminal(monkeypatch):
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(cli.sys.stderr, "isatty", lambda: True)
+
+
+def test_missing_token_accepts_and_resumes_preview(missing_token_flow, monkeypatch, capsys, server):
+    interactive_terminal(monkeypatch)
+    args, token, connect, authorize = missing_token_flow
+    monkeypatch.setattr("builtins.input", lambda: "Yes")
+    assert cli.main(args) == 0
+    authorize.assert_called_once_with(auth.default_credentials_path(), token, open_browser=True)
+    assert connect.call_count == 2
+    assert all(call.args == (token,) for call in connect.call_args_list)
+    assert server.writes == 0
+    captured = capsys.readouterr()
+    assert "Preview only" in captured.out
+    assert "--credentials" in captured.err and "--no-browser" in captured.err
+    assert "Authorize now in your browser? [y/N]" in captured.err
+    assert str(token) in captured.err
+
+
+@pytest.mark.parametrize("answer", ["", "n", "no", "maybe", EOFError()])
+def test_missing_token_decline_never_authorizes(missing_token_flow, monkeypatch, answer):
+    interactive_terminal(monkeypatch)
+    args, _, connect, authorize = missing_token_flow
+    read = Mock(side_effect=answer) if isinstance(answer, Exception) else Mock(return_value=answer)
+    monkeypatch.setattr("builtins.input", read)
+    assert cli.main(args) == 1
+    read.assert_called_once()
+    authorize.assert_not_called()
+    assert connect.call_count == 1
+
+
+def test_missing_token_noninteractive_lists_options(missing_token_flow, monkeypatch, capsys):
+    interactive_terminal(monkeypatch)
+    args, _, connect, authorize = missing_token_flow
+    monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: False)
+    read = Mock(side_effect=AssertionError("must not prompt"))
+    monkeypatch.setattr("builtins.input", read)
+    assert cli.main(args) == 1
+    assert "--no-browser" in capsys.readouterr().err
+    read.assert_not_called()
+    authorize.assert_not_called()
+    assert connect.call_count == 1
+
+
+def test_missing_token_authorization_failure_stops(missing_token_flow, monkeypatch):
+    interactive_terminal(monkeypatch)
+    args, _, connect, authorize = missing_token_flow
+    monkeypatch.setattr("builtins.input", lambda: "y")
+    authorize.side_effect = SyncError("Synthetic authorization failure")
+    assert cli.main(args) == 1
+    authorize.assert_called_once()
+    assert connect.call_count == 1
+
+
+def test_other_connection_errors_do_not_offer_authorization(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "connect", Mock(side_effect=SyncError("Synthetic revoked token")))
+    authorize, read = Mock(), Mock()
+    monkeypatch.setattr(cli, "authorize", authorize)
+    monkeypatch.setattr("builtins.input", read)
+    assert cli.main(["sender-sync", "--label", "Example", "--contact", "people/c123"]) == 1
+    authorize.assert_not_called()
+    read.assert_not_called()
+    assert "Authorize now" not in capsys.readouterr().err
