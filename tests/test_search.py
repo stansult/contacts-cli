@@ -6,6 +6,8 @@ import pytest
 
 from contacts_cli import cli
 
+from .test_timestamps import undecorated
+
 ARGS = ["sender-sync", "--label", "Example/Delivery", "--contact", "people/c123"]
 
 
@@ -36,7 +38,9 @@ def test_many_messages_few_senders_needs_only_two_header_reads(api, server, monk
     output = capsys.readouterr()
     assert "Inspected messages:" not in output.out
     assert "New unique senders:" not in output.out
-    assert "Searching senders: 2 inspected, 2 new senders\nSearch finished." in output.err
+    assert "Searching senders: 2 inspected, 2 new senders\nSearch finished." in undecorated(
+        output.err
+    )
     assert server.writes == 0
 
 

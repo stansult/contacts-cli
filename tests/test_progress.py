@@ -5,6 +5,8 @@ import pytest
 from contacts_cli import cli
 from contacts_cli.errors import SyncError
 
+from .test_timestamps import undecorated
+
 
 @pytest.mark.parametrize("failure", [None, "error", "interrupt"])
 def test_scan_reports_progress_before_requests(api, server, monkeypatch, capsys, failure):
@@ -35,15 +37,17 @@ def test_scan_reports_progress_before_requests(api, server, monkeypatch, capsys,
     assert server.writes == 0
     if failure is None:
         assert result == 0
-        assert "Searching senders: 3 inspected, 3 new senders\nSearch finished." in output.err
+        assert "Searching senders: 3 inspected, 3 new senders\nSearch finished." in undecorated(
+            output.err
+        )
         assert "Proposed additions: 3" in output.out
     else:
         assert result == (1 if failure == "error" else 130)
-        assert "Search finished" not in output.err
+        assert "Search finished" not in undecorated(output.err)
         assert (
             "Synthetic read error" if failure == "error" else "no contact changes made"
-        ) in output.err
-    assert "\r" not in output.err and "\x1b" not in output.err
+        ) in undecorated(output.err)
+    assert "\r" not in undecorated(output.err) and "\x1b" not in undecorated(output.err)
 
 
 @pytest.mark.parametrize("terminal,interval", [(True, 1.0), (False, 10.0)])

@@ -8,6 +8,8 @@ import pytest
 from contacts_cli import cli
 from contacts_cli.progress import ScanProgress
 
+from .test_timestamps import undecorated
+
 ARGS = ["sender-sync", "--label", "Example/Delivery", "--contact", "people/c123"]
 
 
@@ -47,7 +49,7 @@ def test_section_order_on_combined_output(api, monkeypatch):
     monkeypatch.setattr(sys, "stderr", stream)
     monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: api)
     assert cli.main(ARGS) == 0
-    output = stream.getvalue()
+    output = undecorated(stream.getvalue())
     assert output.startswith(
         "Reading contact…\nContact: 'name: Example Delivery' (people/c123)\n\n"
         "Reading sending addresses…\nFinding label…\n"

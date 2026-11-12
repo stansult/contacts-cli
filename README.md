@@ -90,6 +90,12 @@ existing-email count. Updates occur as requests finish; there is no estimated to
 headers stop the search and block all writes.
 The complete preview stays on stdout. Counts describe inspected messages, not the label’s total size.
 
+Operational output begins with a local `[YYYY-MM-DD]` date line. Primary messages use local
+`[HH:MM:SS]` timestamps, including stage messages, confirmation prompts, completion, and errors.
+Contact/label details and addition-list entries remain unprefixed as continuation lines. Blank
+separators and help remain undecorated. If the run crosses midnight, the ending date appears after
+the last message. Updating sender counters have no timestamp and always show the final count.
+
 In an interactive terminal, the preview is followed by `Apply these additions? [y/N]`.
 Answer `y` or `yes` to save; Enter, `n`, or any other answer leaves the contact unchanged.
 No prompt appears when there are no additions.

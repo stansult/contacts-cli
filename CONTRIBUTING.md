@@ -68,3 +68,11 @@ Distinguish a local implementation, a pushed commit, a published artifact, and v
 behavior. Release bugs remain open until the corrected release is available and its relevant
 behavior has been verified. This repository currently has no automated deployment or package
 publication workflow.
+
+## Operational timestamps
+
+Keep the shared convention used by the screenshots and pdf-slim projects: local `[YYYY-MM-DD]`
+before the first operational message, local `[HH:MM:SS]` on primary messages, and an ending date
+only when the run crosses midnight. Leave updating sender counters, continuation lines, blank
+separators, and help undecorated. Use `output.py` for date state shared across stdout/stderr and
+test with an injected clock. Progress throttling uses monotonic time independently of the displayed wall clock.

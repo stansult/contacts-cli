@@ -3,6 +3,8 @@
 import sys
 import time
 
+from .output import emit, stamp
+
 
 class ScanProgress:
     def __init__(self, stream=None, clock=None):
@@ -29,7 +31,7 @@ class ScanProgress:
         if stage == "Search finished":
             self("Searching senders", processed, senders, problems, force=True)
             self.finish_line()
-            print("Search finished.", file=self.stream, flush=True)
+            emit("Search finished.", file=self.stream)
             self.last_stage = stage
             return
         now = self.clock()
@@ -47,6 +49,8 @@ class ScanProgress:
                 message += f", {problems} invalid headers"
         else:
             message = stage + "…"
+        if stage != "Searching senders":
+            message = stamp(message, self.stream)
         if self.terminal:
             if changed:
                 self.finish_line()

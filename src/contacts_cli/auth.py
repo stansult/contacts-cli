@@ -2,6 +2,7 @@
 
 import json
 import os
+import sys
 import tempfile
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from requests.exceptions import RequestException
 
 from .api import GoogleAPI
 from .errors import InsufficientScopes, MissingToken, SyncError
+from .output import stamp
 
 SCOPES = (
     "https://www.googleapis.com/auth/gmail.readonly",
@@ -73,7 +75,9 @@ def authorize(
             timeout_seconds=timeout_seconds,
             prompt="consent",
             authorization_prompt_message=(
-                "\nAuthorization URL (open manually if needed):\n{url}\n"
+                "\n"
+                + stamp("Authorization URL (open manually if needed):", sys.stdout)
+                + "\n{url}\n"
             ),
         )
         granted = credentials.granted_scopes or credentials.scopes or ()

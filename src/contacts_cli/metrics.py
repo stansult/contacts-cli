@@ -13,6 +13,8 @@ from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
 
+from .output import emit
+
 ACTIVE = ContextVar("run_metrics", default=None)
 METHODS = {
     "gmail.users.settings.sendAs.list": "sending_addresses",
@@ -76,7 +78,7 @@ class RunMetrics:
             finally:
                 os.close(fd)
         except OSError:
-            print("Warning: local run metrics could not be saved.", file=sys.stderr)
+            emit("Warning: local run metrics could not be saved.", file=sys.stderr)
 
 
 def counts(**values):

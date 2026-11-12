@@ -161,3 +161,13 @@ contract-tested independently. Before implementation, regressions demonstrated o
 added and redundant email labels being saved. The updated behavior omits labels matching their
 address case-insensitively and removes the two repeated summary count lines. No live account
 queries are part of these tests.
+
+## Operational timestamps
+
+`test_timestamps.py` covers date-once behavior across output streams, same-day completion, midnight
+rollover, multiline continuations, undecorated help, timestamped errors, interruption cleanup,
+untimestamped updating counters in terminal and redirected output, and forced final progress.
+Clocks are injected; no sleeps or live Google access are needed.
+Existing output-content tests remove only date/time decoration when checking their original
+contracts; timestamp tests independently check the exact decoration and ordering. The convention
+matches screenshots and pdf-slim; those projects already use it and need no corresponding change.

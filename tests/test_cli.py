@@ -6,6 +6,8 @@ import pytest
 from contacts_cli import auth, cli
 from contacts_cli.errors import SyncError
 
+from .test_timestamps import undecorated
+
 
 def test_authorize_subcommand_routes_credentials_and_token(monkeypatch, tmp_path):
     authorize, connect = Mock(), Mock()
@@ -122,7 +124,7 @@ def test_missing_token_accepts_and_resumes_preview(missing_token_flow, monkeypat
     assert all(call.args == (token,) for call in connect.call_args_list)
     assert server.writes == 0
     captured = capsys.readouterr()
-    assert captured.out.startswith("Authorization succeeded.\n\nContact:")
+    assert undecorated(captured.out).startswith("Authorization succeeded.\n\nContact:")
     assert "Preview only" in captured.out
     assert "--credentials" in captured.err and "--no-browser" in captured.err
     assert "Authorize now in your browser? [y/N]" in captured.err
@@ -183,7 +185,7 @@ def test_authorization_success_is_reported_before_contact_error(
     monkeypatch.setattr("builtins.input", lambda: "y")
 
     def fail_contact(resource):
-        assert capsys.readouterr().out == "Authorization succeeded.\n\n"
+        assert undecorated(capsys.readouterr().out) == "Authorization succeeded.\n\n"
         raise SyncError("Synthetic invalid contact")
 
     monkeypatch.setattr(api, "get_contact", fail_contact)
@@ -233,5 +235,8 @@ def test_contact_heading_name_precedes_company(
     if command == "sender-sync":
         args += ["--label", "Example/Delivery"]
     assert cli.main(args) == 0
-    assert capsys.readouterr().out.splitlines()[0] == f"Contact: {expected!r} (people/c123)"
+    assert (
+        undecorated(capsys.readouterr().out).splitlines()[0]
+        == f"Contact: {expected!r} (people/c123)"
+    )
     assert server.writes == 0

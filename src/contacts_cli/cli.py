@@ -10,6 +10,7 @@ from .core import addition_entry, contact_resource, make_plan, update_body
 from .duplicate import READ_FIELDS, make_duplicate_plan, replacement_name
 from .errors import InsufficientScopes, MissingToken, SyncError, WriteUnverified
 from .metrics import ACTIVE, RunMetrics, counts, outcome
+from .output import OperationalOutput, emit
 from .progress import ScanProgress
 
 
@@ -80,7 +81,7 @@ def confirm_apply(question: str) -> bool:
     if not all(stream.isatty() for stream in (sys.stdin, sys.stdout, sys.stderr)):
         return False
     sys.stdout.flush()
-    print(f"\n{question} [y/N] ", end="", file=sys.stderr, flush=True)
+    emit(f"\n{question} [y/N] ", end="", file=sys.stderr, flush=True)
     try:
         return input().strip().casefold() in {"y", "yes"}
     except EOFError:
@@ -105,11 +106,11 @@ def run(args, api) -> int:
         progress("Reading contact")
         person = api.get_contact(resource)
         progress.finish_line()
-        print(contact_heading(person) + "\n", flush=True)
+        emit(contact_heading(person) + "\n", primary=False)
 
         def label_found(name):
             progress.finish_line()
-            print(f"Label: {name!r} (including Spam and Trash)\n", flush=True)
+            emit(f"Label: {name!r} (including Spam and Trash)\n", primary=False)
 
         counts(existing_entries=len(person.get("emailAddresses", [])))
         scan = api.scan(
@@ -120,31 +121,31 @@ def run(args, api) -> int:
         )
     plan = make_plan(person, scan)
     counts(existing_entries=len(person.get("emailAddresses", [])), additions=len(plan.additions))
-    print(f"Existing email entries: {len(person.get('emailAddresses', []))}")
-    print(f"\nProposed additions: {len(plan.additions)}")
+    emit(f"Existing email entries: {len(person.get('emailAddresses', []))}", primary=False)
+    emit(f"\nProposed additions: {len(plan.additions)}")
     for address in plan.additions:
         label = addition_entry(plan, address).get("type")
-        print(f"  + {address}" + (f" — {label}" if label else ""))
+        emit(f"  + {address}" + (f" — {label}" if label else ""), primary=False)
     for problem in scan.problems:
-        print(f"Warning: {problem}", file=sys.stderr)
+        emit(f"Warning: {problem}", file=sys.stderr)
     if scan.problems:
         raise SyncError("Preview is incomplete because of invalid From headers; no changes made.")
     # Check local limits in preview too, so users can review an actionable result.
     if plan.additions:
         update_body(plan)
     if not plan.additions:
-        print("No additions needed; no update made.")
+        emit("No additions needed; no update made.")
         outcome("no_changes")
         return 0
     if args.apply or confirm_apply("Apply these additions?"):
         if api.apply(plan):
-            print(f"Saved and verified {len(plan.additions)} additions.")
+            emit(f"Saved and verified {len(plan.additions)} additions.")
             outcome("applied")
         else:
-            print("No additions needed; no update made.")
+            emit("No additions needed; no update made.")
             outcome("no_changes")
     else:
-        print("Preview only; no changes made. Use --apply to save additions.")
+        emit("Preview only; no changes made. Use --apply to save additions.")
         outcome("preview")
     return 0
 
@@ -152,17 +153,19 @@ def run(args, api) -> int:
 def run_duplicate(args, api):
     person = api.get_contact(contact_resource(args.contact), READ_FIELDS)
     plan = make_duplicate_plan(person, api.people._rootDesc["schemas"], args.name)
-    print(contact_heading(person))
+    emit(contact_heading(person))
     if args.name is not None:
-        print(f"Replacement name: {args.name!r}")
+        emit(f"Replacement name: {args.name!r}", primary=False)
     for field, values in plan.body.items():
-        print(f"  {field}: {len(values)}")
-    print("Photo: " + ("copy custom photo" if plan.photo_url else "use default avatar"))
+        emit(f"  {field}: {len(values)}", primary=False)
+    emit(
+        "Photo: " + ("copy custom photo" if plan.photo_url else "use default avatar"), primary=False
+    )
     if args.apply or confirm_apply("Create this duplicate?"):
         location = api.duplicate(plan)
-        print(f"Created and verified: {location}")
+        emit(f"Created and verified: {location}")
     else:
-        print("Preview only; no changes made. Use --apply to create a new contact.")
+        emit("Preview only; no changes made. Use --apply to create a new contact.")
     return 0
 
 
@@ -181,7 +184,7 @@ def connect_with_authorization(token: Path, timeout_seconds: int = 300):
         command = f"./contacts-cli authorize{token_option}"
         if timeout_seconds != 300:
             command += f" --auth-timeout {timeout_seconds}"
-        print(
+        emit(
             f"{reason}\n\n"
             "Options:\n"
             f"  - Authorize in your browser: {command}\n"
@@ -193,24 +196,29 @@ def connect_with_authorization(token: Path, timeout_seconds: int = 300):
         if not (sys.stdin.isatty() and sys.stderr.isatty()):
             return None
         action = "Reauthorize" if reauthorize else "Authorize"
-        print(f"\n{action} now in your browser? [y/N] ", end="", file=sys.stderr, flush=True)
+        emit(f"\n{action} now in your browser? [y/N] ", end="", file=sys.stderr, flush=True)
         try:
             answer = input().strip().casefold()
         except EOFError:
             answer = ""
         if answer not in {"y", "yes"}:
-            print("Authorization skipped; no changes made.", file=sys.stderr)
+            emit("Authorization skipped; no changes made.", file=sys.stderr)
             return None
         authorize(
             default_credentials_path(), token, open_browser=True, timeout_seconds=timeout_seconds
         )
-        print("Authorization succeeded.\n", flush=True)
+        emit("Authorization succeeded.\n", flush=True)
         return connect(token)
 
 
 def main(argv=None) -> int:
     arguments = parser()
     args = arguments.parse_args(argv)
+    with OperationalOutput():
+        return execute_command(args)
+
+
+def execute_command(args):
     if args.command != "sender-sync":
         return run_command(args)
     metrics = RunMetrics()
@@ -234,7 +242,7 @@ def run_command(args):
                 open_browser=not args.no_browser,
                 timeout_seconds=args.auth_timeout,
             )
-            print("Authorization saved. Future sync runs use the saved token without a browser.")
+            emit("Authorization saved. Future sync runs use the saved token without a browser.")
             return 0
         # Reject bad input before touching credentials or the network.
         contact_resource(args.contact)
@@ -247,20 +255,20 @@ def run_command(args):
         return run_duplicate(args, api) if args.command == "duplicate" else run(args, api)
     except WriteUnverified as exc:
         label = "Unverified copy" if args.command == "duplicate" else "Unverified update"
-        print(f"{label}: {exc}", file=sys.stderr)
+        emit(f"{label}: {exc}", file=sys.stderr)
         return 3
     except SyncError as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+        emit(f"Error: {exc}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
         if api is not None and api.write_started:
-            print(
+            emit(
                 "\nInterrupted. A contact write was started; "
                 "inspect Google Contacts before retrying.",
                 file=sys.stderr,
             )
         else:
-            print("\nInterrupted; no contact changes made.", file=sys.stderr)
+            emit("\nInterrupted; no contact changes made.", file=sys.stderr)
         return 130
 
 
