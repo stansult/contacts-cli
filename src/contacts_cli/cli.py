@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from .auth import authorize, connect, default_token_path
+from .auth import authorize, connect, default_credentials_path, default_token_path
 from .core import contact_resource, make_plan, update_body
 from .errors import SyncError, WriteUnverified
 
@@ -28,7 +28,15 @@ def parser() -> argparse.ArgumentParser:
     )
     setup = commands.add_parser("authorize", help="Run explicit initial OAuth setup")
     setup.add_argument(
-        "--credentials", required=True, type=Path, help="Desktop OAuth client JSON, outside Git"
+        "--credentials",
+        type=Path,
+        default=default_credentials_path(),
+        help="Desktop OAuth client JSON, outside Git (default: %(default)s)",
+    )
+    setup.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="Print the authorization URL without opening a browser",
     )
     for command in (sync, setup):
         command.add_argument(
@@ -74,7 +82,7 @@ def main(argv=None) -> int:
     args = arguments.parse_args(argv)
     try:
         if args.command == "authorize":
-            authorize(args.credentials, args.token)
+            authorize(args.credentials, args.token, open_browser=not args.no_browser)
             print("Authorization saved. Future sync runs use the saved token without a browser.")
             return 0
         # Reject bad input before touching credentials or the network.

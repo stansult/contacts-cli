@@ -77,7 +77,8 @@ def test_refresh_is_saved_without_browser(tmp_path, monkeypatch):
     assert json.loads(token.read_text())["token"] == "refreshed-synthetic-only"
 
 
-def test_authorization_is_explicit_and_never_opens_browser(tmp_path, monkeypatch):
+@pytest.mark.parametrize("manual", [False, True])
+def test_authorization_browser_choice(tmp_path, monkeypatch, manual):
     client = tmp_path / "client.json"
     client.write_text('{"installed": {"client_id": "synthetic"}}')
     credentials = Mock()
@@ -87,9 +88,10 @@ def test_authorization_is_explicit_and_never_opens_browser(tmp_path, monkeypatch
     flow.run_local_server.return_value = credentials
     factory = Mock(return_value=flow)
     monkeypatch.setattr(auth.InstalledAppFlow, "from_client_config", factory)
-    auth.authorize(client, tmp_path / "token.json")
+    kwargs = {"open_browser": False} if manual else {}
+    auth.authorize(client, tmp_path / "token.json", **kwargs)
     assert factory.call_args.kwargs["autogenerate_code_verifier"] is True
-    assert flow.run_local_server.call_args.kwargs["open_browser"] is False
+    assert flow.run_local_server.call_args.kwargs["open_browser"] is (not manual)
     assert flow.run_local_server.call_args.kwargs["host"] == "127.0.0.1"
 
 

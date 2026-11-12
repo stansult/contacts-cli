@@ -41,17 +41,20 @@ required; the former top-level sync flags and `--authorize` flag are no longer a
 2. Configure the OAuth consent screen for your own use. If the app is in Testing mode,
    add the intended Google account as a test user.
 3. Create an OAuth client with application type **Desktop app**. Download its JSON file
-   outside this repository, for example `~/.config/contacts-cli/credentials.json`.
+   outside this repository at `~/.config/contacts-cli/credentials.json`.
 4. Authorize explicitly:
 
    ```sh
-   ./contacts-cli authorize \
-     --credentials "$HOME/.config/contacts-cli/credentials.json"
+   ./contacts-cli authorize
    ```
 
-5. Open the printed URL in your chosen browser and select the account that owns both
-   the Gmail label and the contact. This command does not open a browser automatically.
-   Complete authorization within five minutes, while the terminal command is running.
+5. The command opens your default browser. Select the account that owns both the Gmail
+   label and the contact. Complete authorization within five minutes, while the terminal
+   command is running. The URL is also printed so you can open it manually if needed.
+
+Use `--credentials /outside/git/client.json` to override the default client file.
+Use `./contacts-cli authorize --no-browser` to print the URL without launching a browser.
+The Desktop OAuth client file must already exist; the command does not create it.
 
 The requested scopes are `gmail.metadata` and `contacts` (with Google's
 `https://www.googleapis.com/auth/` prefix). Gmail access covers headers and labels, not

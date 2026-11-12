@@ -12,7 +12,7 @@ def test_authorize_subcommand_routes_credentials_and_token(monkeypatch, tmp_path
     monkeypatch.setattr(cli, "connect", connect)
     client, token = tmp_path / "client.json", tmp_path / "token.json"
     assert cli.main(["authorize", "--credentials", str(client), "--token", str(token)]) == 0
-    authorize.assert_called_once_with(client, token)
+    authorize.assert_called_once_with(client, token, open_browser=True)
     connect.assert_not_called()
 
 
@@ -24,7 +24,6 @@ def test_authorize_subcommand_routes_credentials_and_token(monkeypatch, tmp_path
         ["--authorize", "--credentials", "/tmp/client.json"],
         ["sender-sync", "--contact", "people/c123"],
         ["sender-sync", "--label", "Example"],
-        ["authorize"],
         ["authorize", "--credentials", "/tmp/client.json", "--apply"],
         [
             "sender-sync",
@@ -67,3 +66,15 @@ def test_sender_sync_forwards_custom_token(api, monkeypatch, tmp_path):
         == 0
     )
     connect.assert_called_once_with(Path(token))
+
+
+@pytest.mark.parametrize("manual", [False, True])
+def test_authorize_defaults_and_browser_choice(monkeypatch, tmp_path, manual):
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    authorize = Mock()
+    monkeypatch.setattr(cli, "authorize", authorize)
+    assert cli.main(["authorize"] + (["--no-browser"] if manual else [])) == 0
+    config = tmp_path / ".config" / "contacts-cli"
+    authorize.assert_called_once_with(
+        config / "credentials.json", config / "token.json", open_browser=not manual
+    )
