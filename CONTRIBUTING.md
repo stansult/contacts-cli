@@ -46,6 +46,26 @@ commit message covering all changes. Before pushing executable code, configurati
 fixtures, or tests, run the complete checks above. Verify archives do not contain private context or
 credentials.
 
+## Review, formatting, and push scope
+
+- Finish review and required checks before committing. Inspect each result before the next action;
+  do not put checks, commit, and push in a shell sequence that continues after a failed check.
+- Classify findings by their actual effect. Failed product tests, broken links, invalid syntax,
+  and formatting that changes meaning or rendering block the commit. A harmless trailing blank
+  line in a Markdown document is a non-blocking cosmetic notice, even when `git diff --check`
+  returns a nonzero exit code. Inspect the diagnostic rather than treating that exit code alone
+  as a product failure. Do not suppress other failures to bypass a cosmetic notice.
+- Include small formatting corrections introduced by the current edits in the same change when
+  convenient. Leave unrelated cosmetic issues alone unless they affect readability or meaning.
+- After a push, defer purely cosmetic findings to the next substantive change. Do not create a
+  separate commit or push solely to remove a harmless blank line, rewrap prose, or make a similar
+  cosmetic correction unless the user explicitly requests that cleanup.
+- A request to “commit and sync” authorizes committing and pushing the reviewed changes. It does
+  not authorize subsequent cleanup pushes. A tool finding does not expand that authorization.
+- For ordinary Markdown-only changes, review the full diff and rendered wording, confirm that
+  every changed file is Markdown, verify local links, and inspect whitespace diagnostics. Full
+  runtime suites are unnecessary unless the Markdown drives automation or artifact generation.
+
 ## Privacy and external actions
 
 This repository is public. If proposed content may expose private information, flag the specific
