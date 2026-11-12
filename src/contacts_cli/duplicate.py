@@ -1,10 +1,11 @@
 """Plan and verify contact copies using the bundled People schema."""
 
 import json
+import re
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import requests
 
@@ -166,6 +167,17 @@ def download_photo(url):
         or parsed.port not in (None, 443)
     ):
         raise SyncError("Unsupported contact photo URL; no contact created.")
+    # Google serves thumbnails through either /s100/ or =s100[-options].
+    # s0 retrieved the full-size source in the read-only investigation for #1.
+    path, count = re.subn(r"([=/])s[0-9]+(?=(?:-[a-z0-9]+)*(?:/|$))", r"\g<1>s0", parsed.path)
+    if count != 1:
+        raise SyncError("Cannot select a full-size contact photo URL; no contact created.")
+    query = [
+        (key, value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+        if key != "sz"
+    ]
+    url = urlunsplit((parsed.scheme, parsed.netloc, path, urlencode(query), parsed.fragment))
     try:
         with requests.get(url, stream=True, timeout=(10, 30), allow_redirects=False) as response:
             if response.status_code != 200 or not response.headers.get(

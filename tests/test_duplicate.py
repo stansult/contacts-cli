@@ -1,5 +1,6 @@
 """Copy semantics from the People create/photo APIs, exercised offline."""
 
+import base64
 import json
 from copy import deepcopy
 
@@ -172,7 +173,7 @@ def test_photo_download_contract(monkeypatch):
         return Response()
 
     monkeypatch.setattr("contacts_cli.duplicate.requests.get", get)
-    assert download_photo("https://lh3.googleusercontent.com/a") == b"photobytes"
+    assert download_photo("https://lh3.googleusercontent.com/a=s100") == b"photobytes"
 
 
 def test_invalid_name_before_connect(monkeypatch):
@@ -277,3 +278,58 @@ def test_duplicate_marker_readable_time(hour, offset, expected):
         "key": "Duplicate",
         "value": "Created by contacts-cli on " + expected,
     }
+
+
+@pytest.mark.parametrize(
+    "suffix,expected",
+    [
+        ("/s100/photo.png", "/s0/photo.png"),
+        ("=s100", "=s0"),
+        ("=s100-c", "=s0-c"),
+        ("/s0/photo.png?sz=100&other=keep", "/s0/photo.png?other=keep"),
+    ],
+)
+def test_full_size_photo_bytes_are_uploaded(server, api, monkeypatch, suffix, expected):
+    from pathlib import Path
+
+    root = Path(__file__).parent / "fixtures"
+    full = (root / "photo-full.png").read_bytes()
+    thumb = (root / "photo-thumbnail.png").read_bytes()
+    source = "https://lh3.googleusercontent.com/synthetic" + suffix
+    target = "https://lh3.googleusercontent.com/synthetic" + expected
+    server.person["photos"] = [{"url": source, "default": False}]
+    requested = []
+
+    class Response:
+        status_code = 200
+        headers = {"Content-Type": "image/png"}
+
+        def __init__(self, data):
+            self.data = data
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def iter_content(self, size):
+            return iter([self.data])
+
+    def get(url, **kwargs):
+        requested.append(url)
+        return Response(full if url == target else thumb)
+
+    monkeypatch.setattr("contacts_cli.duplicate.requests.get", get)
+    api.duplicate(plan_for(api))
+    assert requested == [target]
+    photo_calls = [call for call in server.calls if call[1].endswith(":updateContactPhoto")]
+    assert base64.b64decode(photo_calls[0][3]["photoBytes"]) == full
+
+
+def test_unknown_photo_size_stops_before_download(monkeypatch):
+    monkeypatch.setattr(
+        "contacts_cli.duplicate.requests.get", lambda *a, **k: pytest.fail("download")
+    )
+    with pytest.raises(SyncError, match="full-size"):
+        download_photo("https://lh3.googleusercontent.com/unknown")

@@ -171,3 +171,13 @@ Clocks are injected; no sleeps or live Google access are needed.
 Existing output-content tests remove only date/time decoration when checking their original
 contracts; timestamp tests independently check the exact decoration and ordering. The convention
 matches screenshots and pdf-slim; those projects already use it and need no corresponding change.
+
+## Full-size duplicate photos (#1)
+
+Synthetic 8×8 and 64×64 checkerboard PNGs exercise thumbnail versus full-size downloads.
+Regression tests cover path and suffix size options, retained crop options, conflicting query
+sizes, and exact uploaded bytes. Unknown URL size formats stop before downloading. These cases
+failed against the thumbnail implementation. Fixture dimensions and decoding were independently
+checked with macOS sips. No account images are included in fixtures. The user confirmed improved
+photo quality in a live duplication test on 2026-11-12. Automated tests do not establish Google's
+upload fidelity for every image.
