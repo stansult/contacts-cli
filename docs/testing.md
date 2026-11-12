@@ -182,3 +182,21 @@ failed against the thumbnail implementation. Fixture dimensions and decoding wer
 checked with macOS sips. No account images are included in fixtures. The user confirmed improved
 photo quality in a live duplication test on 2026-11-12. Automated tests do not establish Google's
 upload fidelity for every image.
+
+## CI routing
+
+`scripts/ci_scope.py` permits lightweight checks only for its explicit list of ordinary documents:
+README, CONTRIBUTING, and the command-reference, Google setup, metrics, and testing guides.
+New or unrecognized files default to full checks; add a document to the list only after confirming
+it is not an executable fixture, generated input, or automation source.
+
+Pushes compare the before/after commits across the entire push. Pull requests compare the merge
+base with the PR head. Renames include both old and new paths. Manual runs, empty diffs, new
+branches, and unavailable comparison history use full checks. Classification reads the event
+file rather than interpolating event values into shell commands.
+
+Documentation-only runs check local links and Markdown heading targets using Python's standard
+library, without uv setup, application dependencies, runtime tests, or package builds. Other
+runs retain both OS/Python test jobs. `test_ci_scope.py` checks the allowlist and uses a temporary
+Git repository to verify multi-commit push ranges, PR ranges, and renames independently of mocks.
+Changing this workflow or its classifier therefore runs the full suite.

@@ -32,8 +32,10 @@ git diff --check
 sockets disabled, plus local documentation link checks. `make check-package` verifies fresh archives
 and a clean wheel installation. `make format` formats Python files. Update `uv.lock` with `uv lock` when
 dependencies change. `make build` creates wheel and source archives in ignored `dist/`.
-GitHub Actions runs both checks on Linux/Python 3.11 and macOS/Python 3.13 for pushes and pull
-requests.
+GitHub Actions runs both checks on Linux/Python 3.11 and macOS/Python 3.13 for code or configuration
+changes. Pushes and pull requests changing only known documentation files run local-link and
+heading checks on Ubuntu without installing application dependencies. Manual runs use full checks.
+See [CI routing](docs/testing.md#ci-routing) for classification and fallback rules.
 
 Before adding or changing tests, establish expected behavior from the README, command reference,
 and API references. Verify supporting fixtures independently. For important regression coverage,
