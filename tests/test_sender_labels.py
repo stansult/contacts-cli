@@ -17,7 +17,7 @@ def test_display_name_preview_and_saved_label(api, server, monkeypatch, capsys):
     before = deepcopy(server.person)
     monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: api)
     assert cli.main(ARGS + ["--apply"]) == 0
-    assert "  + new@example.com — New sender" in capsys.readouterr().out
+    assert "  1. new@example.com — New sender" in capsys.readouterr().out
     added = {entry["value"]: entry for entry in server.person["emailAddresses"][2:]}
     assert added["new@example.com"] == {"value": "new@example.com", "type": "New sender"}
     assert added["spam@example.com"] == {"value": "spam@example.com"}
@@ -51,7 +51,7 @@ def test_section_order_on_combined_output(api, monkeypatch):
     assert cli.main(ARGS) == 0
     output = undecorated(stream.getvalue())
     assert output.startswith(
-        "Reading contact…\nContact: 'name: Example Delivery' (people/c123)\n\n"
+        "Reading contact…\nContact: 'name: Example Delivery' (c123)\n\n"
         "Reading sending addresses…\nFinding label…\n"
         "Label: 'Example/Delivery' (including Spam and Trash)\n\n"
         "Searching senders:"
@@ -59,7 +59,7 @@ def test_section_order_on_combined_output(api, monkeypatch):
     assert (
         "Searching senders: 3 inspected, 3 new senders\nSearch finished.\n"
         "Existing email entries: 2\n\n"
-        "Proposed additions: 3\n  + new@example.com — New sender\n"
+        "Proposed additions: 3 entries\n  1. new@example.com — New sender\n"
     ) in output
 
 
@@ -133,3 +133,30 @@ def test_fixture_persists_custom_email_label_independently(server):
     )
     assert status == 200
     assert result["responses"][0]["person"]["emailAddresses"] == body["emailAddresses"]
+
+
+@pytest.mark.parametrize(
+    "names,companies,label,expected",
+    [
+        (["Example Store"], [], " example STORE ", None),
+        ([], ["Example Store"], "EXAMPLE STORE", None),
+        (["Jane"], ["Example Store"], "Example Store", None),
+        (["Jane"], ["Example Store"], "Jane", None),
+        (["Example Store"], [], "Example Store Family", "Example Store Family"),
+        ([], [], "Example Store", "Example Store"),
+    ],
+)
+def test_labels_matching_contact_identity_are_omitted(
+    api, server, monkeypatch, capsys, names, companies, label, expected
+):
+    server.person["names"] = [{"displayName": name} for name in names]
+    server.person["organizations"] = [{"name": company} for company in companies]
+    before = deepcopy(server.person["emailAddresses"])
+    server.mailbox["messages"][1]["payload"]["headers"][0]["value"] = f'"{label}" <new@example.com>'
+    monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: api)
+    assert cli.main(ARGS + ["--apply"]) == 0
+    line = "  1. new@example.com" + (f" — {expected}" if expected else "") + "\n"
+    assert line in capsys.readouterr().out
+    added = next(e for e in server.person["emailAddresses"] if e["value"] == "new@example.com")
+    assert added == {"value": "new@example.com", **({"type": expected} if expected else {})}
+    assert server.person["emailAddresses"][: len(before)] == before

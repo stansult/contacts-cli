@@ -1,0 +1,5 @@
+# Addresses copied from a preview
+
+  NEW@example.com — New sender
+spam@example.com
+new@example.com

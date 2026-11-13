@@ -200,3 +200,53 @@ library, without uv setup, application dependencies, runtime tests, or package b
 runs retain both OS/Python test jobs. `test_ci_scope.py` checks the allowlist and uses a temporary
 Git repository to verify multi-commit push ranges, PR ranges, and renames independently of mocks.
 Changing this workflow or its classifier therefore runs the full suite.
+
+## Explicit sender exclusions
+
+`test_exclude.py` covers repeatable `--exclude` values, trimming and case-insensitive matching,
+deduplication, automatic exclusions, preview/apply behavior, preservation of existing entries,
+and absence of persistence between runs. Invalid inputs stop before authorization. A transport
+that returns an excluded sender followed by an empty search verifies candidate filtering still
+blocks writes. Removing that filter causes an incorrect write and fails the regression; the
+fixture does not rely on the repeated-message guard. Existing search-fixture contract tests
+independently verify query exclusion behavior. The user also verified live previews with four
+explicit exclusions: seven additions with exclusions versus eleven without; both were declined.
+
+New sender labels matching a contact display name or company are omitted in preview and saved
+additions, using the same case/whitespace normalization as address matching. Tests cover both
+identities being present, blank identity lists, and distinct labels with a shared prefix. Existing
+email entries remain unchanged. Four omission cases failed before this change.
+
+`test_exclude_files.py` covers combining multiple files with address flags, duplicate/case
+normalization, comments, blank lines, pasted display labels, relative paths, fresh reads, and
+file/line diagnostics before authorization. A synthetic text fixture has its parsing contract
+checked independently of CLI integration. Missing, unreadable, and non-UTF-8 files are covered.
+
+## Direct email editing
+
+`test_email_edit.py` covers shared add/remove inputs, label normalization before collisions,
+conflicting input rejection, keep/replace/all decisions, final confirmation, duplicate reduction,
+removal of all entries, no-op reruns, primary preservation/reassignment, concurrent changes,
+failed verification, and avoidance of Gmail calls. The synthetic transport's empty-list update
+contract is tested independently. Tests do not establish live Google normalization behavior.
+
+Display regressions cover totals and numbered rows, multiple duplicate groups, local conflict and removal
+numbering after consolidation, separate addition/update sections, missing and skipped entries,
+and action headings with --apply. Listing tests cover populated and empty contacts, read-only
+requests, no Gmail calls, invalid inputs, and silent plural aliases with singular help text.
+Local-numbering and listing regressions failed before their implementation. A controlled fault
+retaining Proposed headings during apply failed the intended assertion before restoration.
+
+## Authorization timeout testing
+
+The supported `--auth-timeout SECONDS` option is hidden from help. Use a positive integer to
+shorten the browser authorization wait for manual testing:
+
+```sh
+./contacts-cli authorize --auth-timeout 5
+```
+
+All commands accept it before or after the command name, including commands that offer browser
+authorization when a token is missing or lacks required scopes. The default is 300 seconds.
+It changes only the browser authorization wait, not API request timeouts or token expiration.
+If specified on both sides of the command, the value after the command takes precedence.

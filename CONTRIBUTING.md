@@ -11,6 +11,9 @@ The code is split into pure parsing/planning (`core.py`), API calls (`api.py`), 
 (`auth.py`), and command-line orchestration (`cli.py`). Keep contact mutation behind the explicit
 apply path. Do not add live Google calls to the test suite.
 
+The [email editing plan](docs/email-editing-plan.md) records design decisions for the
+add/remove commands; user-facing behavior is described in the command reference.
+
 ## Markdown formatting
 
 Wrap prose at roughly 80–100 characters per line, excluding inline link URLs from the character
@@ -40,8 +43,19 @@ See [CI routing](docs/testing.md#ci-routing) for classification and fallback rul
 Before adding or changing tests, establish expected behavior from the README, command reference,
 and API references. Verify supporting fixtures independently. For important regression coverage,
 run the test against the unfixed implementation or a narrow reversible fault, confirm the intended assertion fails,
-restore the implementation, and confirm it passes. See [testing guidance](docs/testing.md). Diagnose unexpected
-failures from actual inputs and outputs before changing assertions or product behavior.
+restore the implementation, and confirm it passes. See [testing guidance](docs/testing.md).
+
+For an approved behavior change, identify and update affected tests alongside the implementation.
+Assertions requiring the previous behavior may deliberately fail during regression verification
+or surface later in the full suite. Correct clearly outdated assertions without another approval
+request; preserve coverage and confirm required tests pass in the final state. Do not weaken
+assertions merely to make tests pass.
+
+An unexpected failure contradicts the approved behavior or has an unclear cause; discovering a
+failure after editing does not by itself make it unexpected. Inspect actual inputs, configuration,
+and output, then discuss unresolved behavior or scope questions before changing tests or product
+code to resolve them. Expected regression failures and clearly outdated assertions do not require
+that pause. Existing scope, time-estimate, and external-action approval requirements still apply.
 
 Before committing, reread every edited file and review the complete diff, including new files. Use a
 commit message covering all changes. Before pushing executable code, configuration, dependencies,

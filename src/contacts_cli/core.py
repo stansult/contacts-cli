@@ -21,7 +21,9 @@ CONTACT_FIELDS = (
 
 
 def contact_resource(value: str) -> str:
-    """Accept a contact resource or a Contacts URL, never an arbitrary endpoint."""
+    """Accept a bare contact ID, resource, or Contacts URL, never an arbitrary endpoint."""
+    if re.fullmatch(r"c[0-9]+", value):
+        return f"people/{value}"
     if re.fullmatch(r"people/c[0-9]+", value):
         return value
     try:
@@ -32,7 +34,7 @@ def contact_resource(value: str) -> str:
         match = re.fullmatch(r"/(?:u/[0-9]+/)?person/(c[0-9]+)/?", parsed.path)
         if match and not parsed.fragment:
             return f"people/{match[1]}"
-    raise SyncError("Use a Google Contacts person URL or a resource such as people/c123456789.")
+    raise SyncError("Use a Google Contacts URL or a bare ID such as c123456789.")
 
 
 def address_key(value: str) -> str:
@@ -132,10 +134,21 @@ def make_plan(person: dict, scan: Scan) -> Plan:
     return Plan(deepcopy(person), scan, additions)
 
 
+def email_label(person, value, label):
+    redundant = {address_key(value)}
+    for field, key in (("names", "displayName"), ("organizations", "name")):
+        redundant.update(
+            address_key(item[key])
+            for item in person.get(field, [])
+            if isinstance(item.get(key), str) and item[key].strip()
+        )
+    return label.strip() if label and address_key(label) not in redundant else ""
+
+
 def addition_entry(plan: Plan, value: str) -> dict:
     entry = {"value": value}
-    label = dict(plan.scan.labels).get(address_key(value), "")
-    if label and address_key(label) != address_key(value):
+    label = email_label(plan.person, value, dict(plan.scan.labels).get(address_key(value), ""))
+    if label:
         entry["type"] = label
     return entry
 
@@ -146,15 +159,19 @@ def update_body(plan: Plan) -> dict:
         raise SyncError("Unparseable messages make this preview incomplete; no update is allowed.")
     emails = deepcopy(plan.person.get("emailAddresses", []))
     emails.extend(addition_entry(plan, value) for value in plan.additions)
-    projected = deepcopy(plan.person)
+    return email_update_body(plan.person, emails)
+
+
+def email_update_body(person, emails):
+    projected = deepcopy(person)
     projected["emailAddresses"] = emails
     # These are conservative local estimates, not Google's internal storage accounting.
     entries = sum(len(value) for value in projected.values() if isinstance(value, list))
     if entries > 500 or len(json.dumps(projected, ensure_ascii=False).encode()) > 128 * 1024:
         raise SyncError("Projected contact exceeds the local 500-entry or 128-KiB size guard.")
     return {
-        "resourceName": plan.person["resourceName"],
-        "metadata": {"sources": [deepcopy(contact_source(plan.person))]},
+        "resourceName": person["resourceName"],
+        "metadata": {"sources": [deepcopy(contact_source(person))]},
         "emailAddresses": emails,
     }
 

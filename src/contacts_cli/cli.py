@@ -5,12 +5,22 @@ import shlex
 import sys
 from pathlib import Path
 
+from .address_inputs import bare_address, edit_inputs, file_lines, split_entry
+from .api import exclusion_query
 from .auth import authorize, connect, default_credentials_path, default_token_path
-from .core import addition_entry, contact_resource, make_plan, update_body
+from .core import (
+    addition_entry,
+    address_key,
+    contact_resource,
+    email_update_body,
+    make_plan,
+    update_body,
+)
 from .duplicate import READ_FIELDS, make_duplicate_plan, replacement_name
+from .email_edit import make_edit_plan, verify_edit
 from .errors import InsufficientScopes, MissingToken, SyncError, WriteUnverified
 from .metrics import ACTIVE, RunMetrics, counts, outcome
-from .output import OperationalOutput, emit
+from .output import OperationalOutput, email_rows, emit, emit_list
 from .progress import ScanProgress
 
 
@@ -22,6 +32,32 @@ def positive_seconds(value: str) -> int:
     if seconds <= 0:
         raise argparse.ArgumentTypeError("must be a positive integer in seconds")
     return seconds
+
+
+def excluded_address(value):
+    address = address_key(value)
+    try:
+        bare_address(address)
+        exclusion_query({address})
+    except SyncError as exc:
+        raise argparse.ArgumentTypeError(
+            "--exclude requires one supported email address, without a name or wildcard"
+        ) from exc
+    return address
+
+
+def file_exclusions(paths):
+    addresses = set()
+    for line, origin in file_lines(paths):
+        address, _ = split_entry(line)
+        try:
+            addresses.add(excluded_address(address))
+        except argparse.ArgumentTypeError as exc:
+            raise SyncError(
+                f"{origin}: expected one supported email address "
+                "(optionally followed by ' — Display Name')."
+            ) from exc
+    return addresses
 
 
 def parser() -> argparse.ArgumentParser:
@@ -36,21 +72,77 @@ def parser() -> argparse.ArgumentParser:
         "--label", required=True, help="Exact Gmail label name (includes labeled Spam and Trash)"
     )
     sync.add_argument(
-        "--contact", required=True, help="Google Contacts person URL or people/c… resource"
+        "--contact", required=True, help="Google Contacts URL or bare ID such as c123456789"
     )
     sync.add_argument(
         "--apply",
         action="store_true",
         help="Append missing emails without asking and verify the result",
     )
+    sync.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        type=excluded_address,
+        metavar="ADDRESS",
+        help="Exclude one sender address for this run (repeat for multiple addresses)",
+    )
+    sync.add_argument(
+        "--exclude-file",
+        action="append",
+        default=[],
+        type=Path,
+        metavar="PATH",
+        help="Read excluded senders from a UTF-8 file (repeat for multiple files)",
+    )
     duplicate = commands.add_parser("duplicate", help="Preview or create a copy of a contact")
     duplicate.add_argument(
-        "--contact", required=True, help="Google Contacts URL or people/c… resource"
+        "--contact", required=True, help="Google Contacts URL or bare ID such as c123456789"
     )
     duplicate.add_argument("--name", help="Optional replacement name (stored as the given name)")
     duplicate.add_argument(
         "--apply", action="store_true", help="Create and verify a new contact without asking"
     )
+    listing = commands.add_parser("list-email", help="List a contact's existing email entries")
+    listing.add_argument(
+        "--contact", required=True, help="Google Contacts URL or bare ID such as c123456789"
+    )
+    editing = []
+    for action in ("add", "remove"):
+        command = commands.add_parser(
+            f"{action}-email", help=f"{action.title()} contact email entries"
+        )
+        command.add_argument(
+            "--contact",
+            required=True,
+            help="Google Contacts URL or bare ID such as c123456789",
+        )
+        inputs = command.add_argument_group("Email inputs (at least one required)")
+        inputs.add_argument(
+            f"--{action}",
+            action="append",
+            default=[],
+            metavar="ADDRESS",
+            help="Email address, optionally followed by ' — Label' (repeatable)",
+        )
+        inputs.add_argument(
+            f"--{action}-file",
+            action="append",
+            default=[],
+            type=Path,
+            metavar="PATH",
+            help="UTF-8 address list (repeatable; combines with individual addresses)",
+        )
+        command.add_argument(
+            "--apply", action="store_true", help="Save without the final confirmation"
+        )
+        if action == "add":
+            command.add_argument(
+                "--replace-existing",
+                action="store_true",
+                help="Approve label changes/removals and consolidate matching duplicate entries",
+            )
+        editing.append(command)
     setup = commands.add_parser("authorize", help="Run explicit initial OAuth setup")
     setup.add_argument(
         "--credentials",
@@ -63,16 +155,22 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the authorization URL without opening a browser",
     )
-    for command in (sync, setup, duplicate):
+    for command in (result, sync, setup, duplicate, listing, *editing):
+        top_level = command is result
+        if not top_level:
+            command.epilog = "See contacts-cli --help for global options."
         command.add_argument(
             "--auth-timeout",
             type=positive_seconds,
-            default=300,
+            default=300 if top_level else argparse.SUPPRESS,
             metavar="SECONDS",
-            help="Browser authorization wait in seconds (default: %(default)s)",
+            help=argparse.SUPPRESS,
         )
         command.add_argument(
-            "--token", type=Path, default=default_token_path(), help="Token path outside Git"
+            "--token",
+            type=Path,
+            default=default_token_path() if top_level else argparse.SUPPRESS,
+            help="Token path outside Git" if top_level else argparse.SUPPRESS,
         )
     return result
 
@@ -89,6 +187,7 @@ def confirm_apply(question: str) -> bool:
 
 
 def contact_heading(person):
+    contact_id = person["resourceName"].removeprefix("people/")
     for field, key, label in (
         ("names", "displayName", "name"),
         ("organizations", "name", "company"),
@@ -96,8 +195,8 @@ def contact_heading(person):
         for entry in person.get(field, []):
             value = entry.get(key)
             if isinstance(value, str) and value.strip():
-                return f"Contact: {f'{label}: {value.strip()}'!r} ({person['resourceName']})"
-    return f"Contact: 'Unnamed' ({person['resourceName']})"
+                return f"Contact: {f'{label}: {value.strip()}'!r} ({contact_id})"
+    return f"Contact: 'Unnamed' ({contact_id})"
 
 
 def run(args, api) -> int:
@@ -116,16 +215,17 @@ def run(args, api) -> int:
         scan = api.scan(
             args.label,
             existing_emails=[entry["value"] for entry in person.get("emailAddresses", [])],
+            excluded_emails=args.exclude,
             progress=progress,
             label_found=label_found,
         )
     plan = make_plan(person, scan)
     counts(existing_entries=len(person.get("emailAddresses", [])), additions=len(plan.additions))
     emit(f"Existing email entries: {len(person.get('emailAddresses', []))}", primary=False)
-    emit(f"\nProposed additions: {len(plan.additions)}")
-    for address in plan.additions:
-        label = addition_entry(plan, address).get("type")
-        emit(f"  + {address}" + (f" — {label}" if label else ""), primary=False)
+    emit_list(
+        "\nAdding" if args.apply else "\nProposed additions",
+        email_rows([addition_entry(plan, address) for address in plan.additions]),
+    )
     for problem in scan.problems:
         emit(f"Warning: {problem}", file=sys.stderr)
     if scan.problems:
@@ -147,6 +247,98 @@ def run(args, api) -> int:
     else:
         emit("Preview only; no changes made. Use --apply to save additions.")
         outcome("preview")
+    return 0
+
+
+def run_list_email(args, api):
+    emit("Reading contact…", file=sys.stderr)
+    person = api.get_contact(contact_resource(args.contact))
+    emit(contact_heading(person) + "\n", primary=False)
+    emit_list("Email addresses", email_rows(person.get("emailAddresses", [])))
+    return 0
+
+
+def run_email_edit(args, api):
+    emit("Reading contact…", file=sys.stderr)
+    person = api.get_contact(contact_resource(args.contact))
+    emit(contact_heading(person) + "\n", primary=False)
+    existing = person.get("emailAddresses", [])
+    emit(f"Existing email entries: {len(existing)}", primary=False)
+    emit("", primary=False)
+    interactive = all(stream.isatty() for stream in (sys.stdin, sys.stdout, sys.stderr))
+    all_choice = None
+
+    def resolve(address, matches, label):
+        nonlocal all_choice
+        if args.replace_existing:
+            return True
+        if args.apply or not interactive:
+            return False
+        if all_choice is not None:
+            return all_choice
+        emit_list("Existing matches", email_rows(matches))
+        while True:
+            emit(
+                f"Replace with one entry labeled {label!r}?"
+                if label
+                else "Replace with one entry with no label?",
+                file=sys.stderr,
+            )
+            emit(
+                "[y] Replace  [n] Keep  [a] Replace all conflicts  [s] Keep all conflicts [n]: ",
+                file=sys.stderr,
+                end="",
+                primary=False,
+            )
+            try:
+                choice = input().strip().casefold()
+            except EOFError:
+                all_choice = False
+                return False
+            if choice in {"a", "s"}:
+                all_choice = choice == "a"
+                return all_choice
+            if choice in {"", "n", "no", "y", "yes"}:
+                return choice in {"y", "yes"}
+            emit("Choose y, n, a, or s.", file=sys.stderr)
+
+    plan = make_edit_plan(
+        person, args.entries, remove=args.command == "remove-email", resolve=resolve
+    )
+    if args.command == "remove-email":
+        addresses = len(plan.changes)
+        emit_list(
+            "Removing" if args.apply else "Proposed removals",
+            email_rows(plan.removed),
+            suffix=f" ({addresses} {'address' if addresses == 1 else 'addresses'})",
+        )
+    else:
+        emit_list("Adding" if args.apply else "Proposed additions", email_rows(plan.added))
+        if plan.updates:
+            emit_list(
+                "Updating" if args.apply else "Proposed updates",
+                enumerate(plan.updates, 1),
+                unit=("change", "changes"),
+            )
+    if plan.absent:
+        emit_list("Not found", enumerate(plan.absent, 1), unit=("address", "addresses"))
+    if plan.skipped:
+        emit_list("Skipped conflicts", enumerate(plan.skipped, 1), unit=("conflict", "conflicts"))
+    emit(f"Remaining email entries: {len(plan.emails)}", primary=False)
+    if not plan.changes:
+        emit("No changes selected; no update made.")
+        return 0
+    body = email_update_body(plan.person, plan.emails)
+    question = (
+        "Remove these email entries?"
+        if args.command == "remove-email"
+        else "Apply these email changes?"
+    )
+    if args.apply or confirm_apply(question):
+        api.apply_email_change(plan.person, body, lambda saved: verify_edit(plan, saved))
+        emit(f"Saved and verified {len(plan.changes)} change(s).")
+    else:
+        emit("Preview only; no changes made. Use --apply to save changes.")
     return 0
 
 
@@ -213,7 +405,24 @@ def connect_with_authorization(token: Path, timeout_seconds: int = 300):
 
 def main(argv=None) -> int:
     arguments = parser()
+    argv = list(sys.argv[1:] if argv is None else argv)
+    # Accept forgiving spellings without adding plural forms to help or usage.
+    aliases = {f"{action}-emails": f"{action}-email" for action in ("add", "remove", "list")}
+    index = 0
+    while index < len(argv):
+        option = argv[index].split("=", 1)[0]
+        if option.startswith("--") and any(
+            name.startswith(option) for name in ("--token", "--auth-timeout")
+        ):
+            index += 1 if "=" in argv[index] else 2
+            continue
+        argv[index] = aliases.get(argv[index], argv[index])
+        break
     args = arguments.parse_args(argv)
+    if args.command in {"add-email", "remove-email"}:
+        action = args.command.split("-")[0]
+        if not getattr(args, action) and not getattr(args, action + "_file"):
+            arguments.error(f"{args.command} requires --{action} or --{action}-file")
     with OperationalOutput():
         return execute_command(args)
 
@@ -248,10 +457,22 @@ def run_command(args):
         contact_resource(args.contact)
         if args.command == "duplicate":
             replacement_name(args.name)
+        elif args.command == "sender-sync":
+            args.exclude = sorted(set(args.exclude) | file_exclusions(args.exclude_file))
+            exclusion_query(set(args.exclude))
+        elif args.command in {"add-email", "remove-email"}:
+            action = args.command.split("-")[0]
+            args.entries = edit_inputs(
+                getattr(args, action), getattr(args, action + "_file"), f"--{action}"
+            )
         api = connect_with_authorization(args.token, args.auth_timeout)
         if api is None:
             return 1
         api.write_started = False
+        if args.command == "list-email":
+            return run_list_email(args, api)
+        if args.command in {"add-email", "remove-email"}:
+            return run_email_edit(args, api)
         return run_duplicate(args, api) if args.command == "duplicate" else run(args, api)
     except WriteUnverified as exc:
         label = "Unverified copy" if args.command == "duplicate" else "Unverified update"

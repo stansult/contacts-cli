@@ -81,14 +81,7 @@ Confirm that the app is the **Contacts CLI** client you created, then choose **C
 If the warning shows **Advanced** instead, open it and select **Go to Contacts CLI (unsafe)**.
 Google permits this flow for [personal-use apps](https://support.google.com/cloud/answer/13464323?hl=en) without verification.
 
-To test a shorter authorization timeout, use a positive number of seconds:
-
-```sh
-./contacts-cli authorize --auth-timeout 5
-```
-
-`sender-sync` and `duplicate` also accept `--auth-timeout 5` for its missing-token authorization prompt.
-The default is 300 seconds. This option only changes the browser authorization wait.
+For timeout testing, see the [testing guide](testing.md#authorization-timeout-testing).
 
 For a client file stored elsewhere:
 

@@ -48,7 +48,7 @@ def test_redundant_label_omitted_from_preview_and_write(api, server, monkeypatch
     monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: api)
     assert cli.main(ARGS + ["--apply"]) == 0
     output = capsys.readouterr().out
-    assert "  + new@example.com\n" in output
+    assert "  1. new@example.com\n" in output
     assert "Inspected messages:" not in output and "New unique senders:" not in output
     assert next(
         item for item in server.person["emailAddresses"] if item["value"] == "new@example.com"

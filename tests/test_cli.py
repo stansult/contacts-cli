@@ -235,8 +235,5 @@ def test_contact_heading_name_precedes_company(
     if command == "sender-sync":
         args += ["--label", "Example/Delivery"]
     assert cli.main(args) == 0
-    assert (
-        undecorated(capsys.readouterr().out).splitlines()[0]
-        == f"Contact: {expected!r} (people/c123)"
-    )
+    assert undecorated(capsys.readouterr().out).splitlines()[0] == f"Contact: {expected!r} (c123)"
     assert server.writes == 0

@@ -54,6 +54,8 @@ def test_archive_accepts_valid_runtime_layout(tmp_path, kind):
         "progress.py",
         "metrics.py",
         "output.py",
+        "address_inputs.py",
+        "email_edit.py",
     )
     if kind == "wheel":
         path = tmp_path / "valid.whl"

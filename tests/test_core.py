@@ -17,6 +17,7 @@ from contacts_cli.errors import SyncError
     "value",
     [
         "people/c123",
+        "c123",
         "https://contacts.google.com/person/c123",
         "https://contacts.google.com/u/2/person/c123?hl=en",
     ],
@@ -34,7 +35,10 @@ def test_contact_identifiers(value):
         "https://contacts.google.com.evil.invalid/person/c123",
         "https://contacts.google.com@evil.invalid/person/c123",
         "https://contacts.google.com/person/c123/unexpected",
-        "c123",
+        "c",
+        "123",
+        "c123abc",
+        "c123/extra",
     ],
 )
 def test_reject_contact_identifiers(value):

@@ -109,7 +109,15 @@ class GoogleAPI:
         exclusion_query(addresses)
         return addresses
 
-    def scan(self, label_name: str, *, existing_emails=(), progress=None, label_found=None) -> Scan:
+    def scan(
+        self,
+        label_name: str,
+        *,
+        existing_emails=(),
+        excluded_emails=(),
+        progress=None,
+        label_found=None,
+    ) -> Scan:
         def report(stage, processed=0, senders=0, problems=0):
             if stage in {"Searching senders", "Search finished", "Search stopped"}:
                 counts(messages=processed, senders=senders, invalid_headers=problems)
@@ -118,7 +126,7 @@ class GoogleAPI:
             if progress is not None:
                 progress(stage, processed, senders, problems)
 
-        excluded = {address_key(address) for address in existing_emails}
+        excluded = {address_key(address) for address in (*existing_emails, *excluded_emails)}
         query = exclusion_query(excluded)
         report("Reading sending addresses")
         excluded.update(self.sending_addresses())
@@ -252,16 +260,20 @@ class GoogleAPI:
         if not plan.additions:
             return False
         body = update_body(plan)
-        latest = self.get_contact(plan.person["resourceName"])
+        return self.apply_email_change(plan.person, body, lambda saved: verify_saved(plan, saved))
+
+    def apply_email_change(self, person, body, verify):
+        """Shared conflict protection, email-only write, and two-stage verification."""
+        latest = self.get_contact(person["resourceName"])
         # A second read catches changes during preview generation; source etag also
         # protects the interval between this read and the PATCH on Google's side.
-        if contact_source(latest) != contact_source(plan.person) or json.dumps(
+        if contact_source(latest) != contact_source(person) or json.dumps(
             latest.get("emailAddresses", []), sort_keys=True
-        ) != json.dumps(plan.person.get("emailAddresses", []), sort_keys=True):
+        ) != json.dumps(person.get("emailAddresses", []), sort_keys=True):
             raise SyncError("Contact changed since preview; no update made. Rerun preview.")
         result = self.write(
             self.people.people().updateContact(
-                resourceName=plan.person["resourceName"],
+                resourceName=person["resourceName"],
                 updatePersonFields="emailAddresses",
                 personFields=CONTACT_FIELDS,
                 sources=["READ_SOURCE_TYPE_CONTACT"],
@@ -269,9 +281,9 @@ class GoogleAPI:
             ),
         )
         try:
-            verify_saved(plan, result)
+            verify(result)
             # Resource names can change when a contact links to a profile.
-            verify_saved(plan, self.get_contact(result["resourceName"]))
+            verify(self.get_contact(result["resourceName"]))
         except SyncError as exc:
             raise WriteUnverified(
                 f"Update was submitted but verification failed: {exc} Inspect a new preview."

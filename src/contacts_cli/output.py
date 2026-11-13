@@ -57,3 +57,25 @@ def emit(text, *, file=None, end="\n", flush=True, primary=True):
                 break
         text = "\n".join(lines)
     print(text, file=stream, end=end, flush=flush)
+
+
+def email_rows(entries):
+    """Format locally numbered email rows with first-occurrence references."""
+    rows, first_rows = [], {}
+    for number, entry in enumerate(entries, 1):
+        address = entry["value"]
+        label = f" — {entry['type']}" if entry.get("type") else ""
+        first = first_rows.setdefault(address.strip().casefold(), number)
+        duplicate = f" [duplicate of #{first}]" if first != number else ""
+        rows.append((number, f"{address}{label}{duplicate}"))
+    return rows
+
+
+def emit_list(heading, rows, *, unit=("entry", "entries"), suffix="", primary=True):
+    """Render a total followed by aligned, numbered rows; preserve supplied numbers."""
+    rows = list(rows)
+    count = len(rows)
+    emit(f"{heading}: {count} {unit[count != 1]}{suffix}", primary=primary)
+    width = max((len(str(number)) for number, _ in rows), default=1)
+    for number, text in rows:
+        emit(f"  {number:>{width}}. {text}", primary=False)

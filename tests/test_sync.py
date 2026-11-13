@@ -21,9 +21,9 @@ def test_preview_searches_new_senders_and_writes_nothing(api, server, monkeypatc
     assert "Inspected messages:" not in out
     assert "New unique senders:" not in out
     assert "Proposed additions: 3" in out
-    assert "+ new@example.com" in out
-    assert "+ spam@example.com" in out
-    assert "+ trash@example.com" in out
+    assert "  1. new@example.com — New sender" in out.splitlines()
+    assert "  2. spam@example.com" in out.splitlines()
+    assert "  3. trash@example.com" in out.splitlines()
     assert "unrelated@example.com" not in out
     assert server.writes == 0
     assert all(method == "GET" for method, *_ in server.calls)

@@ -72,7 +72,7 @@ def test_query_preserves_dot_plus_variants_and_case_dedup(api, server, monkeypat
     assert cli.main(ARGS) == 0
     output = capsys.readouterr().out
     assert "Proposed additions: 2" in output
-    assert "  + ab@example.com" in output and "  + a.b+tag@example.com" in output
+    assert "  2. ab@example.com" in output and "  1. a.b+tag@example.com" in output
     assert len([call for call in server.calls if "/messages/" in call[1]]) == 2
 
 

@@ -18,10 +18,10 @@ provides the `contacts-cli` command, but does not use the repository's dependenc
 Use `./contacts-cli <command> --help` for command-specific options. A subcommand is required; the
 former top-level sync flags and `--authorize` flag are no longer accepted.
 
-Both previews identify the contact as `Contact: 'name: Jane' (people/c123456789)`. A nonblank
+Both previews identify the contact as `Contact: 'name: Jane' (c123456789)`. A nonblank
 name takes precedence over the company. Without a name, they show
-`Contact: 'company: Example Company' (people/c123456789)`; without either, they show
-`Contact: 'Unnamed' (people/c123456789)`.
+`Contact: 'company: Example Company' (c123456789)`; without either, they show
+`Contact: 'Unnamed' (c123456789)`.
 
 Both commands require terminal input, output, and error streams before asking for write
 confirmation. Piped or redirected runs without `--apply` remain preview-only. End-of-input at the
@@ -45,8 +45,34 @@ The command shows a preview first:
   --contact 'https://contacts.google.com/person/c123456789'
 ```
 
-The contact may also be given as `people/c123456789`. Output identifies the contact and label,
+All contact commands accept a Google Contacts URL or the bare ID `c123456789`.
+The ID is the final part of the website URL, after `/person/`. Contact headings show this bare ID.
+For compatibility, `people/c123456789` is also accepted: `people/` is Google's People API resource
+prefix, not part of the website URL. The CLI handles that API form internally.
+Output identifies the contact and label,
 shows inspected-message and new-sender counts in progress, then existing email entries and additions.
+
+Use repeatable `--exclude ADDRESS` options to skip additional individual senders for that run.
+Addresses are compared case-insensitively after trimming surrounding whitespace; duplicates are
+combined. Domains, wildcards, display names, and address lists are not accepted. Invalid or
+unsupported values are rejected before authorization or network access. Manual exclusions are
+combined with automatic exclusions in Gmail queries and in parsed candidate filtering. They
+are not saved for later runs and do not remove addresses already stored in the contact. The same
+query-size limit applies to the combined exclusions. Gmail matching limitations below still apply.
+
+Use `--exclude-file PATH` to read a UTF-8 list, one address per line. Repeat the option for
+multiple files and combine it with `--exclude`. Blank lines, surrounding whitespace, and lines
+starting with `#` are ignored. A line copied from the preview may include ` — Display Name` after
+the address; only the address is used. Inline comments and comma-separated lists are not supported.
+All file addresses use the same validation and deduplication as `--exclude`. Missing, unreadable,
+non-UTF-8 files and invalid entries stop before authorization; invalid entries report the file
+and line number. Relative paths use the current working directory. Files are read fresh each run.
+
+```text
+# Excluded senders
+ignore@example.com
+another@example.com — Notifications
+```
 
 The search excludes existing contact addresses and all configured Gmail “Send mail as” addresses,
 including your primary address and aliases. It requests one matching message, reads its From
@@ -60,7 +86,9 @@ label details appear immediately after their lookups, with blank lines separatin
 last counter update always appears, bypassing throttling, followed by `Search finished.` and the
 existing-email count. Updates occur as requests finish; there is no estimated total or percentage. Invalid From
 headers stop the search and block all writes.
-The complete preview stays on stdout. Counts describe inspected messages, not the label’s total size.
+The complete preview stays on stdout. Proposed addresses appear one per line without a `+` prefix,
+with a custom label after ` — ` when applicable. Counts describe inspected messages, not the label’s
+total size.
 
 Operational output begins with a local `[YYYY-MM-DD]` date line. Primary messages use local
 `[HH:MM:SS]` timestamps, including stage messages, confirmation prompts, completion, and errors.
@@ -163,8 +191,9 @@ Sources: [contact creation](https://developers.google.com/people/api/rest/v1/peo
 - Comparison ignores case and surrounding whitespace. Gmail dot variants and `+tags` remain
   distinct. New entries retain the first observed spelling. The display name from the inspected
   From header becomes the new email's custom label, shown as `address@example.com — Display Name`.
-  Without a display name, or when it matches the email address ignoring case and surrounding
-  whitespace, the address is shown and saved without a custom label. The search does not
+  Without a display name, or when it matches the email address, any contact display name, or any
+  company name ignoring case and surrounding whitespace, the address is shown and saved without
+  a custom label. Both names and companies are checked even when the contact has both. The search does not
   fetch other messages to look for alternate names. Existing values, labels, display names, and
   source-primary choices are retained. Saved additions are checked for their proposed labels.
 - The People API is read directly using `getBatchGet`, with contact-only sources and an explicit
@@ -207,3 +236,94 @@ Exit codes:
 | `2` | Invalid command-line arguments |
 | `3` | Write may have occurred or was submitted, but was not verified |
 | `130` | Interrupted; the message states whether a contact write had started |
+
+## List-email
+
+```sh
+./contacts-cli list-email --contact 'c123456789'
+```
+
+Reads the contact and lists every existing email entry in its stored order, with a total,
+numbered rows, optional labels, and duplicate references. An empty contact shows zero entries.
+It does not modify the contact or search Gmail. No apply confirmation is needed, and `--apply`
+is not accepted. The command uses the saved authorization and supports `--token` like the
+editing commands.
+
+## Add-email and remove-email
+
+`add-email` accepts repeatable `--add 'address — Label'` and `--add-file PATH` options.
+`remove-email` accepts repeatable `--remove ADDRESS` and `--remove-file PATH` options.
+Both require `--contact` and at least one individual or file option. Use the same UTF-8 file
+format as exclusions: one address per line, optional ` — Label`, blank lines and whole-line `#`
+comments. Options combine; files are read fresh relative to the current directory. An empty file
+requests no changes. Removal ignores labels and matches only normalized addresses.
+
+These commands read contacts directly; they do not search Gmail or exclude your sending identities.
+They reuse the saved authorization. Address parsing is shared with exclusions, but Gmail query
+syntax restrictions and query-length limits do not apply to direct contact edits.
+
+Addition normalizes addresses and labels for comparison, suppresses redundant labels matching
+the address/contact name/company, then deduplicates incoming entries. Conflicting resulting
+labels for one address stop before any write and identify both inputs; correct the inputs and
+retry. A bare address and an address whose label was suppressed both request no label.
+
+For existing entries, equal labels need no change. A label supplied for an unlabeled entry is
+included in the proposed changes. Changing or removing an existing label prompts in interactive
+runs. Duplicate stored entries also prompt, even if their labels match. Replace consolidates
+all matching entries into one; Keep preserves them all. The primary matching entry survives when
+present, otherwise the first matching entry, retaining its spelling and other metadata. Existing
+primary status is preserved. The preview shows the old labels and the entry-count reduction.
+
+Conflict choices are `y` (Replace), `n` or Enter (Keep), `a` (Replace all conflicts), and `s`
+(Keep all conflicts). All applies to current and remaining stored-entry conflicts, not unrelated
+new additions. End-of-input keeps remaining conflicts. After these choices, the final preview
+lists changes, skipped conflicts, and remaining email entries, followed by one apply confirmation.
+
+`--replace-existing` approves all stored-entry conflicts but still requires final confirmation
+unless `--apply` is also supplied. With `--apply` alone, existing conflicts are preserved and
+reported while non-conflicting changes are saved. Noninteractive runs do not ask conflict questions;
+without `--apply` they only preview. Unresolved conflicts are shown under Skipped conflicts.
+
+Removal deletes all entries matching each address, regardless of labels, with counts shown in
+the preview. Each stored entry has its own numbered row, including duplicates; rows show the
+address and its label when present. Later occurrences of the same address (ignoring case) show
+`[duplicate of #N]`, referencing its first row, without implying a preferred entry.
+The heading counts both entries and distinct addresses.
+Absent addresses are listed under Not found. Removing every email is allowed and
+leaves the contact intact with zero email entries. A no-op performs no update. Later sender-sync
+runs can add matching senders again; reuse the removal list as exclusions if appropriate.
+
+Only emailAddresses is written. Other contact fields and retained email metadata are preserved.
+A fresh read and etag check reject concurrent changes; writes are not automatically retried.
+Both the response and an independent read verify the complete expected email list and labels.
+If the primary email is removed, Google may assign primary status to a remaining entry; this is
+allowed, while a surviving primary choice must be preserved. Failed verification reports an
+unverified update. These commands are not undo; [issue #5](https://github.com/stansult/contacts-cli/issues/5) tracks that separate enhancement.
+
+## Email list display
+
+Email lists use a heading with a total followed by aligned, numbered rows. Labels appear only
+when present. This applies to sender-sync additions and the direct email editing commands,
+including missing addresses and skipped conflicts. Addition rows do not repeat “Add.” Updates
+have a separate section showing the old and new values.
+
+Use `list-email` to see all existing entries. Add/remove commands show only the existing total;
+existing entries are displayed when needed for a conflict decision. Every displayed list starts
+at 1, including conflict matches and removal previews. Duplicate references point to the first
+occurrence within that list. Numbers do not identify a preferred or primary address.
+
+Without `--apply`, change headings say Proposed additions, Proposed updates, or Proposed removals.
+With `--apply`, they say Adding, Updating, or Removing. These headings describe the requested action;
+only the final Saved and verified message confirms success.
+
+## Global options
+
+`--token PATH` appears in `contacts-cli --help`. Command help shows
+command-specific options and points to top-level help for global options. Both positions work:
+
+```sh
+./contacts-cli --token /path/token.json list-email --contact 'c123456789'
+./contacts-cli list-email --contact 'c123456789' --token /path/token.json
+```
+
+If supplied both before and after the command, the value after the command takes precedence.

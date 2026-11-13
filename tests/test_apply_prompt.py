@@ -43,7 +43,7 @@ def test_apply_consent(
         assert (
             "Proposed additions: 3"
             if command == "sender-sync"
-            else "Contact: 'name: Example Delivery' (people/c123)"
+            else "Contact: 'name: Example Delivery' (c123)"
         ) in output.out
         assert server.writes == 0
         asked.append(True)

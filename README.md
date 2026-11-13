@@ -1,6 +1,6 @@
 # contacts-cli
 
-A local command-line tool to add Gmail senders to Google contacts and duplicate contacts.
+A local command-line tool to sync Gmail senders, add or remove contact emails, and duplicate contacts.
 
 ## Install
 
@@ -35,7 +35,14 @@ Add missing senders from a Gmail label to an existing contact:
 
 Review the additions, then answer `y` to **Apply these additions?** Existing addresses and other
 contact details stay unchanged. Your configured Gmail sending addresses are excluded. Sender
-display names become custom email labels. Run the same command again whenever you want to sync.
+display names become custom email labels unless they match the email address, contact name, or
+company. Run the same command again whenever you want to sync.
+
+To skip specific senders for this run, add `--exclude 'ignore@example.com'`. Repeat the option for
+more addresses: `--exclude 'ignore@example.com' --exclude 'another@example.com'`.
+You can also use `--exclude-file './excluded.txt'`, containing one address per line. Repeat either
+option or combine them. Blank lines and `#` comments are ignored; pasted `address — Display Name`
+lines work too. Existing contact entries are never removed.
 
 ## Duplicate a contact
 
@@ -51,13 +58,42 @@ Review the preview, then answer `y` to **Create this duplicate?** Omit `--name` 
 name. The copy includes editable fields and the custom photo, plus a **Duplicate** field with its
 creation date/time. The original stays unchanged; success prints the new contact's link.
 
+## List email addresses
+
+```sh
+./contacts-cli list-email --contact 'c123456789'
+```
+
+Shows existing entries with a total, numbered rows, labels, and duplicate references.
+
+## Add or remove email addresses
+
+```sh
+./contacts-cli add-email --contact 'c123456789' \
+  --add 'person@example.com — Work' --add-file './addresses.txt'
+
+./contacts-cli remove-email --contact 'c123456789' \
+  --remove 'person@example.com' --remove-file './addresses.txt'
+```
+
+Repeat or combine individual and file options. Both commands preview changes and ask before
+saving. A bare address means no label when adding. Conflicting existing labels or duplicate
+entries offer Replace / Keep / Replace all / Keep all; replacement leaves one matching entry.
+Removal deletes every matching entry, keeping the contact itself.
+
+`--apply` skips confirmation but preserves conflicting existing entries. For `add-email`, combine
+it with `--replace-existing` to approve label replacements/removals and duplicate consolidation.
+Conflicting labels in the input are errors. See [email editing details](docs/command-reference.md#add-email-and-remove-email).
+
 ## Common options
 
-- `--contact` accepts a Google Contacts URL or `people/c123456789`; lookup by name is not supported.
+- `--contact` accepts a Google Contacts URL or a bare ID such as `c123456789`;
+  lookup by name is not supported.
 - Enter or `n` at a confirmation prompt makes no changes.
-- Add `--apply` to either command to save without asking. Each run reads current data; each
+- Add `--apply` to a command that makes changes to save without asking. Each run reads current data; each
   duplicate creates a new contact. Piped or redirected runs without `--apply` only preview.
-- Use `./contacts-cli <command> --help` for all options.
+- Use `./contacts-cli --help` for global options (`--token`), accepted
+  before or after the command. Use `./contacts-cli <command> --help` for command options.
 
 ## More information
 
