@@ -9,6 +9,8 @@ def bare_address(value):
     parsed = parse_from_details([address])
     if parsed != ((address, ""),) or "*" in address:
         raise SyncError("expected one supported email address without a name or wildcard")
+    if "." not in address.rsplit("@", 1)[1]:
+        raise SyncError("expected an email address with a dotted domain, such as name@example.com")
     return address
 
 

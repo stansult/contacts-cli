@@ -250,3 +250,42 @@ All commands accept it before or after the command name, including commands that
 authorization when a token is missing or lacks required scopes. The default is 300 seconds.
 It changes only the browser authorization wait, not API request timeouts or token expiration.
 If specified on both sides of the command, the value after the command takes precedence.
+
+## New-contact inputs
+
+`test_contact_inputs.py` covers Person field/schema and value validation, partial dates, generated
+fields, singleton and size limits, malformed files, precise locations, inline/file exclusivity,
+and rejection before authorization. The synthetic full-field fixture is checked independently against the
+bundled discovery schema and explicit expected values. `test_contact_create.py` covers preview-only behavior,
+confirmation, label pagination/reuse/creation, sequential contact creation, independent readback,
+partial failures and no mutation retries. The label fixture has independent storage, pagination,
+and duplicate-name conflict checks. All account interactions use the offline HTTP fixture.
+
+Creation-output tests cover readable previews, requested/saved mismatches, definite rejection,
+unknown write outcomes, interruptions during writing versus verification, partial batches, and
+labels created before contact processing stops. These cases verify that each failure prints one
+outcome without a second generic error from the CLI.
+
+Local validation command tests exercise one object, arrays, missing files, invalid field paths,
+file-only options and the silent plural alias. Authorization, connection and input functions are
+replaced with failing sentinels to verify validation remains offline and noninteractive.
+
+## API error logging
+
+`test_error_logs.py` verifies full JSON, non-JSON and binary error bodies, HTTP status and method,
+command context, unique private files, request-data exclusion, read/write failures, and failure
+to save a log without masking the original error. A real Google HttpRequest with a synthetic
+transport checks exact response preservation and no mutation retries. Tests redirect logs into
+temporary directories through `CONTACTS_CLI_ERROR_LOG_DIR`.
+
+## Adding contact labels
+
+`test_label_edit.py` independently checks the membership HTTP fixture's additive, idempotent,
+readback and not-found behavior. Product tests cover preview/apply/confirmation, plural alias,
+existing memberships and fields, no-op reruns, case choices, cancellation, partial failures,
+no mutation retries, and missing new or prior memberships during verification.
+
+`test_remove_label.py` checks removal fixture idempotency and last-membership refusal independently,
+then covers singular/plural commands, preview/confirmation/apply, missing and unapplied labels,
+no-create case choices, no-op reruns, retained label definitions and contact data, and verification
+of both requested absence and preserved memberships.

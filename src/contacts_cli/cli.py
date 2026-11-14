@@ -8,6 +8,8 @@ from pathlib import Path
 from .address_inputs import bare_address, edit_inputs, file_lines, split_entry
 from .api import exclusion_query
 from .auth import authorize, connect, default_credentials_path, default_token_path
+from .contact_create import run_create
+from .contact_inputs import load_contact_inputs, text_value
 from .core import (
     addition_entry,
     address_key,
@@ -18,7 +20,9 @@ from .core import (
 )
 from .duplicate import READ_FIELDS, make_duplicate_plan, replacement_name
 from .email_edit import make_edit_plan, verify_edit
+from .error_logs import COMMAND as ERROR_LOG_COMMAND
 from .errors import InsufficientScopes, MissingToken, SyncError, WriteUnverified
+from .label_edit import run_label_edit
 from .metrics import ACTIVE, RunMetrics, counts, outcome
 from .output import OperationalOutput, email_rows, emit, emit_list
 from .progress import ScanProgress
@@ -63,6 +67,31 @@ def file_exclusions(paths):
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description="Work with Google contacts.")
     commands = result.add_subparsers(dest="command", required=True)
+    creation = commands.add_parser("add-contact", help="Preview or create new contacts")
+    creation.add_argument("--name", help="Full name for one contact")
+    creation.add_argument(
+        "--email", action="append", default=[], help="Email for that contact (repeatable)"
+    )
+    creation.add_argument(
+        "--file", type=Path, help="UTF-8 JSON Person object or array; excludes inline fields"
+    )
+    creation.add_argument(
+        "--label",
+        action="append",
+        default=[],
+        help="Exact, case-sensitive contact label for all inputs; create if missing (repeatable)",
+    )
+    creation.add_argument(
+        "--apply", action="store_true", help="Skip final confirmation; label choices still prompt"
+    )
+    duplicate = commands.add_parser("duplicate", help="Preview or create a copy of a contact")
+    duplicate.add_argument(
+        "--contact", required=True, help="Google Contacts URL or bare ID such as c123456789"
+    )
+    duplicate.add_argument("--name", help="Optional replacement name (stored as the given name)")
+    duplicate.add_argument(
+        "--apply", action="store_true", help="Create and verify a new contact without asking"
+    )
     sync = commands.add_parser(
         "sender-sync",
         help="Preview or append Gmail label senders to an existing contact",
@@ -94,14 +123,6 @@ def parser() -> argparse.ArgumentParser:
         type=Path,
         metavar="PATH",
         help="Read excluded senders from a UTF-8 file (repeat for multiple files)",
-    )
-    duplicate = commands.add_parser("duplicate", help="Preview or create a copy of a contact")
-    duplicate.add_argument(
-        "--contact", required=True, help="Google Contacts URL or bare ID such as c123456789"
-    )
-    duplicate.add_argument("--name", help="Optional replacement name (stored as the given name)")
-    duplicate.add_argument(
-        "--apply", action="store_true", help="Create and verify a new contact without asking"
     )
     listing = commands.add_parser("list-email", help="List a contact's existing email entries")
     listing.add_argument(
@@ -143,6 +164,30 @@ def parser() -> argparse.ArgumentParser:
                 help="Approve label changes/removals and consolidate matching duplicate entries",
             )
         editing.append(command)
+    label_commands = []
+    for action in ("add", "remove"):
+        labeling = commands.add_parser(
+            f"{action}-label", help=f"{action.title()} labels on an existing contact"
+        )
+        labeling.add_argument("--contact", required=True, help="Google Contacts URL or bare ID")
+        labeling.add_argument(
+            "--label",
+            required=True,
+            action="append",
+            help="Exact, case-sensitive contact label (repeatable)",
+        )
+        labeling.add_argument(
+            "--apply",
+            action="store_true",
+            help="Skip final confirmation; label choices still prompt",
+        )
+        label_commands.append(labeling)
+    validation = commands.add_parser(
+        "validate-contact", help="Validate a contact JSON file locally without Google access"
+    )
+    validation.add_argument(
+        "--file", type=Path, required=True, help="UTF-8 JSON Person object or array"
+    )
     setup = commands.add_parser("authorize", help="Run explicit initial OAuth setup")
     setup.add_argument(
         "--credentials",
@@ -155,7 +200,17 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the authorization URL without opening a browser",
     )
-    for command in (result, sync, setup, duplicate, listing, *editing):
+    for command in (
+        result,
+        sync,
+        setup,
+        duplicate,
+        listing,
+        creation,
+        *label_commands,
+        validation,
+        *editing,
+    ):
         top_level = command is result
         if not top_level:
             command.epilog = "See contacts-cli --help for global options."
@@ -408,6 +463,10 @@ def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     # Accept forgiving spellings without adding plural forms to help or usage.
     aliases = {f"{action}-emails": f"{action}-email" for action in ("add", "remove", "list")}
+    aliases["add-contacts"] = "add-contact"
+    aliases["add-labels"] = "add-label"
+    aliases["remove-labels"] = "remove-label"
+    aliases["validate-contacts"] = "validate-contact"
     index = 0
     while index < len(argv):
         option = argv[index].split("=", 1)[0]
@@ -423,8 +482,17 @@ def main(argv=None) -> int:
         action = args.command.split("-")[0]
         if not getattr(args, action) and not getattr(args, action + "_file"):
             arguments.error(f"{args.command} requires --{action} or --{action}-file")
-    with OperationalOutput():
-        return execute_command(args)
+    if args.command == "add-contact":
+        if args.file is not None and (args.name is not None or args.email):
+            arguments.error("--file cannot be combined with --name or --email")
+        if args.file is None and args.name is None and not args.email:
+            arguments.error("add-contact requires --name, --email, or --file")
+    token = ERROR_LOG_COMMAND.set(args.command)
+    try:
+        with OperationalOutput():
+            return execute_command(args)
+    finally:
+        ERROR_LOG_COMMAND.reset(token)
 
 
 def execute_command(args):
@@ -444,6 +512,22 @@ def execute_command(args):
 def run_command(args):
     api = None
     try:
+        if args.command == "validate-contact":
+            contacts = load_contact_inputs(file=args.file)
+            emit(
+                f"Valid: {len(contacts)} contact{'s' if len(contacts) != 1 else ''}. "
+                "No Google access or changes."
+            )
+            return 0
+        if args.command == "add-contact":
+            contacts = load_contact_inputs(
+                name=args.name, emails=args.email, file=args.file, labels=args.label
+            )
+            api = connect_with_authorization(args.token, args.auth_timeout)
+            if api is None:
+                return 1
+            api.write_started = False
+            return run_create(args, api, contacts, confirm_apply)
         if args.command == "authorize":
             authorize(
                 args.credentials,
@@ -455,7 +539,10 @@ def run_command(args):
             return 0
         # Reject bad input before touching credentials or the network.
         contact_resource(args.contact)
-        if args.command == "duplicate":
+        if args.command in {"add-label", "remove-label"}:
+            for number, label in enumerate(args.label, 1):
+                text_value(label, f"--label #{number}")
+        elif args.command == "duplicate":
             replacement_name(args.name)
         elif args.command == "sender-sync":
             args.exclude = sorted(set(args.exclude) | file_exclusions(args.exclude_file))
@@ -469,13 +556,17 @@ def run_command(args):
         if api is None:
             return 1
         api.write_started = False
+        if args.command in {"add-label", "remove-label"}:
+            return run_label_edit(args, api, confirm_apply, contact_heading)
         if args.command == "list-email":
             return run_list_email(args, api)
         if args.command in {"add-email", "remove-email"}:
             return run_email_edit(args, api)
         return run_duplicate(args, api) if args.command == "duplicate" else run(args, api)
     except WriteUnverified as exc:
-        label = "Unverified copy" if args.command == "duplicate" else "Unverified update"
+        label = {"duplicate": "Unverified copy", "add-contact": "Unverified creation"}.get(
+            args.command, "Unverified update"
+        )
         emit(f"{label}: {exc}", file=sys.stderr)
         return 3
     except SyncError as exc:

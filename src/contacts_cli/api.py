@@ -21,6 +21,7 @@ from .core import (
     verify_saved,
 )
 from .duplicate import READ_FIELDS, download_photo, verify_duplicate
+from .error_logs import save_http_error
 from .errors import SyncError, WriteUnverified
 from .metrics import ACTIVE, counts, execute_measured
 
@@ -52,6 +53,7 @@ def execute(request, *, write: bool = False, operation: str = "update"):
         # Never retry a mutation whose outcome may be unknown.
         return execute_measured(request, num_retries=0 if write else 3)
     except HttpError as exc:
+        save_http_error(exc, request, write=write, operation=operation)
         status = exc.resp.status
         if write and status >= 500:
             raise WriteUnverified(

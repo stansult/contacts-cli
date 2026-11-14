@@ -237,3 +237,26 @@ def test_contact_heading_name_precedes_company(
     assert cli.main(args) == 0
     assert undecorated(capsys.readouterr().out).splitlines()[0] == f"Contact: {expected!r} (c123)"
     assert server.writes == 0
+
+
+def test_help_command_order():
+    help_text = cli.parser().format_help()
+    expected = [
+        "add-contact",
+        "duplicate",
+        "sender-sync",
+        "list-email",
+        "add-email",
+        "remove-email",
+        "add-label",
+        "remove-label",
+        "validate-contact",
+        "authorize",
+    ]
+    assert "{" + ",".join(expected) + "}" in help_text
+    rows = [
+        line.split()[0]
+        for line in help_text.splitlines()
+        if line.startswith("    ") and line.split() and line.split()[0] in expected
+    ]
+    assert rows == expected

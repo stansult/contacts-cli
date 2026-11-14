@@ -22,3 +22,4 @@ def pytest_addoption(parser):
 @pytest.fixture(autouse=True)
 def isolate_metrics(monkeypatch, tmp_path):
     monkeypatch.setenv("CONTACTS_CLI_METRICS_DIR", str(tmp_path / "metrics"))
+    monkeypatch.setenv("CONTACTS_CLI_ERROR_LOG_DIR", str(tmp_path / "error-logs"))

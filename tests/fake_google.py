@@ -23,6 +23,7 @@ class FakeGoogle:
         self.mailbox = json.loads((FIXTURES / "mailbox.json").read_text())
         self.send_as = json.loads((FIXTURES / "send-as.json").read_text())
         self.send_as_status = 200
+        self.groups = {}
         self.created = {}
         self.create_status = 200
         self.photo_status = 200
@@ -134,8 +135,58 @@ class FakeGoogle:
                     ]
                 }
             )
+        if method == "POST" and url.path.endswith("/members:modify"):
+            resource = url.path.removeprefix("/v1/").removesuffix("/members:modify")
+            assert set(data) in ({"resourceNamesToAdd"}, {"resourceNamesToRemove"})
+            remove = "resourceNamesToRemove" in data
+            if resource not in self.groups:
+                return reply({"error": {"message": "Missing group"}}, 404)
+            missing, blocked = [], []
+            for name in data["resourceNamesToRemove" if remove else "resourceNamesToAdd"]:
+                person = (
+                    self.person if name == self.person["resourceName"] else self.created.get(name)
+                )
+                if person is None:
+                    missing.append(name)
+                    continue
+                membership = {"contactGroupMembership": {"contactGroupResourceName": resource}}
+                entries = person.setdefault("memberships", [])
+                if remove and membership in entries:
+                    if len(entries) == 1:
+                        blocked.append(name)
+                    else:
+                        entries.remove(membership)
+                elif not remove and membership not in entries:
+                    entries.append(membership)
+            self.writes += 1
+            result = {"notFoundResourceNames": missing} if missing else {}
+            if blocked:
+                result["canNotRemoveLastContactGroupResourceNames"] = blocked
+            return reply(result)
+        if url.path == "/v1/contactGroups":
+            if method == "GET":
+                offset = int(query.get("pageToken", ["0"])[0])
+                groups = list(self.groups.values())
+                result = {"contactGroups": groups[offset : offset + 1]}
+                if offset + 1 < len(groups):
+                    result["nextPageToken"] = str(offset + 1)
+                return reply(result)
+            if method == "POST":
+                name = data["contactGroup"]["name"]
+                if any(group["name"] == name for group in self.groups.values()):
+                    return reply({"error": {"message": "Duplicate name"}}, 409)
+                resource = f"contactGroups/created{len(self.groups)}"
+                self.groups[resource] = {
+                    "resourceName": resource,
+                    "name": name,
+                    "groupType": "USER_CONTACT_GROUP",
+                }
+                self.writes += 1
+                return reply(self.groups[resource])
         if method == "GET" and url.path.startswith("/v1/contactGroups/"):
             resource = url.path.removeprefix("/v1/")
+            if resource in self.groups:
+                return reply(self.groups[resource])
             kind = (
                 "SYSTEM_CONTACT_GROUP"
                 if resource

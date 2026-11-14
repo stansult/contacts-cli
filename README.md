@@ -11,17 +11,29 @@ uv sync --locked
 ./contacts-cli --help
 ```
 
-## Google setup
+## Add contacts
 
-Configure Google API access once, then authorize the CLI in your browser:
+`./contacts-cli add-contact --name 'Jane Doe' --email 'jane@example.com'` previews a new contact
+and asks before creating it. Use `--file contacts.json` for one or more Google Person objects,
+`--label Recruiter` to apply an exact, case-sensitive contact label (created if missing), and `--apply` to skip final confirmation.
+Case-only label collisions offer a choice interactively, even with `--apply`; noninteractive runs
+stop and show the existing spelling.
+Each new contact gets a **Created** custom field recording the CLI and creation time.
+See the [input format and creation details](docs/contact-input.md).
 
-1. [Create a Google Cloud project](https://console.cloud.google.com/projectcreate) and enable [Gmail API](https://console.cloud.google.com/apis/library/gmail.googleapis.com) and [Google People API](https://console.cloud.google.com/apis/library/people.googleapis.com).
-2. Configure OAuth consent and add your account as a test user.
-3. Download a Desktop app client file to `~/.config/contacts-cli/credentials.json`.
-4. Run `./contacts-cli authorize` and complete browser sign-in.
+## Duplicate a contact
 
-Follow the [detailed Google setup instructions](docs/google-setup.md) for each step. Later runs reuse
-saved authorization; missing or insufficient authorization offers browser setup.
+Create a copy, optionally giving it a different name:
+
+```sh
+./contacts-cli duplicate \
+  --contact 'https://contacts.google.com/person/c123456789' \
+  --name 'Delivery backup'
+```
+
+Review the preview, then answer `y` to **Create this duplicate?** Omit `--name` to keep the original
+name. The copy includes editable fields and the custom photo, plus a **Duplicate** field with its
+creation date/time. The original stays unchanged; success prints the new contact's link.
 
 ## Sender-sync preview and apply
 
@@ -43,20 +55,6 @@ more addresses: `--exclude 'ignore@example.com' --exclude 'another@example.com'`
 You can also use `--exclude-file './excluded.txt'`, containing one address per line. Repeat either
 option or combine them. Blank lines and `#` comments are ignored; pasted `address — Display Name`
 lines work too. Existing contact entries are never removed.
-
-## Duplicate a contact
-
-Create a copy, optionally giving it a different name:
-
-```sh
-./contacts-cli duplicate \
-  --contact 'https://contacts.google.com/person/c123456789' \
-  --name 'Delivery backup'
-```
-
-Review the preview, then answer `y` to **Create this duplicate?** Omit `--name` to keep the original
-name. The copy includes editable fields and the custom photo, plus a **Duplicate** field with its
-creation date/time. The original stays unchanged; success prints the new contact's link.
 
 ## List email addresses
 
@@ -85,6 +83,43 @@ Removal deletes every matching entry, keeping the contact itself.
 it with `--replace-existing` to approve label replacements/removals and duplicate consolidation.
 Conflicting labels in the input are errors. See [email editing details](docs/command-reference.md#add-email-and-remove-email).
 
+## Add labels
+
+```sh
+./contacts-cli add-label --contact c123456789 --label Recruiter
+```
+
+Repeat `--label` for multiple labels. Existing labels are preserved; already applied labels are
+skipped. Missing labels are created after confirmation. Case-only matches offer the same choices
+as `add-contact`. Use `--apply` to skip final confirmation. See [label details](docs/command-reference.md#add-label).
+
+## Remove labels
+
+```sh
+./contacts-cli remove-label --contact c123456789 --label Recruiter
+```
+
+Removes labels from this contact, preserving the labels themselves and other contact information.
+Repeat `--label` for multiple removals. Missing or unapplied labels are skipped. Preview and
+confirmation work like `add-label`. See [removal details](docs/command-reference.md#remove-label).
+
+## Validate a contact file
+
+Check a file locally with `./contacts-cli validate-contact --file contacts.json`; no authorization
+is needed. See [local validation](docs/contact-input.md#validate-a-file-locally).
+
+## Google setup
+
+Configure Google API access once, then authorize the CLI in your browser:
+
+1. [Create a Google Cloud project](https://console.cloud.google.com/projectcreate) and enable [Gmail API](https://console.cloud.google.com/apis/library/gmail.googleapis.com) and [Google People API](https://console.cloud.google.com/apis/library/people.googleapis.com).
+2. Configure OAuth consent and add your account as a test user.
+3. Download a Desktop app client file to `~/.config/contacts-cli/credentials.json`.
+4. Run `./contacts-cli authorize` and complete browser sign-in.
+
+Follow the [detailed Google setup instructions](docs/google-setup.md) for each step. Later runs reuse
+saved authorization; missing or insufficient authorization offers browser setup.
+
 ## Common options
 
 - `--contact` accepts a Google Contacts URL or a bare ID such as `c123456789`;
@@ -99,5 +134,6 @@ Conflicting labels in the input are errors. See [email editing details](docs/com
 
 - [Command reference](docs/command-reference.md): search logic, copied fields, output, limits, and exit codes.
 - [Google setup](docs/google-setup.md): credentials, permissions, and authorization troubleshooting.
+- [API error logs](docs/error-logs.md): full Google error responses saved locally for troubleshooting.
 - [Local metrics](docs/metrics.md): timing and API counts; run `make metrics` for a summary.
 - [Contributing](CONTRIBUTING.md) and [testing](docs/testing.md): development workflow and checks.

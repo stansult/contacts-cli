@@ -22,7 +22,7 @@ READ_FIELDS = COPY_FIELDS + ",metadata,photos"
 PHOTO_LIMIT = 10 * 1024 * 1024
 
 
-def duplicate_marker(now=None):
+def creation_marker(label, now=None):
     now = now if now is not None else datetime.now().astimezone()
     months = (
         "January February March April May June July August September October November December"
@@ -32,12 +32,16 @@ def duplicate_marker(now=None):
     hour = now.hour % 12 or 12
     period = "AM" if now.hour < 12 else "PM"
     return {
-        "key": "Duplicate",
+        "key": label,
         "value": (
             f"Created by contacts-cli on {months[now.month - 1]} {now.day}, {now.year} "
             f"at {hour}:{now.minute:02d} {period} (UTC{offset})"
         ),
     }
+
+
+def duplicate_marker(now=None):
+    return creation_marker("Duplicate", now)
 
 
 def replacement_name(value):

@@ -1,0 +1,13 @@
+{
+  "names": [{"givenName": "Jane", "familyName": "Doe"}],
+  "emailAddresses": [{"value": "jane@example.com", "type": "work"}],
+  "phoneNumbers": [{"value": "+1 (202) 555-0142 ext. 42", "type": "work"}],
+  "organizations": [{"name": "Example Recruiting", "title": "Recruiter", "current": true}],
+  "addresses": [{"city": "Irvine", "region": "California", "countryCode": "US"}],
+  "urls": [{"value": "https://example.com/profile", "type": "LinkedIn"}],
+  "userDefined": [{"key": "Pipeline ID", "value": "P-001"}, {"key": "Pipeline ID", "value": "P-002"}],
+  "biographies": [{"value": "Explicitly supplied note.\nSecond line.", "contentType": "TEXT_PLAIN"}],
+  "birthdays": [{"date": {"month": 2, "day": 29}}],
+  "events": [{"date": {"year": 2020, "month": 5, "day": 1}, "type": "anniversary"}],
+  "nicknames": [{"value": "J"}]
+}
