@@ -14,6 +14,18 @@ apply path. Do not add live Google calls to the test suite.
 The [email editing plan](docs/email-editing-plan.md) records design decisions for the
 add/remove commands; user-facing behavior is described in the command reference.
 
+## Documentation paths
+
+Keep ordinary user and contributor guides under `docs/`, including nested directories.
+Documentation-only CI applies when every changed path is root `README.md`, root
+`CONTRIBUTING.md`, or a `.md` file under `docs/`. New guides need no classifier update.
+Mixed changes and all other paths run full checks.
+
+Markdown used as a test fixture, executable input, or artifact-generation source belongs outside
+`docs/`. If a justified exception must remain there, add its exact path to
+`FULL_CHECK_DOCUMENTS` in `scripts/ci_scope.py` and test that it triggers full checks. This rule
+relies on this repository's documentation layout; it does not treat arbitrary Markdown as safe.
+
 ## Markdown formatting
 
 Wrap prose at roughly 80–100 characters per line, excluding inline link URLs from the character
@@ -36,7 +48,7 @@ sockets disabled, plus local documentation link checks. `make check-package` ver
 and a clean wheel installation. `make format` formats Python files. Update `uv.lock` with `uv lock` when
 dependencies change. `make build` creates wheel and source archives in ignored `dist/`.
 GitHub Actions runs both checks on Linux/Python 3.11 and macOS/Python 3.13 for code or configuration
-changes. Pushes and pull requests changing only known documentation files run local-link and
+changes. Pushes and pull requests changing only ordinary documentation paths run local-link and
 heading checks on Ubuntu without installing application dependencies. Manual runs use full checks.
 See [CI routing](docs/testing.md#ci-routing) for classification and fallback rules.
 

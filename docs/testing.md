@@ -185,10 +185,12 @@ upload fidelity for every image.
 
 ## CI routing
 
-`scripts/ci_scope.py` permits lightweight checks only for its explicit list of ordinary documents:
-README, CONTRIBUTING, and the command-reference, Google setup, metrics, and testing guides.
-New or unrecognized files default to full checks; add a document to the list only after confirming
-it is not an executable fixture, generated input, or automation source.
+`scripts/ci_scope.py` permits lightweight checks when every changed file is root `README.md`,
+root `CONTRIBUTING.md`, or a `.md` file anywhere under `docs/`. New and nested guides qualify
+without changing the classifier. Markdown elsewhere, non-Markdown files, and mixed changes
+run full checks. `FULL_CHECK_DOCUMENTS` overrides these rules for explicit automation-input
+exceptions; currently there are none. Keep fixtures and artifact-generation inputs outside
+`docs/`, as described in [documentation paths](../CONTRIBUTING.md#documentation-paths).
 
 Pushes compare the before/after commits across the entire push. Pull requests compare the merge
 base with the PR head. Renames include both old and new paths. Manual runs, empty diffs, new
@@ -197,8 +199,8 @@ file rather than interpolating event values into shell commands.
 
 Documentation-only runs check local links and Markdown heading targets using Python's standard
 library, without uv setup, application dependencies, runtime tests, or package builds. Other
-runs retain both OS/Python test jobs. `test_ci_scope.py` checks the allowlist and uses a temporary
-Git repository to verify multi-commit push ranges, PR ranges, and renames independently of mocks.
+runs retain both OS/Python test jobs. `test_ci_scope.py` checks new/nested guides, mixed paths,
+and explicit exceptions, and uses a temporary Git repository to verify multi-commit push ranges, PR ranges, and renames independently of mocks.
 Changing this workflow or its classifier therefore runs the full suite.
 
 ## Explicit sender exclusions

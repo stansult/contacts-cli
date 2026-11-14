@@ -4,6 +4,7 @@ import subprocess
 
 import pytest
 
+from scripts import ci_scope
 from scripts.ci_scope import changed_paths, docs_only
 
 
@@ -14,11 +15,18 @@ from scripts.ci_scope import changed_paths, docs_only
         (["README.md", "src/contacts_cli/cli.py"], False),
         ([".github/workflows/ci.yml"], False),
         (["tests/fixtures/input.md"], False),
-        (["docs/new-generated.md"], False),
+        (["docs/new-guide.md"], True),
+        (["docs/guides/nested-guide.md", "CONTRIBUTING.md"], True),
+        (["docs/contact-input.md", "docs/error-logs.md"], True),
+        (["docs/new-guide.md", "tests/test_cli.py"], False),
+        (["notes.md"], False),
+        (["docs/example.json"], False),
+        (["docs-helper/guide.md"], False),
+        (["docs/../runtime.md"], False),
         ([], False),
     ],
 )
-def test_document_allowlist(paths, expected):
+def test_document_path_rule(paths, expected):
     assert docs_only(paths) is expected
 
 
@@ -56,3 +64,10 @@ def test_real_git_ranges_and_renames(tmp_path, monkeypatch):
 def test_manual_and_new_branch_use_full_checks():
     assert not docs_only(changed_paths("workflow_dispatch", {}))
     assert not docs_only(changed_paths("push", {"before": "0" * 40, "after": "a" * 40}))
+
+
+def test_explicit_automation_exception_requires_full_checks(monkeypatch):
+    monkeypatch.setattr(ci_scope, "FULL_CHECK_DOCUMENTS", {"docs/generated/input.md"})
+    assert not docs_only(["docs/generated/input.md"])
+    assert not docs_only(["README.md", "docs/generated/input.md"])
+    assert docs_only(["docs/generated/guide.md"])

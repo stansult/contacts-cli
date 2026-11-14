@@ -1,22 +1,26 @@
-"""Choose lightweight CI only for explicitly known, non-executable documentation."""
+"""Choose lightweight CI for ordinary documentation in designated paths."""
 
 import json
 import os
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
-DOCUMENTS = {
-    "README.md",
-    "CONTRIBUTING.md",
-    "docs/command-reference.md",
-    "docs/google-setup.md",
-    "docs/metrics.md",
-    "docs/testing.md",
-}
+ROOT_DOCUMENTS = {"README.md", "CONTRIBUTING.md"}
+# Any future Markdown automation input kept in docs must be listed here.
+FULL_CHECK_DOCUMENTS = set()
+
+
+def ordinary_document(path):
+    if path in FULL_CHECK_DOCUMENTS:
+        return False
+    if path in ROOT_DOCUMENTS:
+        return True
+    parts = PurePosixPath(path).parts
+    return len(parts) > 1 and parts[0] == "docs" and ".." not in parts and path.endswith(".md")
 
 
 def docs_only(paths):
-    return bool(paths) and all(path in DOCUMENTS for path in paths)
+    return bool(paths) and all(ordinary_document(path) for path in paths)
 
 
 def changed_paths(event_name, event):
