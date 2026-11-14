@@ -327,10 +327,12 @@ only the final Saved and verified message confirms success.
 Adds one or more contact labels to an existing contact. `--contact` accepts a URL or bare ID;
 repeat `--label` for more labels. Names match exactly and case-sensitively. The shared
 [case-collision choices](contact-input.md#inline-or-file-input) offer existing labels, create new,
-or cancel. `--apply` skips final confirmation but not label choices; noninteractive collisions stop.
+or cancel. `--apply` skips final confirmation but not label choices; unresolved noninteractive
+collisions stop. See [label choices and output](#label-choices-and-output) for membership-aware wording.
 
-The preview lists labels already applied, labels to create, and proposed additions, with totals
-and numbered rows. If every label is already applied, the command makes no changes. Otherwise it
+The preview separates labels already on this contact from proposed additions, with totals
+and numbered rows. New labels appear once, marked `(new label)`. If every label is already on
+the contact, the command makes no changes. Otherwise it
 asks once before creating labels or adding memberships. Noninteractive runs without `--apply`
 preview only.
 
@@ -356,8 +358,9 @@ API contract: [modify contact group members](https://developers.google.com/peopl
 
 Removes the specified labels from one existing contact. It does not delete label definitions or
 change other contacts. Names and case-collision choices follow `add-label`, except removal never
-offers Create new. The menu lists existing matches and Cancel. `--apply` skips final confirmation,
-not case choices; noninteractive case collisions stop.
+offers Create new. The menu offers removal of matching labels on this contact and Cancel command. `--apply` skips final confirmation,
+not case choices; unresolved noninteractive case collisions stop. Case-only matches absent from
+the contact are reported and skipped without a choice.
 
 The numbered preview separates labels not found, labels not applied to this contact, and proposed
 removals. Repeated labels are deduplicated. Missing or unapplied labels are no-ops; if none are
@@ -373,6 +376,83 @@ of a contact's last contact-group membership; that refusal is reported and proce
 On errors or interruption, verified removals remain saved and later removals stop. Mutation requests
 are not retried automatically. Inspect the contact before retrying; a fresh preview skips labels
 already removed. Shared [error logs](error-logs.md) capture failed HTTP responses.
+
+## Label choices and output
+
+For `add-label` and `remove-label`, label lookup distinguishes existence anywhere in Google
+Contacts from membership on the selected contact. Choices reflect both spelling and membership.
+
+### Adding labels
+
+Exact spelling takes precedence over case-only alternatives, including when both spellings exist.
+Other case variants do not affect the decision for an exact match.
+
+| Requested spelling | State | Action |
+| --- | --- | --- |
+| Exact match | Already on this contact | Skip; show under “Already on this contact.” |
+| Exact match | Exists elsewhere, absent from this contact | Include in additions. |
+| Case-only match | Already on this contact | Offer to keep it or create and add the requested spelling too. |
+| Case-only match | Exists elsewhere, absent from this contact | Offer to add it or create and add the requested spelling instead. |
+| No match | Does not exist | Preview creating and adding it. |
+
+For a case-only match already on the contact:
+
+```text
+This contact already has 'Recruiter', which differs only by case from 'recruiter'.
+  1. Keep 'Recruiter'; skip adding 'recruiter'
+  2. Create 'recruiter' and add it too
+  3. Cancel command
+Choose 1–3 (Enter = 1):
+```
+
+For a case-only match not on the contact:
+
+```text
+Label 'Recruiter' exists in Google Contacts, but isn't on this contact.
+Its spelling differs only by case from 'recruiter'.
+  1. Add 'Recruiter'
+  2. Create 'recruiter' and add it instead
+  3. Cancel command
+Choose 1–3 (Enter = 1):
+```
+
+If several case-only alternatives exist, list each with wording reflecting its membership on
+this contact. Keep the numbered choice and explicit Enter default; do not introduce a new flag.
+
+### Removing labels
+
+Use action-specific choices, such as “Remove 'Recruiter' from this contact,” rather than
+“Choose a label” or “Use existing.” A label absent from this contact is reported and skipped;
+it must not be presented as a removal. Removal never offers to create a label.
+Exact matches still take precedence over case-only alternatives.
+
+```text
+This contact has 'Recruiter', which differs only by case from 'recruiter'.
+  1. Remove 'Recruiter' from this contact
+  2. Cancel command
+Choose 1–2 (Enter = 1):
+```
+
+### Preview, confirmation, and completion
+
+- “Cancel command” cancels the entire command before writes, not just the current label.
+- Labels already present appear under “Already on this contact.”
+- Show each addition once under a heading with a total and numbered rows. Mark labels that
+  need creation with `(new label)`; do not repeat them in a separate creation list.
+- Preserve the existing Proposed versus action-in-progress heading convention for previews
+  versus `--apply`.
+- Make final confirmation describe the actual actions and counts. For one new label only:
+  “Create 1 new label and add it to this contact?” For mixed additions, distinguish how many
+  labels need creation from how many will be added to the contact.
+- Successful additions say “Added and verified.” For a single addition, retain
+  the final success summary without a redundant per-label verification line. Multiple-label
+  runs retain per-label verification progress and a final summary. Apply the same principle
+  to removal output.
+- Separate contact details and preview sections with blank lines.
+
+Choices select the plan; final confirmation still authorizes writes. Existing `--apply` and
+noninteractive rules remain: `--apply` skips final confirmation, not unresolved case choices;
+noninteractive collisions requiring a choice stop rather than choosing a spelling silently.
 
 ## Validate-contact
 

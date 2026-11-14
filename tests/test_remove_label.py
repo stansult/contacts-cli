@@ -58,7 +58,7 @@ def test_remove_preview_apply_noop(command, apply, api, server, monkeypatch, cap
     assert cli.main(args + (["--apply"] if apply else [])) == 0
     output = capsys.readouterr().out
     assert "Labels not found: 1 label" in output
-    assert "Not applied to this contact: 1 label" in output
+    assert "Not on this contact: 1 label" in output
     assert (
         "Removing labels: 1 label" in output
         if apply
@@ -84,7 +84,7 @@ def test_remove_confirmation(answer, api, server, monkeypatch):
     monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: api)
 
     def confirm(question):
-        assert question == "Remove these labels?"
+        assert question == "Remove 1 label from this contact?"
         assert server.writes == baseline
         return answer
 
@@ -105,7 +105,7 @@ def test_removal_case_choice_has_no_create_option(cancel, api, server, monkeypat
     assert cli.main(["remove-label", "--contact", "c123", "--label", "recruiter", "--apply"]) == 0
     output = capsys.readouterr().out
     assert "Create new" not in output
-    assert "Use existing 'Recruiter'" in output and "2. Cancel" in output
+    assert "Remove 'Recruiter' from this contact" in output and "2. Cancel" in output
     assert server.writes == baseline + int(not cancel)
 
 

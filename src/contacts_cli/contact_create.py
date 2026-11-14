@@ -18,7 +18,7 @@ class LabelChoiceCancelled(Exception):
     """The user declined label resolution before any writes."""
 
 
-def choose_label(name, similar, *, allow_create=True):
+def choose_label(name, similar, *, allow_create=True, on_contact=None):
     if not all(stream.isatty() for stream in (sys.stdin, sys.stdout, sys.stderr)):
         spellings = ", ".join(repr(label) for label in similar)
         raise SyncError(
@@ -26,14 +26,39 @@ def choose_label(name, similar, *, allow_create=True):
             "Use an exact existing spelling with --label, or run interactively to choose. "
             "--apply does not resolve label choices; no changes made."
         )
-    emit(f"Label {name!r} differs only by case from existing labels.")
-    options = [f"Use existing {label!r}" for label in similar]
-    if allow_create:
-        options.append(f"Create new {name!r}")
-    options.append("Cancel")
-    emit_list("Choose a label", enumerate(options, 1), unit=("option", "options"))
+    if on_contact is None:
+        emit(f"Label {name!r} differs only by case from existing labels.")
+        options = [f"Use existing {label!r}" for label in similar]
+        if allow_create:
+            options.append(f"Create new {name!r}")
+    else:
+        if len(similar) == 1:
+            label = similar[0]
+            if label in on_contact:
+                emit(
+                    f"This contact {'already has' if allow_create else 'has'} {label!r}, "
+                    f"which differs only by case from {name!r}."
+                )
+            else:
+                emit(f"Label {label!r} exists in Google Contacts, but isn't on this contact.")
+                emit(f"Its spelling differs only by case from {name!r}.", primary=False)
+        else:
+            emit(f"Labels differing only by case from {name!r} exist in Google Contacts.")
+        options = [
+            f"Remove {label!r} from this contact"
+            if not allow_create
+            else f"Keep {label!r}; skip adding {name!r}"
+            if label in on_contact
+            else f"Add {label!r}"
+            for label in similar
+        ]
+        if allow_create:
+            suffix = "too" if any(label in on_contact for label in similar) else "instead"
+            options.append(f"Create {name!r} and add it {suffix}")
+    options.append("Cancel command")
+    emit_list("Options", enumerate(options, 1), unit=("option", "options"))
     while True:
-        emit("Choose [1]: ", file=sys.stderr, end="", flush=True)
+        emit(f"Choose 1–{len(options)} (Enter = 1): ", file=sys.stderr, end="", flush=True)
         try:
             answer = input().strip() or "1"
         except EOFError:
@@ -46,7 +71,7 @@ def choose_label(name, similar, *, allow_create=True):
         emit(f"Enter a number from 1 to {len(options)}.", file=sys.stderr)
 
 
-def resolve_labels(api, names, *, allow_create=True):
+def resolve_labels(api, names, *, allow_create=True, memberships=None):
     names = list(dict.fromkeys(names))
     if not names:
         return {}, []
@@ -89,11 +114,22 @@ def resolve_labels(api, names, *, allow_create=True):
                 )
             )
             if similar:
-                selected = (
-                    choose_label(name, similar)
-                    if allow_create
-                    else choose_label(name, similar, allow_create=False)
-                )
+                if memberships is not None:
+                    on_contact = {g["name"] for g in groups if g.get("resourceName") in memberships}
+                    if not allow_create:
+                        absent = [label for label in similar if label not in on_contact]
+                        for label in absent:
+                            existing[label] = next(
+                                g["resourceName"] for g in groups if g.get("name") == label
+                            )
+                        similar = [label for label in similar if label in on_contact]
+                        if not similar:
+                            continue
+                    selected = choose_label(
+                        name, similar, allow_create=allow_create, on_contact=on_contact
+                    )
+                else:
+                    selected = choose_label(name, similar, allow_create=allow_create)
                 if selected != name:
                     candidates = [
                         g

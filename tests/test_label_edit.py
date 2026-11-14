@@ -66,8 +66,8 @@ def test_preview_apply_and_noop(command, apply, api, server, monkeypatch, capsys
     ]
     assert cli.main(args + (["--apply"] if apply else [])) == 0
     output = capsys.readouterr().out
-    assert "Already applied: 1 label" in output
-    assert "Labels to create: 1 label" in output
+    assert "Already on this contact: 1 label" in output
+    assert "New (new label)" in output
     assert "2 labels" in output
     if not apply:
         assert server.writes == baseline and server.person == original
@@ -79,7 +79,7 @@ def test_preview_apply_and_noop(command, apply, api, server, monkeypatch, capsys
     assert second in str(server.person["memberships"])
     writes = server.writes
     assert cli.main(args + ["--apply"]) == 0
-    assert "already applied; no changes made" in capsys.readouterr().out
+    assert "already on this contact; no changes made" in capsys.readouterr().out
     assert server.writes == writes
     assert not any("gmail" in call[1] for call in server.calls)
 
@@ -90,7 +90,7 @@ def test_confirmation_before_label_creation(answer, api, server, monkeypatch):
 
     def confirm(question):
         assert server.writes == 0
-        assert "create the missing labels" in question
+        assert question == "Create 1 new label and add it to this contact?"
         return answer
 
     monkeypatch.setattr(cli, "confirm_apply", confirm)
@@ -101,10 +101,10 @@ def test_confirmation_before_label_creation(answer, api, server, monkeypatch):
 def test_case_choice_updates_applied_label(api, server, monkeypatch, capsys):
     resource = group(server, "Recruiter")
     monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: api)
-    monkeypatch.setattr(contact_create, "choose_label", lambda *a: "Recruiter")
+    monkeypatch.setattr(contact_create, "choose_label", lambda *a, **k: "Recruiter")
     assert cli.main(ARGS + ["--label", "recruiter", "--apply"]) == 0
     assert resource in str(server.person["memberships"])
-    assert "Applied and verified label: Recruiter" in capsys.readouterr().out
+    assert "Added and verified 1 label" in capsys.readouterr().out
     assert len(server.groups) == 1
 
 
@@ -114,7 +114,7 @@ def test_case_choice_cancel_and_noninteractive(api, server, monkeypatch, capsys)
     monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: api)
     assert cli.main(ARGS + ["--label", "recruiter", "--apply"]) == 1
 
-    def cancel(*args):
+    def cancel(*args, **kwargs):
         raise contact_create.LabelChoiceCancelled
 
     monkeypatch.setattr(contact_create, "choose_label", cancel)

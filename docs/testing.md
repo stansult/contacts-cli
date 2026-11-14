@@ -289,3 +289,12 @@ no mutation retries, and missing new or prior memberships during verification.
 then covers singular/plural commands, preview/confirmation/apply, missing and unapplied labels,
 no-create case choices, no-op reruns, retained label definitions and contact data, and verification
 of both requested absence and preserved memberships.
+
+### Label output scenarios
+
+`tests/test_label_output.py` covers membership-aware case choices, exact spelling precedence
+when case variants coexist, creation versus addition counts, whole-command cancellation,
+multiple case matches, and single versus multiple-label success output. It exercises the real
+CLI and fake Google client; fixture membership behavior is independently checked in
+`test_label_edit.py` and `test_remove_label.py`. The new output assertions were run against
+the previous implementation and failed for the intended wording and preview differences.

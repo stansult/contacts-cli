@@ -74,52 +74,68 @@ def add_membership(api, person, group):
 
 def run_label_edit(args, api, confirm, heading):
     remove = args.command == "remove-label"
-    verb, participle = ("Remove", "Removed") if remove else ("Add", "Applied")
+    verb, participle = ("Remove", "Removed") if remove else ("Add", "Added")
     operation = "removals" if remove else "additions"
     emit("Reading contact…")
     person = api.get_contact(contact_resource(args.contact), LABEL_FIELDS)
     emit(heading(person), primary=False)
+    emit("", primary=False)
     current = memberships(person)
     try:
-        labels, missing = resolve_labels(api, args.label, allow_create=not remove)
+        labels, missing = resolve_labels(
+            api, args.label, allow_create=not remove, memberships=current
+        )
     except LabelChoiceCancelled:
         emit("Cancelled; no changes made.")
         return 0
+    emit("", primary=False)
     already = [name for name, resource in labels.items() if resource in current]
     if remove:
         additions = already
         absent = [name for name in labels if name not in already]
         if missing:
             emit_list("Labels not found", enumerate(missing, 1), unit=("label", "labels"))
+            emit("", primary=False)
         if absent:
-            emit_list("Not applied to this contact", enumerate(absent, 1), unit=("label", "labels"))
+            emit_list("Not on this contact", enumerate(absent, 1), unit=("label", "labels"))
+            emit("", primary=False)
     else:
         additions = [name for name in labels if name not in already] + missing
         if already:
-            emit_list("Already applied", enumerate(already, 1), unit=("label", "labels"))
-        if missing:
-            emit_list("Labels to create", enumerate(missing, 1), unit=("label", "labels"))
+            emit_list("Already on this contact", enumerate(already, 1), unit=("label", "labels"))
+            emit("", primary=False)
     emit_list(
         (
             ("Removing labels" if remove else "Adding labels")
             if args.apply
             else f"Proposed label {operation}"
         ),
-        enumerate(additions, 1),
+        enumerate(
+            [
+                f"{name} (new label)" if name in missing and not remove else name
+                for name in additions
+            ],
+            1,
+        ),
         unit=("label", "labels"),
     )
     if not additions:
         emit(
             "None of the requested labels are applied; no changes made."
             if remove
-            else "All requested labels are already applied; no changes made."
+            else "All requested labels are already on this contact; no changes made."
         )
         return 0
-    question = (
-        f"{verb} these labels"
-        + (" and create the missing labels" if missing and not remove else "")
-        + "?"
-    )
+    total = len(additions)
+    noun = "label" if total == 1 else "labels"
+    if missing and not remove:
+        new = len(missing)
+        new_noun = "label" if new == 1 else "labels"
+        target = ("it" if total == 1 else "them") if new == total else f"{total} labels"
+        question = f"Create {new} new {new_noun} and add {target} to this contact?"
+    else:
+        direction = "from" if remove else "to"
+        question = f"{verb} {total} {noun} {direction} this contact?"
     if not args.apply and not confirm(question):
         emit(f"Preview only; no changes made. Use --apply to {verb.lower()} labels.")
         return 0
@@ -136,7 +152,8 @@ def run_label_edit(args, api, confirm, heading):
             emit(f"{stage.capitalize()}: {name}…")
             edit_membership(api, person, labels[name], remove=remove)
             verified += 1
-            emit(f"{participle} and verified label: {name}")
+            if total > 1:
+                emit(f"{participle} and verified label: {name}")
     except (SyncError, KeyboardInterrupt) as exc:
         interrupted = isinstance(exc, KeyboardInterrupt)
         emit(("\n" if interrupted else "") + f"Stopped while {stage} {name!r}.")
