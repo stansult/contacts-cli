@@ -1,76 +1,40 @@
-# Planned email editing commands
+# Email editing design rationale
 
-Status: design implemented locally; live verification remains separate.
-Usage and command behavior are documented in the [command reference](command-reference.md).
+The [command reference](command-reference.md#add-email-and-remove-email) defines current usage,
+matching, conflict choices, and output. This document records why the editing model works that way.
 
-## Interface
+## Normalize before resolving conflicts
 
-Use singular command names. Present commands in list, add, remove order in help and documentation.
-`list-email` displays existing entries without editing. `add-email` accepts repeatable `--add`
-and `--add-file` options;
-`remove-email` accepts repeatable `--remove` and `--remove-file` options. Both target one contact
-with `--contact`. Reuse address normalization and file parsing from exclusions wherever possible.
-Files accept blank lines, whole-line `#` comments, and `address — Display Name` entries.
-Removal matches only the address; the label does not identify a particular stored entry.
+Addition normalizes addresses and labels, suppresses labels duplicating the address or contact
+identity, and deduplicates the resulting entries before comparing them with stored data.
+A bare address and the same address with a suppressed label therefore express the same request:
+an email without a label. Conflicting resulting labels in the input are rejected rather than
+resolved through prompts, so the meaning of a file does not depend on interactive choices.
 
-## Incoming entries
+Address parsing and file handling are shared with sender exclusions. Email removal matches only
+the address; labels in a removal list do not identify individual stored entries.
 
-For addition, process entries in this order:
+## Preserve or explicitly consolidate
 
-1. Normalize addresses and labels for comparison, ignoring case and surrounding whitespace.
-2. Suppress labels matching the address, contact display name, or company.
-3. Deduplicate incoming entries with the same address and resulting label.
-4. Reject conflicting resulting labels for the same address, identifying the conflicting inputs.
-5. Resolve conflicts with stored contact entries.
+A stored address can appear more than once. Keep preserves the entire matching group; Replace
+consolidates it into one entry with the requested label or no label. This gives duplicate entries
+a defined outcome without silently discarding them. When present, the primary matching entry
+survives; otherwise the first match survives. Primary status comes from Google metadata, not
+array position. The survivor retains its address spelling and applicable metadata.
 
-A bare address means no label. A bare address and the same address with a suppressed label become
-one no-label request. A bare address and the same address with a different, non-suppressed label
-are conflicting inputs. Stop before any write and let the user correct them; do not introduce
-an incoming-label selection prompt.
+Removing an address removes all matching entries. It is not an undo of an earlier addition;
+[issue #5](https://github.com/stansult/contacts-cli/issues/5) tracks a separate command-history/undo proposal.
 
-## Existing entries
+## Separate conflict decisions from write approval
 
-For an address already in the contact:
+Replace/Keep choices determine the plan; the final confirmation approves the resulting changes.
+“All” applies to current and remaining stored-entry conflicts, not unrelated new addresses.
+`--apply` alone preserves conflicts; `--replace-existing` explicitly authorizes replacement and
+duplicate consolidation. This keeps scripted operations predictable without new prompt policies.
 
-- Same label: no change, unless duplicate stored entries need consolidation.
-- No existing label and an incoming label: propose adding the label.
-- Different existing and incoming labels: ask whether to replace the existing label.
-- Existing label and no incoming label: ask whether to remove the existing label.
+## Share display and naming conventions
 
-For duplicate stored entries, treat all entries matching the normalized address as one group.
-Keep preserves the whole group. Replace leaves exactly one entry with the incoming label or no
-label, even when all previous labels already match. Show all existing labels and the entry-count
-reduction in the preview. Preserve primary status if any matching entry was primary; use that
-entry as the survivor, otherwise the first matching entry, retaining its address spelling.
-Primary status comes from Google metadata, not array position.
-
-Interactive conflicts offer Replace, Keep, Replace all conflicts, and Keep all conflicts.
-“All” covers current and remaining stored-entry conflicts in this run, not new-address additions.
-After resolving conflicts, show the final preview and one apply confirmation. Use the shared
-numbered-list renderer for email lists. Show only the existing total during edits; list-email
-provides the complete list separately. Number each conflict or preview list locally starting at 1.
-Separate additions and updates; use action headings
-instead of Proposed headings when --apply is supplied. See the command reference for display rules.
-
-`remove-email` removes all entries matching each requested address and shows the entry count.
-
-## Interactivity
-
-As with existing commands, interactive confirmation requires terminal stdin, stdout, and stderr.
-Redirecting or piping any of those streams makes the run noninteractive. `--apply` authorizes a
-write without the final confirmation; it does not determine whether the streams are interactive.
-Without `--apply`, a noninteractive run previews only and does not write.
-
-With `--apply`, preserve conflicting entries and report skipped changes unless an explicit
-`--replace-existing` option authorizes replacements, label removals, and duplicate consolidation.
-Conflicting incoming labels remain errors regardless of `--apply`.
-
-## Related enhancement
-
-[Issue #5](https://github.com/stansult/contacts-cli/issues/5) tracks a separate future undo feature using bounded local command history and before/after
-state. Email removal is not an automatic undo of a previous command.
-
-## Command spelling
-
-Accept silent plural aliases for list-email, add-email, and remove-email by normalizing the
-command token before parsing. Keep singular spellings in user-facing help and usage examples.
+Email lists use the shared numbered renderer. Editing displays existing entries only when needed
+for a conflict decision; `list-email` provides the complete list. Each displayed list starts at 1.
+Help and examples use singular commands in list, add, remove order; plural forms are accepted
+silently for convenience.

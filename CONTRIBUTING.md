@@ -7,12 +7,19 @@ detailed behavior. Verify relevant official API contracts before changing scopes
 pagination, field masks, limits, or contact update semantics. Keep user-facing documentation
 synchronized with the implementation.
 
-The code is split into pure parsing/planning (`core.py`), API calls (`api.py`), OAuth storage/setup
-(`auth.py`), and command-line orchestration (`cli.py`). Keep contact mutation behind the explicit
-apply path. Do not add live Google calls to the test suite.
+## Code structure
 
-The [email editing plan](docs/email-editing-plan.md) records design decisions for the
-add/remove commands; user-facing behavior is described in the command reference.
+- `cli.py` defines arguments and routes commands; command modules handle creation, email edits,
+  label edits, custom fields, and duplication.
+- `core.py`, `address_inputs.py`, and `contact_inputs.py` provide shared parsing and validation.
+- `api.py` handles Google requests, conflict protection, and shared update verification;
+  `auth.py` handles OAuth setup and token storage.
+- `output.py` and `progress.py` provide shared presentation; `metrics.py` and `error_logs.py`
+  record local diagnostics.
+
+Keep mutations behind final confirmation or explicit apply. Do not add live Google calls to the
+suite. The [email editing rationale](docs/email-editing-plan.md) records design decisions;
+user-facing behavior belongs in the command reference.
 
 ## Documentation paths
 
@@ -52,10 +59,9 @@ changes. Pushes and pull requests changing only ordinary documentation paths run
 heading checks on Ubuntu without installing application dependencies. Manual runs use full checks.
 See [CI routing](docs/testing.md#ci-routing) for classification and fallback rules.
 
-Before adding or changing tests, establish expected behavior from the README, command reference,
-and API references. Verify supporting fixtures independently. For important regression coverage,
-run the test against the unfixed implementation or a narrow reversible fault, confirm the intended assertion fails,
-restore the implementation, and confirm it passes. See [testing guidance](docs/testing.md).
+Follow the [testing guide](docs/testing.md) for fixture contracts, regression sensitivity,
+packaging, and live-check boundaries. Establish expected behavior from product documentation
+and API contracts before changing tests. Independently verify supporting fixture contracts.
 
 For an approved behavior change, identify and update affected tests alongside the implementation.
 Assertions requiring the previous behavior may deliberately fail during regression verification

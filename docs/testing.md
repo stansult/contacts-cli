@@ -13,21 +13,22 @@ client library's bundled discovery schemas validate request construction.
 `make check-package` adds fresh builds, archive inspection, and clean wheel installation tests.
 Pytest disables network sockets globally; tests must never use real credentials or Google accounts.
 
-| Tests | Contract |
-| --- | --- |
-| `test_fixture_contract.py` | Fixture filtering, pagination, read masks, replacement semantics, etags, and full email lists |
-| `test_core.py` | Parsing, deduplication, identifiers, preservation, limits, and saved-state verification |
-| `test_search.py` | One-result searches, exclusions, request counts, query limits, malformed responses, and no-progress guards |
-| `test_sync.py` | CLI preview/apply, real Google client request construction, sender exclusions, conflicts, error outcomes, and reruns |
-| `test_cli.py` | Subcommand routing, required options, rejected legacy/mixed options, token forwarding, authorization defaults, and missing-token consent/resumption |
-| `test_duplicate.py` | Copy fixture identity/storage, all editable field families, full email lists, preview/apply, optional name, source changes, photo handling, partial outcomes, and independent verification |
-| `test_progress.py` | Status before API requests, real scan counters, invalid/empty scans, throttled terminal/redirected output, and clean error/interruption endings |
-| `test_interrupt.py` | Ctrl+C during connection, scanning, consent, pre-write reads, writes, and post-write verification |
-| `test_apply_prompt.py` | Preview before consent, yes/no/empty/EOF handling, redirected streams, explicit apply bypass, and no-addition runs |
-| `test_installed_cli.py` | Real entry point help, missing/malformed client and token files, wrong client type, incomplete credentials, missing scopes, and subprocess guard contracts |
-| `test_repository_checks.py` | Rejection of private archive files, missing runtime modules, and broken local links/headings |
-| `test_reauthorization.py` | Old-scope detection before refresh, consent/decline/EOF, noninteractive guidance, scope requests, and existing-token preservation |
-| `test_auth.py` | Explicit OAuth setup, browser opt-out, token paths/permissions, refresh, and denied consent |
+| Area | Tests | Contract |
+| --- | --- | --- |
+| Fixtures and core | `test_fixture_contract.py`, `test_core.py` | Transport semantics, parsing, preservation, limits, and verification |
+| Routing and options | `test_cli.py`, `test_global_options.py` | Command routing, required options, help order, and global flags |
+| Authorization | `test_auth.py`, `test_reauthorization.py` | OAuth setup, consent, scope upgrades, token storage, and failures |
+| Creation and validation | `test_contact_inputs.py`, `test_contact_create.py` | Person JSON, local validation, creation, labels, and partial outcomes |
+| Duplication | `test_duplicate.py` | Copyable fields, photo handling, identities, and independent verification |
+| Sender sync | `test_search.py`, `test_sync.py` | Search requests, completeness, conflicts, writes, and reruns |
+| Sender identities | `test_own_addresses.py`, `test_sender_labels.py` | Own-address exclusions and saved display labels |
+| Explicit exclusions | `test_exclude.py`, `test_exclude_files.py` | Inline/file parsing, matching, and query integration |
+| Email editing | `test_email_edit.py` | Listing, addition, removal, conflicts, duplicates, and preservation |
+| Contact labels | `test_label_edit.py`, `test_remove_label.py`, `test_label_output.py` | Membership edits, case choices, output, and partial failures |
+| Custom fields | `test_custom_fields.py` | Exact selectors, duplicate handling, and verified single-field updates |
+| Interaction and output | `test_apply_prompt.py`, `test_interrupt.py`, `test_progress.py`, `test_timestamps.py` | Consent, interruption state, counters, and timestamps |
+| Diagnostics | `test_metrics.py`, `test_error_logs.py` | Local storage, measurement, error responses, and privacy boundaries |
+| Packaging and CI | `test_installed_cli.py`, `test_repository_checks.py`, `test_ci_scope.py` | Installed execution, archives, links, subprocess guards, and CI routing |
 
 Synthetic contact and message inputs live in [tests/fixtures](../tests/fixtures). [FakeGoogle](../tests/fake_google.py) is an in-memory HTTP
 transport used with real Google discovery clients. It replaces fields on PATCH rather than appending
@@ -68,7 +69,7 @@ responses. It verifies that a 401 does not cause a second write request after re
 they contain only intended package/project files. Private handoffs, tokens, OAuth clients, local
 configuration, caches, and environments must be absent.
 
-Live checks are separate and require explicit authorization. A future read-only check should compare
+Live checks are separate and require explicit authorization. A read-only live check can compare
 the complete preview with the Gmail label and contact UI in the authorized account, without
 applying. A live write needs its own approval; verify additions, existing custom labels and other
 contact data afterward, then confirm the next preview has no additions. Record evidence locally
@@ -82,7 +83,8 @@ be detected. These checks do not establish live Google normalization or photo fi
 Duplicate-link regression: a created fixture contact uses resource `people/c456` and source ID
 `1c8`. The independent fixture test confirms those distinct identifiers. Success and partial-failure
 output must link to `/person/c456`, not `/person/c1c8`. The success assertion failed against the
-original link construction before the fix. Live browser navigation remains separately unverified.
+original link construction before the fix. This automated test does not establish live browser
+navigation behavior.
 
 ## GitHub Actions
 
@@ -118,71 +120,6 @@ are required. The scan callback also runs against the independently tested Googl
 fixture to check actual inspected-message and invalid-header counts. Sender-search optimization
 is tracked in [issue #2](https://github.com/stansult/contacts-cli/issues/2).
 
-## Metrics
-
-`test_metrics.py` checks the [metrics contract](metrics.md): real discovery-client call counts,
-partial runs, outcomes, private-data exclusion, storage failures, and summary grouping. Retry
-measurement uses a synthetic HTTP transport with independently checked attempts and disabled
-backoff sleeps. Tests redirect logs into temporary directories; they never record real runs.
-
-## Sender-search regression coverage
-
-`test_search.py` verifies one-result searches, existing/discovered exclusions, reduced request
-counts for repeated senders, and safe failure on incomplete responses, repeated results, unsupported
-addresses, and query limits. The 1,000-message/two-new-sender test first failed against the old
-scan with 1,000 header reads, then passed with two reads and three searches. This measures request
-volume in a synthetic fixture, not live latency. All-unique senders can require more requests.
-A temporary fault disabling accumulated exclusions caused a repeated result and failed the
-regression; restoring the exclusions passed.
-
-The fixture independently tests one-result limits, exclusions, case-insensitive address matching,
-Spam/Trash, and preservation of dot/plus distinctions. Its exact address matching is a deliberately
-limited model, not evidence of Gmail's live matching semantics. Google documents the
-[search query and label combination](https://developers.google.com/workspace/gmail/api/guides/filtering)
-and [list limits](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/list).
-Multiple-author search behavior is deferred to [issue #4](https://github.com/stansult/contacts-cli/issues/4).
-Do not close #2 until separately authorized live validation is recorded.
-
-## Sectioned output and sender labels
-
-`test_sender_labels.py` verifies ordered contact/label/search/additions sections and the forced final
-counter for both terminal and redirected streams. The counter and label-preview regressions failed
-against the previous implementation. New From display names populate the People email `type` field;
-encoded names and missing names are covered. The fake transport's custom-label persistence is tested
-independently. Both the update response and independent read must preserve the proposed label:
-temporarily disabling that verification caused both lost-label regressions to fail, and restoring
-it passed. Live Google normalization and UI display remain separately unverified.
-
-## Own sending identities and redundant output
-
-`test_own_addresses.py` verifies primary/alias exclusions in queries and saved data, parser-side
-protection when search exclusions are ignored, and safe failure on missing/malformed send-as data
-or access denial. Its send-as fixture uses synthetic inputs in `tests/fixtures/send-as.json` and is
-contract-tested independently. Before implementation, regressions demonstrated own addresses being
-added and redundant email labels being saved. The updated behavior omits labels matching their
-address case-insensitively and removes the two repeated summary count lines. No live account
-queries are part of these tests.
-
-## Operational timestamps
-
-`test_timestamps.py` covers date-once behavior across output streams, same-day completion, midnight
-rollover, multiline continuations, undecorated help, timestamped errors, interruption cleanup,
-untimestamped updating counters in terminal and redirected output, and forced final progress.
-Clocks are injected; no sleeps or live Google access are needed.
-Existing output-content tests remove only date/time decoration when checking their original
-contracts; timestamp tests independently check the exact decoration and ordering. The convention
-matches screenshots and pdf-slim; those projects already use it and need no corresponding change.
-
-## Full-size duplicate photos (#1)
-
-Synthetic 8×8 and 64×64 checkerboard PNGs exercise thumbnail versus full-size downloads.
-Regression tests cover path and suffix size options, retained crop options, conflicting query
-sizes, and exact uploaded bytes. Unknown URL size formats stop before downloading. These cases
-failed against the thumbnail implementation. Fixture dimensions and decoding were independently
-checked with macOS sips. No account images are included in fixtures. The user confirmed improved
-photo quality in a live duplication test on 2026-11-12. Automated tests do not establish Google's
-upload fidelity for every image.
-
 ## CI routing
 
 `scripts/ci_scope.py` permits lightweight checks when every changed file is root `README.md`,
@@ -200,10 +137,96 @@ file rather than interpolating event values into shell commands.
 Documentation-only runs check local links and Markdown heading targets using Python's standard
 library, without uv setup, application dependencies, runtime tests, or package builds. Other
 runs retain both OS/Python test jobs. `test_ci_scope.py` checks new/nested guides, mixed paths,
-and explicit exceptions, and uses a temporary Git repository to verify multi-commit push ranges, PR ranges, and renames independently of mocks.
+and explicit exceptions, and uses a temporary Git repository to verify multi-commit push ranges,
+PR ranges, and renames independently of mocks.
 Changing this workflow or its classifier therefore runs the full suite.
 
-## Explicit sender exclusions
+## Authorization timeout testing
+
+The supported `--auth-timeout SECONDS` option is hidden from help. Use a positive integer to
+shorten the browser authorization wait for manual testing:
+
+```sh
+./contacts-cli authorize --auth-timeout 5
+```
+
+All commands accept it before or after the command name, including commands that offer browser
+authorization when a token is missing or lacks required scopes. The default is 300 seconds.
+It changes only the browser authorization wait, not API request timeouts or token expiration.
+If specified on both sides of the command, the value after the command takes precedence.
+
+## Regression coverage and evidence
+
+The following sections retain fixture contracts, regression sensitivity evidence, and the stated
+limits of automated or live verification. Issue lifecycle status belongs in GitHub Issues.
+
+### Metrics
+
+`test_metrics.py` checks the [metrics contract](metrics.md): real discovery-client call counts,
+partial runs, outcomes, private-data exclusion, storage failures, and summary grouping. Retry
+measurement uses a synthetic HTTP transport with independently checked attempts and disabled
+backoff sleeps. Tests redirect logs into temporary directories; they never record real runs.
+
+### Sender-search regression coverage
+
+`test_search.py` verifies one-result searches, existing/discovered exclusions, reduced request
+counts for repeated senders, and safe failure on incomplete responses, repeated results, unsupported
+addresses, and query limits. The 1,000-message/two-new-sender test first failed against the old
+scan with 1,000 header reads, then passed with two reads and three searches. This measures request
+volume in a synthetic fixture, not live latency. All-unique senders can require more requests.
+A temporary fault disabling accumulated exclusions caused a repeated result and failed the
+regression; restoring the exclusions passed.
+
+The fixture independently tests one-result limits, exclusions, case-insensitive address matching,
+Spam/Trash, and preservation of dot/plus distinctions. Its exact address matching is a deliberately
+limited model, not evidence of Gmail's live matching semantics. Google documents the
+[search query and label combination](https://developers.google.com/workspace/gmail/api/guides/filtering)
+and [list limits](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/list).
+Multiple-author search behavior is deferred to [issue #4](https://github.com/stansult/contacts-cli/issues/4).
+Record live validation separately; the issue tracker owns the delivery status.
+
+### Sectioned output and sender labels
+
+`test_sender_labels.py` verifies ordered contact/label/search/additions sections and the forced final
+counter for both terminal and redirected streams. The counter and label-preview regressions failed
+against the previous implementation. New From display names populate the People email `type` field;
+encoded names and missing names are covered. The fake transport's custom-label persistence is tested
+independently. Both the update response and independent read must preserve the proposed label:
+temporarily disabling that verification caused both lost-label regressions to fail, and restoring
+it passed. Live Google normalization and UI display remain separately unverified.
+
+### Own sending identities and redundant output
+
+`test_own_addresses.py` verifies primary/alias exclusions in queries and saved data, parser-side
+protection when search exclusions are ignored, and safe failure on missing/malformed send-as data
+or access denial. Its send-as fixture uses synthetic inputs in `tests/fixtures/send-as.json` and is
+contract-tested independently. Before implementation, regressions demonstrated own addresses being
+added and redundant email labels being saved. The updated behavior omits labels matching their
+address case-insensitively and removes the two repeated summary count lines. No live account
+queries are part of these tests.
+
+### Operational timestamps
+
+`test_timestamps.py` covers date-once behavior across output streams, same-day completion, midnight
+rollover, multiline continuations, undecorated help, timestamped errors, interruption cleanup,
+untimestamped updating counters in terminal and redirected output, and forced final progress.
+Clocks are injected; no sleeps or live Google access are needed.
+Existing output-content tests remove only date/time decoration when checking their original
+contracts; timestamp tests independently check the exact decoration and ordering. The output
+convention is documented in [Contributing](../CONTRIBUTING.md#operational-timestamps).
+
+### Full-size duplicate photos (#1)
+
+Synthetic 8×8 and 64×64 checkerboard PNGs exercise thumbnail versus full-size downloads.
+Regression tests cover path and suffix size options, retained crop options, conflicting query
+sizes, and exact uploaded bytes. Unknown URL size formats stop before downloading. These cases
+failed against the thumbnail implementation. Fixture dimensions and decoding were independently
+checked with macOS sips. No account images are included in fixtures. The user confirmed improved
+photo quality in a live duplication test on 2026-11-12. Automated tests do not establish Google's
+upload fidelity for every image.
+
+
+### Explicit sender exclusions
 
 `test_exclude.py` covers repeatable `--exclude` values, trimming and case-insensitive matching,
 deduplication, automatic exclusions, preview/apply behavior, preservation of existing entries,
@@ -224,7 +247,7 @@ normalization, comments, blank lines, pasted display labels, relative paths, fre
 file/line diagnostics before authorization. A synthetic text fixture has its parsing contract
 checked independently of CLI integration. Missing, unreadable, and non-UTF-8 files are covered.
 
-## Direct email editing
+### Direct email editing
 
 `test_email_edit.py` covers shared add/remove inputs, label normalization before collisions,
 conflicting input rejection, keep/replace/all decisions, final confirmation, duplicate reduction,
@@ -239,21 +262,8 @@ requests, no Gmail calls, invalid inputs, and silent plural aliases with singula
 Local-numbering and listing regressions failed before their implementation. A controlled fault
 retaining Proposed headings during apply failed the intended assertion before restoration.
 
-## Authorization timeout testing
 
-The supported `--auth-timeout SECONDS` option is hidden from help. Use a positive integer to
-shorten the browser authorization wait for manual testing:
-
-```sh
-./contacts-cli authorize --auth-timeout 5
-```
-
-All commands accept it before or after the command name, including commands that offer browser
-authorization when a token is missing or lacks required scopes. The default is 300 seconds.
-It changes only the browser authorization wait, not API request timeouts or token expiration.
-If specified on both sides of the command, the value after the command takes precedence.
-
-## New-contact inputs
+### New-contact inputs
 
 `test_contact_inputs.py` covers Person field/schema and value validation, partial dates, generated
 fields, singleton and size limits, malformed files, precise locations, inline/file exclusivity,
@@ -272,7 +282,7 @@ Local validation command tests exercise one object, arrays, missing files, inval
 file-only options and the silent plural alias. Authorization, connection and input functions are
 replaced with failing sentinels to verify validation remains offline and noninteractive.
 
-## API error logging
+### API error logging
 
 `test_error_logs.py` verifies full JSON, non-JSON and binary error bodies, HTTP status and method,
 command context, unique private files, request-data exclusion, read/write failures, and failure
@@ -280,7 +290,7 @@ to save a log without masking the original error. A real Google HttpRequest with
 transport checks exact response preservation and no mutation retries. Tests redirect logs into
 temporary directories through `CONTACTS_CLI_ERROR_LOG_DIR`.
 
-## Adding contact labels
+### Contact labels
 
 `test_label_edit.py` independently checks the membership HTTP fixture's additive, idempotent,
 readback and not-found behavior. Product tests cover preview/apply/confirmation, plural alias,

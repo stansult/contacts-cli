@@ -1,8 +1,9 @@
 # contacts-cli
 
-A local command-line tool to sync Gmail senders, add or remove contact emails, and duplicate contacts.
+A command-line tool for creating and managing Google Contacts, including copying contacts and
+collecting email senders from Gmail.
 
-## Install
+## Install and authorize
 
 Requires Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). From a checkout:
 
@@ -11,97 +12,85 @@ uv sync --locked
 ./contacts-cli --help
 ```
 
+Follow [Google setup](docs/google-setup.md) to create the Desktop OAuth client file and save it as
+`~/.config/contacts-cli/credentials.json`. Then authorize your account:
+
+```sh
+./contacts-cli authorize
+```
+
+Later commands reuse the saved authorization. Local file validation needs no Google setup.
+
+## Common usage
+
+- Replace the example values below with your own. `--contact` accepts a Google Contacts URL such
+  as `https://contacts.google.com/person/c123456789` or its bare ID, `c123456789`.
+- Commands that change contacts show a preview and ask for confirmation. Enter or `n` at the
+  final confirmation makes no changes. `--apply` skips that final confirmation; conflict choices
+  follow each command's rules. Piped or redirected runs without `--apply` do not write.
+- `add-contact` and `duplicate` create new contacts each time; they do not merge with existing ones.
+- Use `./contacts-cli <command> --help` for command options. Global options, including `--token`,
+  appear in `./contacts-cli --help` and work before or after the command.
+
 ## Add contacts
 
-`./contacts-cli add-contact --name 'Jane Doe' --email 'jane@example.com'` previews a new contact
-and asks before creating it. Use `--file contacts.json` for one or more Google Person objects,
-`--label Recruiter` to apply an exact, case-sensitive contact label (created if missing), and `--apply` to skip final confirmation.
-Case-only label collisions offer a choice interactively, even with `--apply`; noninteractive runs
-stop and show the existing spelling.
-Each new contact gets a **Created** custom field recording the CLI and creation time.
-See the [input format and creation details](docs/contact-input.md).
+```sh
+./contacts-cli add-contact --name 'Jane Doe' --email jane@example.com
+./contacts-cli add-contact --file contacts.json --label Recruiter
+```
+
+Use inline options for a name and emails, or a JSON file for one or more contacts with additional
+fields. Each new contact gets a **Created** custom field with its creation time.
+See [contact input and creation](docs/contact-input.md).
 
 ## Duplicate a contact
 
-Create a copy, optionally giving it a different name:
-
 ```sh
-./contacts-cli duplicate \
-  --contact 'https://contacts.google.com/person/c123456789' \
-  --name 'Delivery backup'
+./contacts-cli duplicate --contact c123456789 --name 'Delivery backup'
 ```
 
-Review the preview, then answer `y` to **Create this duplicate?** Omit `--name` to keep the original
-name. The copy includes editable fields and the custom photo, plus a **Duplicate** field with its
-creation date/time. The original stays unchanged; success prints the new contact's link.
+Copies editable fields and the custom photo, and adds a **Duplicate** custom field with the
+creation time. Omit `--name` to keep the original name. See [duplication details](docs/command-reference.md#duplicate-a-contact).
 
-## Sender-sync preview and apply
-
-Add missing senders from a Gmail label to an existing contact:
+## Sender-sync
 
 ```sh
-./contacts-cli sender-sync \
-  --label 'Example/Delivery' \
-  --contact 'https://contacts.google.com/person/c123456789'
+./contacts-cli sender-sync --label 'Example/Delivery' --contact c123456789
 ```
 
-Review the additions, then answer `y` to **Apply these additions?** Existing addresses and other
-contact details stay unchanged. Your configured Gmail sending addresses are excluded. Sender
-display names become custom email labels unless they match the email address, contact name, or
-company. Run the same command again whenever you want to sync.
-
-To skip specific senders for this run, add `--exclude 'ignore@example.com'`. Repeat the option for
-more addresses: `--exclude 'ignore@example.com' --exclude 'another@example.com'`.
-You can also use `--exclude-file './excluded.txt'`, containing one address per line. Repeat either
-option or combine them. Blank lines and `#` comments are ignored; pasted `address — Display Name`
-lines work too. Existing contact entries are never removed.
+Adds missing sender addresses from a Gmail label, excluding addresses already on the contact and
+your Gmail sending addresses. Sender names become email labels when useful. Use `--exclude ADDRESS`
+or `--exclude-file PATH` to skip other senders. See [search and exclusion details](docs/command-reference.md#sender-sync-preview-and-apply).
 
 ## List email addresses
 
 ```sh
-./contacts-cli list-email --contact 'c123456789'
+./contacts-cli list-email --contact c123456789
 ```
 
-Shows existing entries with a total, numbered rows, labels, and duplicate references.
+Shows a numbered list with labels and duplicate references.
 
 ## Add or remove email addresses
 
 ```sh
-./contacts-cli add-email --contact 'c123456789' \
-  --add 'person@example.com — Work' --add-file './addresses.txt'
-
-./contacts-cli remove-email --contact 'c123456789' \
-  --remove 'person@example.com' --remove-file './addresses.txt'
+./contacts-cli add-email --contact c123456789 --add 'person@example.com — Work'
+./contacts-cli remove-email --contact c123456789 --remove person@example.com
 ```
 
-Repeat or combine individual and file options. Both commands preview changes and ask before
-saving. A bare address means no label when adding. Conflicting existing labels or duplicate
-entries offer Replace / Keep / Replace all / Keep all; replacement leaves one matching entry.
-Removal deletes every matching entry, keeping the contact itself.
+Repeat the address option or use `--add-file` / `--remove-file` for lists. Removal deletes all
+matching entries. Adding an existing address can change its label or consolidate duplicates;
+see [email conflict and apply rules](docs/command-reference.md#add-email-and-remove-email).
 
-`--apply` skips confirmation but preserves conflicting existing entries. For `add-email`, combine
-it with `--replace-existing` to approve label replacements/removals and duplicate consolidation.
-Conflicting labels in the input are errors. See [email editing details](docs/command-reference.md#add-email-and-remove-email).
-
-## Add labels
+## Add or remove labels
 
 ```sh
 ./contacts-cli add-label --contact c123456789 --label Recruiter
-```
-
-Repeat `--label` for multiple labels. Existing labels are preserved; already applied labels are
-skipped. Missing labels are created after confirmation. Case-only matches offer the same choices
-as `add-contact`. Use `--apply` to skip final confirmation. See [label details](docs/command-reference.md#add-label).
-
-## Remove labels
-
-```sh
 ./contacts-cli remove-label --contact c123456789 --label Recruiter
 ```
 
-Removes labels from this contact, preserving the labels themselves and other contact information.
-Repeat `--label` for multiple removals. Missing or unapplied labels are skipped. Preview and
-confirmation work like `add-label`. See [removal details](docs/command-reference.md#remove-label).
+Repeat `--label` for multiple labels. Addition creates missing labels; removal takes labels off
+this contact without deleting the labels themselves. Case-only matches may require a choice,
+even with `--apply`. See [label choices](docs/command-reference.md#label-choices-and-output).
 
 ## Add or remove custom fields
 
@@ -111,41 +100,23 @@ confirmation work like `add-label`. See [removal details](docs/command-reference
 ./contacts-cli remove-custom-field --contact c123456789 --key Created
 ```
 
-Keys and values match exactly, including case. Adding an existing pair does nothing; a different
-value is appended. Removal without `--value` removes every entry with that key. Review the
-numbered preview and confirm, or use `--apply`. See [custom field details](docs/command-reference.md#add-custom-field-and-remove-custom-field).
+Keys and values match exactly, including case. Addition skips an existing pair and appends a new
+value. Removal without `--value` removes every entry with that key.
+See [custom field details](docs/command-reference.md#add-custom-field-and-remove-custom-field).
 
 ## Validate a contact file
 
-Check a file locally with `./contacts-cli validate-contact --file contacts.json`; no authorization
-is needed. See [local validation](docs/contact-input.md#validate-a-file-locally).
+```sh
+./contacts-cli validate-contact --file contacts.json
+```
 
-## Google setup
-
-Configure Google API access once, then authorize the CLI in your browser:
-
-1. [Create a Google Cloud project](https://console.cloud.google.com/projectcreate) and enable [Gmail API](https://console.cloud.google.com/apis/library/gmail.googleapis.com) and [Google People API](https://console.cloud.google.com/apis/library/people.googleapis.com).
-2. Configure OAuth consent and add your account as a test user.
-3. Download a Desktop app client file to `~/.config/contacts-cli/credentials.json`.
-4. Run `./contacts-cli authorize` and complete browser sign-in.
-
-Follow the [detailed Google setup instructions](docs/google-setup.md) for each step. Later runs reuse
-saved authorization; missing or insufficient authorization offers browser setup.
-
-## Common options
-
-- `--contact` accepts a Google Contacts URL or a bare ID such as `c123456789`;
-  lookup by name is not supported.
-- Enter or `n` at a confirmation prompt makes no changes.
-- Add `--apply` to a command that makes changes to save without asking. Each run reads current data; each
-  duplicate creates a new contact. Piped or redirected runs without `--apply` only preview.
-- Use `./contacts-cli --help` for global options (`--token`), accepted
-  before or after the command. Use `./contacts-cli <command> --help` for command options.
+Validates locally without authorization or Google access. See [validation details](docs/contact-input.md#validate-a-file-locally).
 
 ## More information
 
-- [Command reference](docs/command-reference.md): search logic, copied fields, output, limits, and exit codes.
+- [Command reference](docs/command-reference.md): options, matching, conflicts, limits, and exit codes.
+- [Contact input](docs/contact-input.md): JSON fields, validation, and creation outcomes.
 - [Google setup](docs/google-setup.md): credentials, permissions, and authorization troubleshooting.
-- [API error logs](docs/error-logs.md): full Google error responses saved locally for troubleshooting.
-- [Local metrics](docs/metrics.md): timing and API counts; run `make metrics` for a summary.
+- [API error logs](docs/error-logs.md): Google error responses saved locally for troubleshooting.
+- [Local metrics](docs/metrics.md): sender-sync timing and API counts; `make metrics` summarizes runs.
 - [Contributing](CONTRIBUTING.md) and [testing](docs/testing.md): development workflow and checks.

@@ -2,10 +2,22 @@
 
 [Back to usage](../README.md). Detailed command behavior, output, and limitations.
 
+## Contents
+
+- [Running the CLI](#running-the-cli), [contact identifiers](#contact-identifiers),
+  [confirmation and conflicts](#previews-confirmation-and-conflicts), [output](#output-and-timestamps)
+- [Add-contact](#add-contact), [duplicate](#duplicate-a-contact), [sender-sync](#sender-sync-preview-and-apply)
+- [List-email](#list-email), [add-email and remove-email](#add-email-and-remove-email)
+- [Add-label](#add-label), [remove-label](#remove-label), [label choices](#label-choices-and-output)
+- [Custom fields](#add-custom-field-and-remove-custom-field), [validate-contact](#validate-contact),
+  [authorization](#authorization)
+- [Global options](#global-options), [email validation](#email-input-validation),
+  [error details](#api-error-details), [exit codes](#exit-codes)
+
 ## Running the CLI
 
-This is a local Python CLI. It has no hosted service or database. A temporary loopback callback
-listener runs only during explicit OAuth setup.
+This is a local Python CLI. Browser authorization uses a temporary local callback listener,
+whether started with `authorize` or offered during another command.
 
 The executable `./contacts-cli` launcher runs the CLI through uv with the locked dependencies. It
 forwards all arguments and also works when invoked by its full path from another directory. Relative
@@ -15,17 +27,46 @@ invocation still works from the checkout.
 Alternatively, install into an existing virtual environment with `python -m pip install .`. That
 provides the `contacts-cli` command, but does not use the repository's dependency lock.
 
-Use `./contacts-cli <command> --help` for command-specific options. A subcommand is required; the
-former top-level sync flags and `--authorize` flag are no longer accepted.
+Use `./contacts-cli <command> --help` for command-specific options. A subcommand is required.
 
-Both previews identify the contact as `Contact: 'name: Jane' (c123456789)`. A nonblank
-name takes precedence over the company. Without a name, they show
-`Contact: 'company: Example Company' (c123456789)`; without either, they show
-`Contact: 'Unnamed' (c123456789)`.
+## Contact identifiers
 
-Both commands require terminal input, output, and error streams before asking for write
-confirmation. Piped or redirected runs without `--apply` remain preview-only. End-of-input at the
-prompt makes no changes. `--apply` skips write confirmation in both interactive and scripted runs.
+Commands targeting an existing contact accept a Google Contacts URL or the bare ID `c123456789`.
+The ID is the final part of the website URL, after `/person/`. Lookup by name is not supported.
+For compatibility, `people/c123456789` is also accepted: `people/` is Google's People API resource
+prefix, not part of the website URL.
+
+Contact headings use the bare ID: `Contact: 'name: Jane' (c123456789)`. A nonblank name takes
+precedence over company; otherwise the heading shows `company: Example Company` or `Unnamed`.
+The saved token selects the account; a URL's `/u/0/` or `/u/1/` segment does not.
+
+## Previews, confirmation, and conflicts
+
+Contact-changing commands show their intended changes before saving. Interactive confirmation requires
+terminal input, output, and error streams. Enter, `n`, or end-of-input at the final confirmation
+makes no changes. Piped or redirected runs without `--apply` do not write; unresolved label choices
+may stop the run before a complete preview.
+
+`--apply` skips final write confirmation, not every decision. Label case choices still prompt in
+interactive runs and stop noninteractive runs. With `--apply`, email conflicts are kept unless
+explicitly approved with `--replace-existing`. Each command's section describes its matching and conflict rules.
+
+Each invocation reads current data: `--apply` does not approve a frozen preview from an earlier run.
+Creation commands create new contacts each time. Updates preserve unrelated contact data and
+verify the saved result. After an uncertain write or failed verification, inspect the contact
+before retrying; a failed batch can leave earlier changes saved.
+
+## Output and timestamps
+
+Email, label, and custom-field lists show totals and numbered rows. Preview headings describe
+proposed changes; with `--apply`,
+action headings describe the intended writes. Only completion messages confirm verified success.
+
+Operational output begins with a local `[YYYY-MM-DD]` date line. Primary messages use local
+`[HH:MM:SS]` timestamps, including stage messages, confirmation prompts, completion, and errors.
+Details and list entries remain unprefixed. Blank lines and help remain undecorated. If a run
+crosses midnight, the ending date appears after the last message. Updating sender counters have
+no timestamp and always show their final count.
 
 ## Add-contact
 
@@ -43,7 +84,7 @@ Preview a copy, optionally choosing a replacement name:
 
 ```sh
 ./contacts-cli duplicate \
-  --contact 'https://contacts.google.com/person/c123456789' \
+  --contact c123456789 \
   --name 'Delivery backup'
 ```
 
@@ -54,7 +95,7 @@ Add `--apply` to create it without the confirmation prompt:
 
 ```sh
 ./contacts-cli duplicate \
-  --contact 'https://contacts.google.com/person/c123456789' \
+  --contact c123456789 \
   --name 'Delivery backup' \
   --apply
 ```
@@ -104,13 +145,9 @@ The command shows a preview first:
 ```sh
 ./contacts-cli sender-sync \
   --label 'Example/Delivery' \
-  --contact 'https://contacts.google.com/person/c123456789'
+  --contact c123456789
 ```
 
-All contact commands accept a Google Contacts URL or the bare ID `c123456789`.
-The ID is the final part of the website URL, after `/person/`. Contact headings show this bare ID.
-For compatibility, `people/c123456789` is also accepted: `people/` is Google's People API resource
-prefix, not part of the website URL. The CLI handles that API form internally.
 Output identifies the contact and label,
 shows inspected-message and new-sender counts in progress, then existing email entries and additions.
 
@@ -152,12 +189,6 @@ The complete preview stays on stdout. Proposed addresses appear one per line wit
 with a custom label after ` — ` when applicable. Counts describe inspected messages, not the label’s
 total size.
 
-Operational output begins with a local `[YYYY-MM-DD]` date line. Primary messages use local
-`[HH:MM:SS]` timestamps, including stage messages, confirmation prompts, completion, and errors.
-Contact/label details and addition-list entries remain unprefixed as continuation lines. Blank
-separators and help remain undecorated. If the run crosses midnight, the ending date appears after
-the last message. Updating sender counters have no timestamp and always show the final count.
-
 In an interactive terminal, the preview is followed by `Apply these additions? [y/N]`.
 Answer `y` or `yes` to save; Enter, `n`, or any other answer leaves the contact unchanged.
 No prompt appears when there are no additions.
@@ -167,7 +198,7 @@ To save without the confirmation prompt, use `--apply`:
 ```sh
 ./contacts-cli sender-sync \
   --label 'Example/Delivery' \
-  --contact 'https://contacts.google.com/person/c123456789' \
+  --contact c123456789 \
   --apply
 ```
 
@@ -228,16 +259,6 @@ maintain an exclusion query or a filter ID. A run with no missing addresses send
 
 Sources: [Gmail listing contract](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/list), [message metadata](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/get), [People email fields](https://developers.google.com/people/api/rest/v1/people#Person),
 [contact update contract](https://developers.google.com/people/api/rest/v1/people/updateContact), [Google Contacts limits](https://support.google.com/contacts/answer/148779?hl=en).
-
-Exit codes:
-
-| Code | Meaning |
-| --- | --- |
-| `0` | Complete preview, verified write, successful authorization, or no-op |
-| `1` | Input/data/API/setup error; no successful update reported |
-| `2` | Invalid command-line arguments |
-| `3` | Write may have occurred or was submitted, but was not verified |
-| `130` | Interrupted; the message states whether a contact write had started |
 
 ## List-email
 
@@ -326,7 +347,7 @@ only the final Saved and verified message confirms success.
 
 Adds one or more contact labels to an existing contact. `--contact` accepts a URL or bare ID;
 repeat `--label` for more labels. Names match exactly and case-sensitively. The shared
-[case-collision choices](contact-input.md#inline-or-file-input) offer existing labels, create new,
+[case-collision choices](contact-input.md#contact-labels) offer existing labels, create new,
 or cancel. `--apply` skips final confirmation but not label choices; unresolved noninteractive
 collisions stop. See [label choices and output](#label-choices-and-output) for membership-aware wording.
 
@@ -416,14 +437,13 @@ Its spelling differs only by case from 'recruiter'.
 Choose 1–3 (Enter = 1):
 ```
 
-If several case-only alternatives exist, list each with wording reflecting its membership on
-this contact. Keep the numbered choice and explicit Enter default; do not introduce a new flag.
+If several case-only alternatives exist, each choice states whether the label will be kept or
+added. The prompt shows the numbered range and the default selected by Enter.
 
 ### Removing labels
 
-Use action-specific choices, such as “Remove 'Recruiter' from this contact,” rather than
-“Choose a label” or “Use existing.” A label absent from this contact is reported and skipped;
-it must not be presented as a removal. Removal never offers to create a label.
+Removal choices say “Remove 'Recruiter' from this contact.” Labels absent from the contact
+are reported and skipped. Removal never offers to create a label.
 Exact matches still take precedence over case-only alternatives.
 
 ```text
@@ -435,24 +455,17 @@ Choose 1–2 (Enter = 1):
 
 ### Preview, confirmation, and completion
 
-- “Cancel command” cancels the entire command before writes, not just the current label.
-- Labels already present appear under “Already on this contact.”
-- Show each addition once under a heading with a total and numbered rows. Mark labels that
-  need creation with `(new label)`; do not repeat them in a separate creation list.
-- Preserve the existing Proposed versus action-in-progress heading convention for previews
-  versus `--apply`.
-- Make final confirmation describe the actual actions and counts. For one new label only:
-  “Create 1 new label and add it to this contact?” For mixed additions, distinguish how many
-  labels need creation from how many will be added to the contact.
-- Successful additions say “Added and verified.” For a single addition, retain
-  the final success summary without a redundant per-label verification line. Multiple-label
-  runs retain per-label verification progress and a final summary. Apply the same principle
-  to removal output.
-- Separate contact details and preview sections with blank lines.
+“Cancel command” cancels the entire command before writes. Labels already present appear under
+“Already on this contact.” Each addition appears once; `(new label)` marks labels needing creation.
+Contact details and preview sections are separated by blank lines.
 
-Choices select the plan; final confirmation still authorizes writes. Existing `--apply` and
-noninteractive rules remain: `--apply` skips final confirmation, not unresolved case choices;
-noninteractive collisions requiring a choice stop rather than choosing a spelling silently.
+Final confirmation states the actual action counts. For one new label it asks “Create 1 new label
+and add it to this contact?” Mixed additions distinguish labels to create from labels to add.
+Choices select the plan; final confirmation authorizes writes unless `--apply` was supplied.
+
+Success says “Added and verified” or “Removed and verified.” A single-label run has one final
+success summary; multiple-label runs also report each verified change. Completed changes remain
+saved if a later operation fails.
 
 ## Add-custom-field and remove-custom-field
 
@@ -528,3 +541,16 @@ domain or mailbox exists.
 
 Failed Google API HTTP responses are saved locally, and the terminal prints the log path. See
 [API error logs](error-logs.md) for locations, recorded fields, and troubleshooting details.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Successful preview, verified write, authorization, validation, no-op, or cancelled label choice |
+| `1` | Input, API, or setup error; earlier successful changes in a batch may remain saved |
+| `2` | Invalid command-line arguments |
+| `3` | A write occurred or may have occurred, but the operation did not complete with verified success |
+| `130` | Interrupted; read the output to distinguish no write, saved changes, and uncertain outcomes |
+
+Use the command's outcome message and any partial-result summary to determine what was saved.
+An exit code alone does not identify which contacts or labels changed.

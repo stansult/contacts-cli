@@ -27,21 +27,7 @@ guarantee Google will accept the contacts. `add-contact` validates again before 
 Inline input requires a name or an email. Repeat `--email` to attach more addresses to the same
 contact. `--name` is stored as Google's `unstructuredName`; the CLI does not guess how to split it.
 Use a file for structured names or additional fields. Do not combine `--file` with either inline
-option. Repeat `--label` to apply contact labels to every input contact. Label text must be nonblank.
-Names match exactly, including case; repeated identical names are deduplicated. With no exact match,
-a case-only collision offers each existing label, Create new, or Cancel. Enter selects the first
-existing label. Invalid answers repeat the prompt; end-of-input cancels. The final preview shows
-the selected spelling. Choosing an existing label does not rename it.
-
-These choices require terminal input, output, and error streams. Noninteractive runs stop on a
-case-only collision and show the exact existing spellings to use with `--label`. `--apply` skips
-only final write confirmation; it still prompts for a label choice interactively and stops on a
-collision noninteractively. There is no extra flag to bypass this choice.
-
-Existing user labels are reused, and missing labels appear under Labels to create. Ambiguous or
-system labels are rejected. Resolving a label choice makes no changes. Labels and contacts are
-created only after final confirmation, or with `--apply`.
-
+option.
 
 The UTF-8 JSON file contains one Google Person object or a nonempty array of Person objects.
 There is no wrapper object and no custom version field. For example:
@@ -60,12 +46,29 @@ There is no wrapper object and no custom version field. For example:
 ]
 ```
 
+## Contact labels
+
+Repeat `--label` to apply contact labels to every input contact. Label text must be nonblank.
+Label names match exactly, including case; repeated identical names are deduplicated. With no
+exact match, a case-only collision offers each existing label, Create new, or Cancel command.
+Enter selects the first existing label. Invalid answers repeat the prompt; end-of-input cancels. The final preview shows
+the selected spelling. Choosing an existing label does not rename it.
+
+These choices require terminal input, output, and error streams. Noninteractive runs stop on a
+case-only collision and show the exact existing spellings to use with `--label`. `--apply` skips
+only final write confirmation; it still prompts for a label choice interactively and stops on a
+collision noninteractively. There is no extra flag to bypass this choice.
+
+Existing user labels are reused, and missing labels appear under Labels to create. Ambiguous or
+system labels are rejected. Resolving a label choice makes no changes. Labels and contacts are
+created only after final confirmation, or with `--apply`.
+
 ## Supported fields
 
 | Field | Contents and requirements |
 | --- | --- |
 | `names` | One structured or unstructured name; at least a given, family, middle, or unstructured name |
-| `emailAddresses` | Email `value`, optional `type` and `displayName`; existing email syntax validation |
+| `emailAddresses` | Email `value`, optional `type` and `displayName`; dotted email domain; see validation rules below |
 | `phoneNumbers` | Phone `value` and optional `type`; digits and common punctuation, optional leading `+` and extension |
 | `organizations` | Company `name`, title, department, and other writable Organization properties; at least name, title, or department per entry |
 | `addresses` | Full or partial addresses; at least one component; `countryCode` uses two uppercase letters |
@@ -87,6 +90,9 @@ immediately before each contact's creation request, using local time, and the fi
 with the other saved values. The preview shows that it will be added. Supplied custom fields,
 including an existing Created field, are preserved. The input file is unchanged; `validate-contact`
 only validates input and adds nothing. No Notes are added. Other omitted fields stay absent.
+
+## Validation rules
+
 Empty arrays are allowed, but empty entries, blank supplied text, unknown properties,
 and generated fields such as `resourceName`, `etag`, `metadata`, and `formattedType` are rejected.
 Use `--label` instead of raw `memberships`.
