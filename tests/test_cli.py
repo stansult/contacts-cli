@@ -250,6 +250,8 @@ def test_help_command_order():
         "remove-email",
         "add-label",
         "remove-label",
+        "add-custom-field",
+        "remove-custom-field",
         "validate-contact",
         "authorize",
     ]

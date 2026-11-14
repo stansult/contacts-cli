@@ -18,6 +18,7 @@ from .core import (
     make_plan,
     update_body,
 )
+from .custom_fields import run_custom_field
 from .duplicate import READ_FIELDS, make_duplicate_plan, replacement_name
 from .email_edit import make_edit_plan, verify_edit
 from .error_logs import COMMAND as ERROR_LOG_COMMAND
@@ -182,6 +183,24 @@ def parser() -> argparse.ArgumentParser:
             help="Skip final confirmation; label choices still prompt",
         )
         label_commands.append(labeling)
+    custom_commands = []
+    for action in ("add", "remove"):
+        custom = commands.add_parser(
+            f"{action}-custom-field", help=f"{action.title()} custom fields on a contact"
+        )
+        custom.add_argument("--contact", required=True, help="Google Contacts URL or bare ID")
+        custom.add_argument("--key", required=True, help="Exact, case-sensitive custom field name")
+        custom.add_argument(
+            "--value",
+            required=action == "add",
+            help=(
+                "Exact, case-sensitive value to add"
+                if action == "add"
+                else "Exact, case-sensitive value; omit to remove all entries with this key"
+            ),
+        )
+        custom.add_argument("--apply", action="store_true", help="Save without final confirmation")
+        custom_commands.append(custom)
     validation = commands.add_parser(
         "validate-contact", help="Validate a contact JSON file locally without Google access"
     )
@@ -208,6 +227,7 @@ def parser() -> argparse.ArgumentParser:
         listing,
         creation,
         *label_commands,
+        *custom_commands,
         validation,
         *editing,
     ):
@@ -463,6 +483,9 @@ def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     # Accept forgiving spellings without adding plural forms to help or usage.
     aliases = {f"{action}-emails": f"{action}-email" for action in ("add", "remove", "list")}
+    aliases.update(
+        {f"{action}-custom-fields": f"{action}-custom-field" for action in ("add", "remove")}
+    )
     aliases["add-contacts"] = "add-contact"
     aliases["add-labels"] = "add-label"
     aliases["remove-labels"] = "remove-label"
@@ -539,7 +562,11 @@ def run_command(args):
             return 0
         # Reject bad input before touching credentials or the network.
         contact_resource(args.contact)
-        if args.command in {"add-label", "remove-label"}:
+        if args.command in {"add-custom-field", "remove-custom-field"}:
+            text_value(args.key, "--key")
+            if args.value is not None:
+                text_value(args.value, "--value")
+        elif args.command in {"add-label", "remove-label"}:
             for number, label in enumerate(args.label, 1):
                 text_value(label, f"--label #{number}")
         elif args.command == "duplicate":
@@ -556,6 +583,8 @@ def run_command(args):
         if api is None:
             return 1
         api.write_started = False
+        if args.command in {"add-custom-field", "remove-custom-field"}:
+            return run_custom_field(args, api, confirm_apply, contact_heading)
         if args.command in {"add-label", "remove-label"}:
             return run_label_edit(args, api, confirm_apply, contact_heading)
         if args.command == "list-email":

@@ -163,16 +163,20 @@ def update_body(plan: Plan) -> dict:
 
 
 def email_update_body(person, emails):
+    return field_update_body(person, "emailAddresses", emails)
+
+
+def field_update_body(person, field, entries):
     projected = deepcopy(person)
-    projected["emailAddresses"] = emails
+    projected[field] = entries
     # These are conservative local estimates, not Google's internal storage accounting.
-    entries = sum(len(value) for value in projected.values() if isinstance(value, list))
-    if entries > 500 or len(json.dumps(projected, ensure_ascii=False).encode()) > 128 * 1024:
+    entry_count = sum(len(value) for value in projected.values() if isinstance(value, list))
+    if entry_count > 500 or len(json.dumps(projected, ensure_ascii=False).encode()) > 128 * 1024:
         raise SyncError("Projected contact exceeds the local 500-entry or 128-KiB size guard.")
     return {
         "resourceName": person["resourceName"],
         "metadata": {"sources": [deepcopy(contact_source(person))]},
-        "emailAddresses": emails,
+        field: entries,
     }
 
 

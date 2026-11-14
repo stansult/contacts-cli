@@ -265,18 +265,21 @@ class GoogleAPI:
         return self.apply_email_change(plan.person, body, lambda saved: verify_saved(plan, saved))
 
     def apply_email_change(self, person, body, verify):
-        """Shared conflict protection, email-only write, and two-stage verification."""
+        return self.apply_field_change(person, body, verify, "emailAddresses")
+
+    def apply_field_change(self, person, body, verify, field):
+        """Conflict protection, a single-field write, and two-stage verification."""
         latest = self.get_contact(person["resourceName"])
         # A second read catches changes during preview generation; source etag also
         # protects the interval between this read and the PATCH on Google's side.
         if contact_source(latest) != contact_source(person) or json.dumps(
-            latest.get("emailAddresses", []), sort_keys=True
-        ) != json.dumps(person.get("emailAddresses", []), sort_keys=True):
+            latest.get(field, []), sort_keys=True
+        ) != json.dumps(person.get(field, []), sort_keys=True):
             raise SyncError("Contact changed since preview; no update made. Rerun preview.")
         result = self.write(
             self.people.people().updateContact(
                 resourceName=person["resourceName"],
-                updatePersonFields="emailAddresses",
+                updatePersonFields=field,
                 personFields=CONTACT_FIELDS,
                 sources=["READ_SOURCE_TYPE_CONTACT"],
                 body=body,

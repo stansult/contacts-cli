@@ -298,3 +298,13 @@ multiple case matches, and single versus multiple-label success output. It exerc
 CLI and fake Google client; fixture membership behavior is independently checked in
 `test_label_edit.py` and `test_remove_label.py`. The new output assertions were run against
 the previous implementation and failed for the intended wording and preview differences.
+
+### Custom field editing
+
+`tests/test_custom_fields.py` independently checks replacement/clearing and etag behavior in the
+HTTP fixture, then covers singular/plural commands, previews, exact matching, duplicate preservation
+and removal, case-only notices, empty-field removal, confirmation, invalid input, size guards,
+concurrent edits, and response/readback verification. A temporary disabled verifier made the three
+verification regression tests fail as intended; the verifier was restored. The full suite also
+checks the email commands using the shared single-field update path. Installed CLI help checks
+cover both custom-field commands.

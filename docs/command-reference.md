@@ -454,6 +454,43 @@ Choices select the plan; final confirmation still authorizes writes. Existing `-
 noninteractive rules remain: `--apply` skips final confirmation, not unresolved case choices;
 noninteractive collisions requiring a choice stop rather than choosing a spelling silently.
 
+## Add-custom-field and remove-custom-field
+
+```sh
+./contacts-cli add-custom-field --contact c123456789 --key 'Pipeline ID' --value P-001
+./contacts-cli remove-custom-field --contact c123456789 --key 'Pipeline ID' --value P-001
+./contacts-cli remove-custom-field --contact c123456789 --key Duplicate
+```
+
+These commands edit custom key/value entries (`userDefined` in Google Person JSON). Each invocation
+accepts one `--key`; addition requires `--value`. Removal accepts an optional value: supplying it
+removes all matching key/value pairs, including duplicates; omitting it removes every entry with
+that key. Removing `Created` or `Duplicate` affects only those stored custom fields, not the contact
+itself. These markers receive no special treatment.
+
+Matching is exact and case-sensitive, with whitespace preserved. Input must be nonblank text
+without control characters. Case-only similarities are listed as notices, not selected as matches:
+adding `created` does not reuse `Created`; removing `created` does not remove `Created`.
+There is no case-choice menu. Adding an exact pair already present skips it, preserving any stored
+duplicates. A different value under the same key is appended, never used as a replacement. A removal
+with no matches reports a no-op. This version has no file input or replacement option.
+
+The numbered preview shows a total and the entries to add or remove, followed by the remaining
+entry count. Interactive runs ask for confirmation; noninteractive runs preview only unless
+`--apply` is supplied. `--apply` skips confirmation and uses Adding/Removing headings. The silent
+aliases `add-custom-fields` and `remove-custom-fields` are accepted; help uses singular names.
+Both commands accept global `--token` and `--auth-timeout` options before or after the command.
+
+The update sends only the complete intended `userDefined` list and contact source metadata.
+Unmatched custom fields are retained, as are other contact fields. A fresh read and source etag
+protect against concurrent changes; conflicts stop rather than merging or retrying. The response
+and an independent read must both match the expected custom fields (including duplicate counts)
+and preserve the other fields in the contact read mask. Verification errors report an unverified
+update: inspect the contact before retrying. The shared local size guards, API error logging,
+interrupt handling, and exit codes apply. No mutation is automatically retried.
+
+API contract: [updateContact field masks and source etags](https://developers.google.com/people/api/rest/v1/people/updateContact).
+
 ## Validate-contact
 
 `validate-contact --file PATH` checks a UTF-8 contact JSON file locally using the same validator as

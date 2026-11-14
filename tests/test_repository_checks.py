@@ -57,6 +57,7 @@ def test_archive_accepts_valid_runtime_layout(tmp_path, kind):
         "output.py",
         "address_inputs.py",
         "email_edit.py",
+        "custom_fields.py",
         "label_edit.py",
         "contact_inputs.py",
         "contact_create.py",

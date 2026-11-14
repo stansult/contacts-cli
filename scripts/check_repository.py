@@ -68,6 +68,7 @@ def check_archive(path):
         "output.py",
         "address_inputs.py",
         "email_edit.py",
+        "custom_fields.py",
         "label_edit.py",
         "contact_inputs.py",
         "contact_create.py",

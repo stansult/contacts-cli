@@ -53,7 +53,17 @@ def test_subprocess_guard_contract(guarded_cli, code):
     assert log == "guard ready\nblocked external action\n"
 
 
-@pytest.mark.parametrize("command", [[], ["authorize"], ["sender-sync"], ["duplicate"]])
+@pytest.mark.parametrize(
+    "command",
+    [
+        [],
+        ["authorize"],
+        ["sender-sync"],
+        ["duplicate"],
+        ["add-custom-field"],
+        ["remove-custom-field"],
+    ],
+)
 def test_installed_help(guarded_cli, command):
     result, log = guarded_cli(command + ["--help"])
     assert result.returncode == 0

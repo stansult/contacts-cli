@@ -103,6 +103,18 @@ Removes labels from this contact, preserving the labels themselves and other con
 Repeat `--label` for multiple removals. Missing or unapplied labels are skipped. Preview and
 confirmation work like `add-label`. See [removal details](docs/command-reference.md#remove-label).
 
+## Add or remove custom fields
+
+```sh
+./contacts-cli add-custom-field --contact c123456789 --key 'Pipeline ID' --value P-001
+./contacts-cli remove-custom-field --contact c123456789 --key 'Pipeline ID' --value P-001
+./contacts-cli remove-custom-field --contact c123456789 --key Created
+```
+
+Keys and values match exactly, including case. Adding an existing pair does nothing; a different
+value is appended. Removal without `--value` removes every entry with that key. Review the
+numbered preview and confirm, or use `--apply`. See [custom field details](docs/command-reference.md#add-custom-field-and-remove-custom-field).
+
 ## Validate a contact file
 
 Check a file locally with `./contacts-cli validate-contact --file contacts.json`; no authorization
