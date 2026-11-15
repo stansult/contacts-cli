@@ -148,7 +148,21 @@ The command shows a preview first:
   --contact c123456789
 ```
 
-Output identifies the contact and label,
+Alternatively, supply a Gmail search expression:
+
+```sh
+./contacts-cli sender-sync --search 'subject:delivery OR subject:shipment' --contact c123456789
+```
+
+Exactly one of `--label` or `--search` is required. Quote the search expression in your shell.
+Blank searches are rejected before authorization. Search mode uses Gmail's
+[search syntax](https://support.google.com/mail/answer/7190), groups the expression in parentheses,
+and appends the same sender exclusions as label mode. Gmail evaluates the query; the CLI does
+not validate its complete syntax or independently recheck it against message contents.
+Both modes include matching Spam and Trash; explicit query restrictions still apply.
+Search mode skips label lookup and label-membership checks. Raw queries are not stored in metrics.
+
+Output identifies the contact and label or search,
 shows inspected-message and new-sender counts in progress, then existing email entries and additions.
 
 Use repeatable `--exclude ADDRESS` options to skip additional individual senders for that run.
@@ -157,7 +171,8 @@ combined. Domains, wildcards, display names, and address lists are not accepted.
 unsupported values are rejected before authorization or network access. Manual exclusions are
 combined with automatic exclusions in Gmail queries and in parsed candidate filtering. They
 are not saved for later runs and do not remove addresses already stored in the contact. The same
-query-size limit applies to the combined exclusions. Gmail matching limitations below still apply.
+query-size limit applies to the search expression plus all exclusions. Gmail matching limitations
+below still apply.
 
 Use `--exclude-file PATH` to read a UTF-8 list, one address per line. Repeat the option for
 multiple files and combine it with `--exclude`. Blank lines, surrounding whitespace, and lines
@@ -178,16 +193,16 @@ including your primary address and aliases. It requests one matching message, re
 header, and excludes newly discovered addresses from the next search. It stops when no matching
 messages remain. For many messages from a few senders, this avoids reading each message header.
 
-Progress appears automatically on stderr: reading the contact, finding the label, then messages
-inspected and new senders found. In a terminal, the scan counter updates in place at most once
-per second; redirected output uses separate lines at most once every ten seconds. The contact and
+Progress appears automatically on stderr: reading the contact and sending addresses, finding the
+label when selected, then messages inspected and new senders found. In a terminal, the scan counter
+updates in place at most once per second; redirected output uses separate lines at most once every ten seconds. The contact and
 label details appear immediately after their lookups, with blank lines separating sections. The
 last counter update always appears, bypassing throttling, followed by `Search finished.` and the
 existing-email count. Updates occur as requests finish; there is no estimated total or percentage. Invalid From
 headers stop the search and block all writes.
 The complete preview stays on stdout. Proposed addresses appear one per line without a `+` prefix,
-with a custom label after ` — ` when applicable. Counts describe inspected messages, not the label’s
-total size.
+with a custom label after ` — ` when applicable. Counts describe inspected messages, not the total
+number of matching messages.
 
 In an interactive terminal, the preview is followed by `Apply these additions? [y/N]`.
 Answer `y` or `yes` to save; Enter, `n`, or any other answer leaves the contact unchanged.
@@ -244,8 +259,9 @@ maintain an exclusion query or a filter ID. A run with no missing addresses send
   search may require another run. A deleted message or observed loss of the selected label aborts
   the search. Repeated message IDs or results with no new sender also stop it before any write.
 - Exclusions use quoted full addresses. Unsupported address syntax stops the run instead of being
-  inserted into the search query. A local guard limits the URL-encoded query to 6,000 bytes; this
-  is a conservative CLI limit, not a documented Google maximum. Exceeding it stops before writing.
+  inserted into the search query. A local guard limits the entire URL-encoded query, including the
+  base search, to 6,000 bytes. This is a conservative CLI limit, not a documented Google maximum.
+  Exceeding it stops before writing.
   API errors also stop the run; partial discoveries are never applied after a search failure.
 - This relies on Gmail's sender matching, rather than inspecting every header. Excluded messages
   are not checked for malformed headers or additional authors. The multiple-author case is deferred

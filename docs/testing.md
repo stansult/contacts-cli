@@ -20,7 +20,7 @@ Pytest disables network sockets globally; tests must never use real credentials 
 | Authorization | `test_auth.py`, `test_reauthorization.py` | OAuth setup, consent, scope upgrades, token storage, and failures |
 | Creation and validation | `test_contact_inputs.py`, `test_contact_create.py` | Person JSON, local validation, creation, labels, and partial outcomes |
 | Duplication | `test_duplicate.py` | Copyable fields, photo handling, identities, and independent verification |
-| Sender sync | `test_search.py`, `test_sync.py` | Search requests, completeness, conflicts, writes, and reruns |
+| Sender sync | `test_search.py`, `test_search_input.py`, `test_sync.py` | Search requests, completeness, conflicts, writes, and reruns |
 | Sender identities | `test_own_addresses.py`, `test_sender_labels.py` | Own-address exclusions and saved display labels |
 | Explicit exclusions | `test_exclude.py`, `test_exclude_files.py` | Inline/file parsing, matching, and query integration |
 | Email editing | `test_email_edit.py` | Listing, addition, removal, conflicts, duplicates, and preservation |
@@ -320,3 +320,12 @@ concurrent edits, and response/readback verification. A temporary disabled verif
 verification regression tests fail as intended; the verifier was restored. The full suite also
 checks the email commands using the shared single-field update path. Installed CLI help checks
 cover both custom-field commands.
+
+## Sender search input
+
+Search-input regression tests cover required/exclusive source options, blank and oversized input
+before authorization, grouped queries, manual exclusions, preview/apply, and metrics privacy.
+The fixture maps explicitly configured base queries to message IDs; it does not parse Gmail's
+search language. A direct transport test independently checks that selection and subsequent
+sender exclusions. New search tests were run before implementation and failed for missing search
+support; the completed implementation passes them.

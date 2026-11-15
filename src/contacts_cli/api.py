@@ -29,8 +29,10 @@ from .metrics import ACTIVE, counts, execute_measured
 MAX_QUERY_BYTES = 6000
 
 
-def exclusion_query(addresses):
-    terms = []
+def exclusion_query(addresses, *, search=None):
+    if search is not None and not search.strip():
+        raise SyncError("--search must not be blank.")
+    terms = [f"({search.strip()})"] if search is not None else []
     for address in sorted(addresses):
         # Restrict to common addr-spec syntax; never interpolate search operators,
         # quotes, backslashes, display names, or controls from contact/header data.
@@ -42,9 +44,7 @@ def exclusion_query(addresses):
         terms.append(f'-from:"{address}"')
     query = " ".join(terms)
     if len(quote(query, safe="")) > MAX_QUERY_BYTES:
-        raise SyncError(
-            "Sender exclusion query exceeds the local 6,000-byte limit; no changes made."
-        )
+        raise SyncError("Sender search query exceeds the local 6,000-byte limit; no changes made.")
     return query
 
 
@@ -113,8 +113,9 @@ class GoogleAPI:
 
     def scan(
         self,
-        label_name: str,
+        label_name: str | None = None,
         *,
+        search=None,
         existing_emails=(),
         excluded_emails=(),
         progress=None,
@@ -129,23 +130,29 @@ class GoogleAPI:
                 progress(stage, processed, senders, problems)
 
         excluded = {address_key(address) for address in (*existing_emails, *excluded_emails)}
-        query = exclusion_query(excluded)
+        query = exclusion_query(excluded, search=search)
         report("Reading sending addresses")
         excluded.update(self.sending_addresses())
-        query = exclusion_query(excluded)
-        report("Finding label")
-        response = execute(self.gmail.users().labels().list(userId="me"))
-        if not isinstance(response, dict) or not isinstance(response.get("labels", []), list):
-            raise SyncError("Incomplete Gmail label response; search aborted.")
-        labels = response.get("labels", [])
-        if any(not isinstance(label, dict) for label in labels):
-            raise SyncError("Incomplete Gmail label response; search aborted.")
-        matches = [label for label in labels if label.get("name") == label_name]
-        if len(matches) != 1 or not isinstance(matches[0].get("id"), str) or not matches[0]["id"]:
-            raise SyncError("Label name must match exactly one existing Gmail label.")
-        label_id = matches[0]["id"]
-        if label_found is not None:
-            label_found(label_name)
+        query = exclusion_query(excluded, search=search)
+        label_id = None
+        if search is None:
+            report("Finding label")
+            response = execute(self.gmail.users().labels().list(userId="me"))
+            if not isinstance(response, dict) or not isinstance(response.get("labels", []), list):
+                raise SyncError("Incomplete Gmail label response; search aborted.")
+            labels = response.get("labels", [])
+            if any(not isinstance(label, dict) for label in labels):
+                raise SyncError("Incomplete Gmail label response; search aborted.")
+            matches = [label for label in labels if label.get("name") == label_name]
+            if (
+                len(matches) != 1
+                or not isinstance(matches[0].get("id"), str)
+                or not matches[0]["id"]
+            ):
+                raise SyncError("Label name must match exactly one existing Gmail label.")
+            label_id = matches[0]["id"]
+            if label_found is not None:
+                label_found(label_name)
         messages = self.gmail.users().messages()
         seen_ids, senders = set(), {}
         labels = {}
@@ -154,7 +161,11 @@ class GoogleAPI:
         while True:
             page = execute(
                 messages.list(
-                    userId="me", labelIds=[label_id], includeSpamTrash=True, maxResults=1, q=query
+                    userId="me",
+                    includeSpamTrash=True,
+                    maxResults=1,
+                    q=query,
+                    **({"labelIds": [label_id]} if label_id is not None else {}),
                 )
             )
             if not isinstance(page, dict):
@@ -183,8 +194,13 @@ class GoogleAPI:
             if (
                 not isinstance(message, dict)
                 or message.get("id") != message_id
-                or not isinstance(message.get("labelIds"), list)
-                or label_id not in message["labelIds"]
+                or (
+                    label_id is not None
+                    and (
+                        not isinstance(message.get("labelIds"), list)
+                        or label_id not in message["labelIds"]
+                    )
+                )
             ):
                 raise SyncError(
                     "A message changed or lost its label during the search; rerun preview."
@@ -224,7 +240,7 @@ class GoogleAPI:
             senders.update(new)
             excluded.update(new)
             report("Searching senders", processed, len(senders))
-            query = exclusion_query(excluded)
+            query = exclusion_query(excluded, search=search)
         report("Search finished", processed, len(senders))
         return Scan(
             processed,

@@ -58,8 +58,14 @@ creation time. Omit `--name` to keep the original name. See [duplication details
 ./contacts-cli sender-sync --label 'Example/Delivery' --contact c123456789
 ```
 
-Adds missing sender addresses from a Gmail label, excluding addresses already on the contact and
-your Gmail sending addresses. Sender names become email labels when useful. Use `--exclude ADDRESS`
+Use either `--label` or `--search`:
+
+```sh
+./contacts-cli sender-sync --search 'from:example.com after:2026/01/01' --contact c123456789
+```
+
+Adds missing sender addresses from a Gmail label or search, excluding addresses already on the
+contact and your Gmail sending addresses. Sender names become email labels when useful. Use `--exclude ADDRESS`
 or `--exclude-file PATH` to skip other senders. See [search and exclusion details](docs/command-reference.md#sender-sync-preview-and-apply).
 
 ## List email addresses

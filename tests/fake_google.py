@@ -22,6 +22,8 @@ class FakeGoogle:
         self.person = json.loads((FIXTURES / "contact.json").read_text())
         self.mailbox = json.loads((FIXTURES / "mailbox.json").read_text())
         self.send_as = json.loads((FIXTURES / "send-as.json").read_text())
+        # Explicit query-to-ID contracts, not an emulation of Gmail search syntax.
+        self.search_results = {}
         self.send_as_status = 200
         self.groups = {}
         self.created = {}
@@ -68,6 +70,12 @@ class FakeGoogle:
                 and (include_spam or not {"SPAM", "TRASH"}.intersection(item["labelIds"]))
             ]
             search = query.get("q", [""])[0]
+            for base, ids in self.search_results.items():
+                prefix = f"({base})"
+                if search == prefix or search.startswith(prefix + " "):
+                    matches = [item for item in matches if item["id"] in ids]
+                    search = search[len(prefix) :].lstrip()
+                    break
             terms = re.findall(r'-from:"([^"\\]+)"', search)
             assert " ".join(f'-from:"{term}"' for term in terms) == search
             excluded = {term.casefold() for term in terms}

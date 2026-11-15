@@ -95,12 +95,12 @@ def parser() -> argparse.ArgumentParser:
     )
     sync = commands.add_parser(
         "sender-sync",
-        help="Preview or append Gmail label senders to an existing contact",
-        description="Preview missing From addresses from a Gmail label for one existing contact.",
+        help="Preview or append Gmail senders to an existing contact",
+        description="Preview missing From addresses from a Gmail label or search for one contact.",
     )
-    sync.add_argument(
-        "--label", required=True, help="Exact Gmail label name (includes labeled Spam and Trash)"
-    )
+    source = sync.add_mutually_exclusive_group(required=True)
+    source.add_argument("--label", help="Exact Gmail label name (includes labeled Spam and Trash)")
+    source.add_argument("--search", help="Gmail search query (includes matching Spam and Trash)")
     sync.add_argument(
         "--contact", required=True, help="Google Contacts URL or bare ID such as c123456789"
     )
@@ -286,9 +286,12 @@ def run(args, api) -> int:
             progress.finish_line()
             emit(f"Label: {name!r} (including Spam and Trash)\n", primary=False)
 
+        if args.search is not None:
+            emit(f"Search: {args.search!r} (including Spam and Trash)\n", primary=False)
         counts(existing_entries=len(person.get("emailAddresses", [])))
         scan = api.scan(
             args.label,
+            search=args.search,
             existing_emails=[entry["value"] for entry in person.get("emailAddresses", [])],
             excluded_emails=args.exclude,
             progress=progress,
@@ -573,7 +576,9 @@ def run_command(args):
             replacement_name(args.name)
         elif args.command == "sender-sync":
             args.exclude = sorted(set(args.exclude) | file_exclusions(args.exclude_file))
-            exclusion_query(set(args.exclude))
+            if args.search is not None:
+                args.search = args.search.strip()
+            exclusion_query(set(args.exclude), search=args.search)
         elif args.command in {"add-email", "remove-email"}:
             action = args.command.split("-")[0]
             args.entries = edit_inputs(
