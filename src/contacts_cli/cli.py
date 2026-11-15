@@ -27,6 +27,7 @@ from .label_edit import run_label_edit
 from .metrics import ACTIVE, RunMetrics, counts, outcome
 from .output import OperationalOutput, email_rows, emit, emit_list
 from .progress import ScanProgress
+from .sender_criteria import extract_search_criteria
 
 
 def positive_seconds(value: str) -> int:
@@ -349,10 +350,38 @@ def run(args, api) -> int:
     plan = make_plan(person, scan)
     counts(existing_entries=len(person.get("emailAddresses", [])), additions=len(plan.additions))
     emit(f"Existing email entries: {len(person.get('emailAddresses', []))}", primary=False)
-    emit_list(
-        "\nAdding" if args.apply else "\nProposed additions",
-        email_rows([addition_entry(plan, address) for address in plan.additions]),
-    )
+    entries = [addition_entry(plan, address) for address in plan.additions]
+    criteria = extract_search_criteria(args.search)
+    heading = "\nAdding" if args.apply else "\nProposed additions"
+    if criteria and entries:
+        matching, other = criteria.partition(entries)
+        rows = email_rows(matching + other)
+        emit(f"{heading}: {len(entries)} {'entry' if len(entries) == 1 else 'entries'}")
+        emit("", primary=False)
+        emit_list(
+            "Matching address criteria",
+            rows[: len(matching)],
+            unit=("address", "addresses"),
+            primary=False,
+        )
+        emit("", primary=False)
+        emit_list(
+            "Other senders",
+            rows[len(matching) :],
+            unit=("address", "addresses"),
+            primary=False,
+        )
+        emit("Both groups are included.", primary=False)
+    else:
+        emit_list(
+            heading,
+            email_rows(entries),
+            note=(
+                "Ungrouped: no full addresses or domains in from:/to: criteria."
+                if args.search is not None and entries
+                else None
+            ),
+        )
     for problem in scan.problems:
         emit(f"Warning: {problem}", file=sys.stderr)
     if scan.problems:

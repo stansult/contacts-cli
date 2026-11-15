@@ -221,6 +221,44 @@ Each command scans current data; `--apply` is not approval of a frozen previous 
 same flags after changing a Gmail filter and applying it to matching messages. There is no need to
 maintain an exclusion query or a filter ID. A run with no missing addresses sends no contact update.
 
+### Grouping search additions by address criteria
+
+With `--search`, the additions preview separates **Matching address criteria** from **Other
+senders** when the query contains usable positive `from:` or `to:` criteria. Only explicitly
+supplied criteria contribute; recipients from fetched messages are never used to invent criteria.
+This describes address matches, not why Gmail returned a particular message.
+
+Supported criteria use lowercase `from:` / `to:` with full addresses or dotted domains,
+optionally double-quoted. Parentheses or braces can group values separated by spaces or `OR`:
+`from:(one@example.com OR two@example.com)`. Groups such as
+`{from:example.com to:example.org}` also contribute. Each recognized criterion is an alternative
+for classification, regardless of the broader query's Boolean logic.
+
+Matching ignores address case. A domain includes its subdomains: `example.com` matches
+`person@mail.example.com`, but not `person@notexample.com`. Full addresses match exactly;
+dot variants and plus tags remain distinct.
+
+Negated criteria/groups (`-` or `NOT`), other fields, quoted search text, names, `me`, wildcards,
+and unsupported address forms do not contribute. A field group containing unsupported values,
+nested fields, or negation is skipped as a whole. Unbalanced quotes/groups or nesting beyond
+32 levels disable grouping for the query. This conservative extraction does not validate or alter
+the actual Gmail query.
+
+The overall total appears first, followed by both group totals and numbered rows. Numbering
+continues across groups; order within each group follows the normal sorted additions. Empty
+groups show zero. When there are no usable criteria, search runs with additions retain a single
+list with this explanation below the total:
+`Ungrouped: no full addresses or domains in from:/to: criteria.`
+Label mode and runs without additions keep their existing output without that explanation.
+
+**Both groups remain included**, including with `--apply`. Existing manual exclusions still
+apply before this preview. No additional selection prompt is added here. Optional exclusion
+of Other senders is tracked in [#8](https://github.com/stansult/contacts-cli/issues/8); Gmail filter criteria for label mode are tracked
+in [#9](https://github.com/stansult/contacts-cli/issues/9).
+
+For a query starting with a minus sign, use `--search='-from:person@example.com subject:delivery'`
+so the shell argument is passed as the search value.
+
 ## Sender-sync behavior and limits
 
 - Each sync reads Gmail's [Send mail as list](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.settings.sendAs/list)

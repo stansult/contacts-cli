@@ -20,7 +20,7 @@ Pytest disables network sockets globally; tests must never use real credentials 
 | Authorization | `test_auth.py`, `test_reauthorization.py` | OAuth setup, consent, scope upgrades, token storage, and failures |
 | Creation and validation | `test_contact_inputs.py`, `test_contact_create.py` | Person JSON, local validation, creation, labels, and partial outcomes |
 | Duplication | `test_duplicate.py` | Copyable fields, photo handling, identities, and independent verification |
-| Sender sync | `test_search.py`, `test_search_input.py`, `test_sync.py` | Search requests, completeness, conflicts, writes, and reruns |
+| Sender sync | `test_search.py`, `test_search_input.py`, `test_sender_criteria.py`, `test_sync.py` | Search requests, completeness, conflicts, writes, and reruns |
 | Sender identities | `test_own_addresses.py`, `test_sender_labels.py` | Own-address exclusions and saved display labels |
 | Explicit exclusions | `test_exclude.py`, `test_exclude_files.py` | Inline/file parsing, matching, and query integration |
 | Email editing | `test_email_edit.py` | Listing, addition, removal, conflicts, duplicates, and preservation |
@@ -338,3 +338,18 @@ noninteractive spelling hints, missing labels, and choices with `--apply`. Tests
 selected label ID is sent to Gmail and cancellation makes no search or write. The case-choice
 regressions failed against the former exact-only implementation. They use the existing
 independently contract-tested label-filtering fixture; no live Gmail access is involved.
+
+### Search address criteria (#7)
+
+`test_sender_criteria.py` covers positive from/to extraction, quoted values, grouping, negation,
+ignored fields, unsupported values, malformed/nested syntax, case and domain-boundary matching,
+and subdomains. CLI tests cover split totals, continuous numbering, empty groups, fallback,
+no-op runs, preserved display labels, and saving both groups. Fallback explanation tests verify
+placement below the total and absence for grouped previews, label mode, and no-op runs. The three
+fallback wording cases failed before the explanation was added. A direct transport test verifies
+the synthetic message selection and From headers independently of product grouping. The fake
+does not evaluate Gmail syntax; configured query-to-ID mappings represent server results.
+
+Regression tests ran before implementation and failed for missing grouping and criteria support.
+Tests validate the CLI's documented classification rules, not equivalence to Gmail's full search
+semantics. No live account reads or writes are part of this coverage.

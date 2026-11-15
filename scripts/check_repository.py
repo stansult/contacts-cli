@@ -72,6 +72,7 @@ def check_archive(path):
         "label_edit.py",
         "contact_inputs.py",
         "contact_create.py",
+        "sender_criteria.py",
     ):
         if not any(PurePosixPath(name).parts[-2:] == ("contacts_cli", module) for name in names):
             raise ValueError(f"{path.name}: missing module {module}")
