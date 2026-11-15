@@ -228,9 +228,15 @@ maintain an exclusion query or a filter ID. A run with no missing addresses send
   Retrieval errors, missing primary identity, or malformed addresses stop before searching or
   writing. Configured sending addresses are excluded from both searches and parsed candidates.
   Addresses already stored in the contact remain unchanged; this feature does not remove them.
-- Labels must match by exact name. Searches include labeled Spam and Trash.
-  Only individual messages carrying the label are considered; unrelated messages in the same
-  conversation are excluded.
+- Gmail label selection prefers an exact name, even when other case variants exist. Without an
+  exact match, an interactive run offers a single case-only match with `[Y/n]` (Enter means Yes),
+  or a numbered choice of multiple matches plus Cancel command. Declining or end-of-input cancels
+  before message searches or contact writes. Missing labels report “was not found”; this command
+  never creates Gmail labels. Noninteractive runs require exact spelling and report case-only
+  alternatives. `--apply` skips final write confirmation but still requires resolving label choices.
+  The selected spelling appears in the Label heading. Searches include labeled Spam and Trash.
+  Only individual messages carrying the selected label are considered; unrelated messages in the
+  same conversation are excluded.
 - `From` is the source, not `Reply-To`, `Sender`, or the envelope sender. Display names, comments,
   folded headers, and multiple valid mailboxes are parsed. Encountered missing, duplicate,
   malformed, or unsupported headers are reported by message ID and block all writes. Raw headers

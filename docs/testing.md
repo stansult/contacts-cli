@@ -329,3 +329,12 @@ The fixture maps explicitly configured base queries to message IDs; it does not 
 search language. A direct transport test independently checks that selection and subsequent
 sender exclusions. New search tests were run before implementation and failed for missing search
 support; the completed implementation passes them.
+
+### Gmail label case choices
+
+`test_gmail_label_choices.py` exercises the actual sender-sync path through the offline transport:
+exact-match precedence, single-match default Yes, multiple-match selection, cancellation,
+noninteractive spelling hints, missing labels, and choices with `--apply`. Tests assert the
+selected label ID is sent to Gmail and cancellation makes no search or write. The case-choice
+regressions failed against the former exact-only implementation. They use the existing
+independently contract-tested label-filtering fixture; no live Gmail access is involved.

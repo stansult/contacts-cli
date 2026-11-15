@@ -120,6 +120,7 @@ class GoogleAPI:
         excluded_emails=(),
         progress=None,
         label_found=None,
+        choose_label=None,
     ) -> Scan:
         def report(stage, processed=0, senders=0, problems=0):
             if stage in {"Searching senders", "Search finished", "Search stopped"}:
@@ -144,6 +145,24 @@ class GoogleAPI:
             if any(not isinstance(label, dict) for label in labels):
                 raise SyncError("Incomplete Gmail label response; search aborted.")
             matches = [label for label in labels if label.get("name") == label_name]
+            if not matches:
+                similar = sorted(
+                    {
+                        label["name"]
+                        for label in labels
+                        if isinstance(label.get("name"), str)
+                        and label["name"].casefold() == label_name.casefold()
+                    }
+                )
+                if not similar:
+                    raise SyncError(f"Gmail label {label_name!r} was not found.")
+                if choose_label is None:
+                    spellings = ", ".join(repr(name) for name in similar)
+                    raise SyncError(f"Use an exact Gmail label spelling: {spellings}.")
+                label_name = choose_label(label_name, similar)
+                if label_name not in similar:
+                    raise SyncError("Invalid Gmail label selection; no changes made.")
+                matches = [label for label in labels if label.get("name") == label_name]
             if (
                 len(matches) != 1
                 or not isinstance(matches[0].get("id"), str)

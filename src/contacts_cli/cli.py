@@ -8,7 +8,7 @@ from pathlib import Path
 from .address_inputs import bare_address, edit_inputs, file_lines, split_entry
 from .api import exclusion_query
 from .auth import authorize, connect, default_credentials_path, default_token_path
-from .contact_create import run_create
+from .contact_create import LabelChoiceCancelled, run_create
 from .contact_inputs import load_contact_inputs, text_value
 from .core import (
     addition_entry,
@@ -99,7 +99,9 @@ def parser() -> argparse.ArgumentParser:
         description="Preview missing From addresses from a Gmail label or search for one contact.",
     )
     source = sync.add_mutually_exclusive_group(required=True)
-    source.add_argument("--label", help="Exact Gmail label name (includes labeled Spam and Trash)")
+    source.add_argument(
+        "--label", help="Gmail label name; case-only matches prompt (includes Spam and Trash)"
+    )
     source.add_argument("--search", help="Gmail search query (includes matching Spam and Trash)")
     sync.add_argument(
         "--contact", required=True, help="Google Contacts URL or bare ID such as c123456789"
@@ -274,6 +276,48 @@ def contact_heading(person):
     return f"Contact: 'Unnamed' ({contact_id})"
 
 
+def choose_gmail_label(name, similar):
+    spellings = ", ".join(repr(label) for label in similar)
+    if not all(stream.isatty() for stream in (sys.stdin, sys.stdout, sys.stderr)):
+        raise SyncError(
+            f"Gmail label {name!r} differs only by case from {spellings}. "
+            "Use an exact spelling with --label, or run interactively to choose. "
+            "--apply does not resolve label choices; no changes made."
+        )
+    emit(f"Gmail label {name!r} differs only by case from {spellings}.")
+    if len(similar) == 1:
+        while True:
+            emit(
+                f"Use existing Gmail label {similar[0]!r}? [Y/n] ",
+                file=sys.stderr,
+                end="",
+                flush=True,
+            )
+            try:
+                answer = input().strip().casefold()
+            except EOFError:
+                raise LabelChoiceCancelled from None
+            if answer in {"", "y", "yes"}:
+                return similar[0]
+            if answer in {"n", "no"}:
+                raise LabelChoiceCancelled
+            emit("Enter y or n.", file=sys.stderr)
+    options = [f"Use existing Gmail label {label!r}" for label in similar] + ["Cancel command"]
+    emit_list("Options", enumerate(options, 1), unit=("option", "options"))
+    while True:
+        emit(f"Choose 1–{len(options)} (Enter = 1): ", file=sys.stderr, end="", flush=True)
+        try:
+            answer = input().strip() or "1"
+        except EOFError:
+            raise LabelChoiceCancelled from None
+        if answer.isdecimal() and 1 <= int(answer) <= len(options):
+            choice = int(answer)
+            if choice == len(options):
+                raise LabelChoiceCancelled
+            return similar[choice - 1]
+        emit(f"Enter a number from 1 to {len(options)}.", file=sys.stderr)
+
+
 def run(args, api) -> int:
     resource = contact_resource(args.contact)
     with ScanProgress() as progress:
@@ -286,6 +330,10 @@ def run(args, api) -> int:
             progress.finish_line()
             emit(f"Label: {name!r} (including Spam and Trash)\n", primary=False)
 
+        def choose_label(name, similar):
+            progress.finish_line()
+            return choose_gmail_label(name, similar)
+
         if args.search is not None:
             emit(f"Search: {args.search!r} (including Spam and Trash)\n", primary=False)
         counts(existing_entries=len(person.get("emailAddresses", [])))
@@ -296,6 +344,7 @@ def run(args, api) -> int:
             excluded_emails=args.exclude,
             progress=progress,
             label_found=label_found,
+            choose_label=choose_label,
         )
     plan = make_plan(person, scan)
     counts(existing_entries=len(person.get("emailAddresses", [])), additions=len(plan.additions))
@@ -597,6 +646,10 @@ def run_command(args):
         if args.command in {"add-email", "remove-email"}:
             return run_email_edit(args, api)
         return run_duplicate(args, api) if args.command == "duplicate" else run(args, api)
+    except LabelChoiceCancelled:
+        emit("Cancelled; no changes made.")
+        outcome("cancelled")
+        return 0
     except WriteUnverified as exc:
         label = {"duplicate": "Unverified copy", "add-contact": "Unverified creation"}.get(
             args.command, "Unverified update"

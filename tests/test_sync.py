@@ -100,7 +100,7 @@ def test_empty_label_no_update(api, server, monkeypatch):
 
 
 def test_unknown_label_no_update(api, server):
-    with pytest.raises(SyncError, match="exactly one"):
+    with pytest.raises(SyncError, match="exact Gmail label spelling"):
         api.scan("example/delivery")
     assert server.writes == 0
 
