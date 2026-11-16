@@ -20,7 +20,6 @@ ACTIVE = ContextVar("run_metrics", default=None)
 METHODS = {
     "gmail.users.settings.sendAs.list": "sending_addresses",
     "gmail.users.labels.list": "labels",
-    "gmail.users.settings.filters.list": "filters",
     "gmail.users.messages.list": "message_list",
     "gmail.users.messages.get": "headers",
     "people.people.getBatchGet": "contact_reads",

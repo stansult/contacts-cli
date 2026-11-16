@@ -102,8 +102,8 @@ replace its example values with your own.
 
 The requested scopes are `gmail.readonly` and `contacts` (with Google's
 `https://www.googleapis.com/auth/` prefix). Gmail read-only access permits reading messages,
-including bodies, but no mail changes. The CLI reads message headers, labels, sending addresses,
-and filters; it does not request message bodies. Sender search requires this permission.
+including bodies, but no mail changes. The CLI reads message headers, labels, and sending
+addresses; it does not request message bodies. Sender search requires this permission.
 Contacts permission allows writes across the account; Google does not offer a scope restricted to the selected contact.
 The CLI writes contacts only after interactive confirmation or when `--apply` is present.
 

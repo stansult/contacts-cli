@@ -105,10 +105,10 @@ def parser() -> argparse.ArgumentParser:
         "--diagnostics", action="store_true", help="Save detailed local API run diagnostics"
     )
     source = sync.add_mutually_exclusive_group(required=True)
+    source.add_argument("--label", help="Find sender addresses in messages with this Gmail label")
     source.add_argument(
-        "--label", help="Gmail label name; case-only matches prompt (includes Spam and Trash)"
+        "--search", help="Find sender addresses in messages matching this Gmail search"
     )
-    source.add_argument("--search", help="Gmail search query (includes matching Spam and Trash)")
     sync.add_argument(
         "--contact", required=True, help="Google Contacts URL or bare ID such as c123456789"
     )
@@ -120,7 +120,7 @@ def parser() -> argparse.ArgumentParser:
     sync.add_argument(
         "--exclude-other",
         action="store_true",
-        help="Exclude senders outside address criteria in the search or label filters",
+        help="Only add addresses matching from:/to: criteria in --search",
     )
     sync.add_argument(
         "--exclude",
@@ -347,12 +347,6 @@ def run(args, api) -> int:
     resource = contact_resource(args.contact)
     criteria = extract_search_criteria(args.search)
 
-    def criteria_found(value):
-        nonlocal criteria
-        criteria = value
-        if args.exclude_other and not criteria:
-            raise SyncError("--exclude-other requires usable address criteria in label filters.")
-
     with ScanProgress() as progress:
         progress("Reading contact")
         person = api.get_contact(resource)
@@ -378,7 +372,6 @@ def run(args, api) -> int:
             progress=progress,
             label_found=label_found,
             choose_label=choose_label,
-            criteria_found=criteria_found,
         )
     plan = make_plan(person, scan)
     counts(existing_entries=len(person.get("emailAddresses", [])), additions=len(plan.additions))
@@ -413,8 +406,6 @@ def run(args, api) -> int:
             note=(
                 "Ungrouped: no full addresses or domains in from:/to: criteria."
                 if args.search is not None and entries
-                else "Ungrouped: no usable address criteria in label filters."
-                if entries
                 else None
             ),
         )
@@ -602,7 +593,7 @@ def connect_with_authorization(token: Path, timeout_seconds: int = 300):
         reauthorize = isinstance(exc, InsufficientScopes)
         reason = (
             f"{exc}\nGmail read-only permission allows reading message bodies; "
-            "this CLI reads message headers, labels, sending addresses, and filters, not bodies."
+            "this CLI reads message headers, labels, and sending addresses, not bodies."
             if reauthorize
             else "You're not authorized: no token file was found."
         )
@@ -738,6 +729,12 @@ def run_command(args):
         elif args.command == "duplicate":
             replacement_name(args.name)
         elif args.command == "sender-sync":
+            if args.exclude_other and args.label is not None:
+                raise SyncError(
+                    "--exclude-other cannot be used with --label.\n"
+                    "Use --search with from:/to: address criteria, "
+                    "or exclude individual addresses with --exclude."
+                )
             args.exclude = sorted(set(args.exclude) | file_exclusions(args.exclude_file))
             if args.search is not None:
                 args.search = args.search.strip()

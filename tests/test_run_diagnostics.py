@@ -24,11 +24,11 @@ def test_same_command_records_live_attempt_and_exit(
     observed = []
 
     def request(uri, method="GET", **kwargs):
-        if "/settings/filters" in uri:
+        if "/messages?" in uri:
             path, rows = events()
             assert rows[-1]["event"] == "attempt_start"
-            assert rows[-1]["operation"] == "gmail.users.settings.filters.list"
-            assert rows[-1]["attempt"] == len(observed) + 1
+            assert rows[-1]["operation"] == "gmail.users.messages.list"
+            assert rows[-1]["attempt"] == (len(observed) + 1 if failure is not None else 1)
             assert path.stat().st_mode & 0o777 == 0o600
             observed.append(rows[-1])
             if failure is not None:

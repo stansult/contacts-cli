@@ -20,7 +20,7 @@ Pytest disables network sockets globally; tests must never use real credentials 
 | Authorization | `test_auth.py`, `test_reauthorization.py` | OAuth setup, consent, scope upgrades, token storage, and failures |
 | Creation and validation | `test_contact_inputs.py`, `test_contact_create.py` | Person JSON, local validation, creation, labels, and partial outcomes |
 | Duplication | `test_duplicate.py` | Copyable fields, photo handling, identities, and independent verification |
-| Sender sync | `test_search.py`, `test_search_input.py`, `test_sender_criteria.py`, `test_label_criteria.py`, `test_sync.py` | Search requests, completeness, conflicts, writes, and reruns |
+| Sender sync | `test_search.py`, `test_search_input.py`, `test_sender_criteria.py`, `test_label_sync.py`, `test_sync.py` | Search requests, completeness, conflicts, writes, and reruns |
 | Sender identities | `test_own_addresses.py`, `test_sender_labels.py` | Own-address exclusions and saved display labels |
 | Explicit exclusions | `test_exclude.py`, `test_exclude_files.py`, `test_exclude_other.py` | Inline/file parsing, matching, and query integration |
 | Email editing | `test_email_edit.py`, `test_primary_normalization.py` | Listing, addition, removal, conflicts, duplicates, and preservation |
@@ -417,23 +417,18 @@ verification logs remain and HTTP/unrelated files survive. Storage failures pres
 unverified error. Six regressions failed before logging was implemented.
 
 
-### Gmail filter criteria for labels (#9)
+### Label sync without filter discovery
 
-The [filter-list API](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.settings.filters/list) accepts the existing `gmail.readonly` scope.
-`test_label_criteria.py` independently checks filter-list transport responses and errors, then
-covers selection by resolved label ID, unions across filters, structured From/To values, query
-criteria, unsupported/negated values, missing filters, and malformed responses. CLI tests exercise
-interactive case choice and exclusion, explicit flags, noninteractive preview, and unchanged
-search mode. Filter failures and explicit exclusion without criteria stop before message search
-or contact writes. The fixture returns configured filter data; it does not emulate Gmail's filter
-application. Twenty-two regressions failed before implementation. Existing grouping, matching,
-and selection tests cover the shared behavior.
-
+`test_label_sync.py` checks that interactive label runs only ask for final write confirmation,
+`--apply` runs without prompts, and neither makes filter requests. It also verifies that
+`--label --exclude-other` fails before authorization and refresh-filters is absent from help.
+These five regressions failed before removing filter discovery. Existing Gmail label-choice,
+search-criteria, and sender-selection tests retain coverage of those supported paths.
 
 ### Opt-in run diagnostics
 
 `test_run_diagnostics.py` runs sender-sync with `--diagnostics` through the real API client and
-synthetic transport. It reads the flushed log from inside the pending filter request, then checks
+synthetic transport. It reads the flushed log from inside a pending message-list request, then checks
 success, timeout/retries, interruption, exit codes, exception frames, credential redaction, file
 permissions, and context reset. Four regressions failed before implementation. Retry backoff is
 removed only in tests; the client still performs its actual retry logic. Retention uses independently
@@ -454,3 +449,22 @@ that a prompt stops the updater. Nine regressions failed before the helper exist
 CLI, and timestamp tests now expect one completion line carrying the final sender counts and cover
 unchanged processing results. Test-only injected clocks and disabled background animation allow
 deterministic boundary checks; these are not CLI flags.
+
+
+### Isolated read deadline transport
+
+`test_read_deadline.py` exercises `DeadlineHTTP` and the production worker protocol with a
+synthetic transport in `fixtures/deadline_worker.py`. The fixture disables sockets and uses
+blocking pipes for stalls; direct protocol tests independently verify success, HTTP rejection,
+and DNS failure responses. No Google access or credentials are needed.
+
+Coverage includes DNS and response stalls, continuous response delay, retry backoff, worker
+termination and forced kill, Ctrl+C cleanup, refreshed credentials reused by subsequent reads,
+HTTP error bodies, long GET queries encoded as POST, write rejection inside a read, unchanged
+parent-side writes, initial token-refresh deadlines, and parent-side metrics/diagnostics.
+The elapsed-time regression failed with a deliberately doubled deadline and passed after restoring
+it. Fixture marker files establish that each stalled worker reached the intended operation.
+The connected-client test verifies Gmail and People reads use the deadline transport; authorization
+tests verify refreshed tokens are saved. The connected-client assertion failed before activation.
+The transport was independently validated with authorized read-only Gmail-label and contact reads
+before activation. Offline tests do not establish live service latency or network reliability.

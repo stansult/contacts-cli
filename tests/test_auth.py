@@ -55,7 +55,9 @@ def test_invalid_credentials_do_not_fallback_to_authorization(tmp_path, monkeypa
     credentials = Mock()
     credentials.has_scopes.return_value = fault != "scopes"
     credentials.valid = False
-    credentials.refresh.side_effect = RefreshError("synthetic revoked token")
+    monkeypatch.setattr(
+        auth, "refresh_credentials", Mock(side_effect=RefreshError("synthetic revoked token"))
+    )
     monkeypatch.setattr(auth.Credentials, "from_authorized_user_file", lambda _: credentials)
     flow = Mock()
     monkeypatch.setattr(auth.InstalledAppFlow, "from_client_config", flow)
@@ -72,8 +74,10 @@ def test_refresh_is_saved_without_browser(tmp_path, monkeypatch):
     credentials.valid = False
     credentials.to_json.return_value = '{"token": "refreshed-synthetic-only"}'
     monkeypatch.setattr(auth.Credentials, "from_authorized_user_file", lambda _: credentials)
+    refresh = Mock(return_value=credentials)
+    monkeypatch.setattr(auth, "refresh_credentials", refresh)
     assert auth.load_credentials(token) is credentials
-    credentials.refresh.assert_called_once()
+    refresh.assert_called_once_with(credentials)
     assert json.loads(token.read_text())["token"] == "refreshed-synthetic-only"
 
 
@@ -163,3 +167,14 @@ def test_custom_authorization_timeout_is_passed_and_reported(tmp_path, monkeypat
         auth.authorize(client, tmp_path / "token.json", timeout_seconds=5)
     assert flow.run_local_server.call_args.kwargs["timeout_seconds"] == 5
     assert not (tmp_path / "token.json").exists()
+
+
+def test_connected_reads_use_deadline_transport(monkeypatch):
+    from contacts_cli.deadline import DeadlineHTTP
+
+    monkeypatch.setattr(auth, "load_credentials", lambda _: Mock(universe_domain="googleapis.com"))
+    api = auth.connect(None)
+    assert isinstance(api.gmail.users().labels().list(userId="me").http, DeadlineHTTP)
+    assert isinstance(
+        api.people.people().get(resourceName="people/c123", personFields="names").http, DeadlineHTTP
+    )

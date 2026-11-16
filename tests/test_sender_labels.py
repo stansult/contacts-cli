@@ -53,13 +53,12 @@ def test_section_order_on_combined_output(api, monkeypatch):
         "Reading sending addresses…\nReading sending addresses: finished.\n"
         "Finding label…\nFinding label: finished.\n"
         "Label: 'Example/Delivery' (including Spam and Trash)\n\n"
-        "Reading label filters…\nReading label filters: finished.\nSearching senders:"
+        "Searching senders:"
     )
     assert (
         "Search finished: 3 inspected, 3 new senders.\n"
         "Existing email entries: 2\n\n"
         "Proposed additions: 3 entries\n"
-        "Ungrouped: no usable address criteria in label filters.\n\n"
         "  1. new@example.com — New sender\n"
     ) in output
 

@@ -184,7 +184,7 @@ def test_grouped_preview_renumbers_after_partition(api, server, monkeypatch, cap
     assert server.writes == 0
 
 
-def test_label_preview_explains_missing_filter_criteria(api, monkeypatch, capsys):
+def test_label_preview_needs_no_criteria_explanation(api, monkeypatch, capsys):
     monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: api)
     assert cli.main(["sender-sync", "--contact", "c123", "--label", "Example/Delivery"]) == 0
-    assert "Ungrouped: no usable address criteria in label filters." in capsys.readouterr().out
+    assert "Ungrouped:" not in capsys.readouterr().out

@@ -258,29 +258,14 @@ groups show zero. When there are no usable criteria, search runs with additions 
 list with this explanation below the total:
 `Ungrouped: no full addresses or domains in from:/to: criteria.`
 
-With `--label`, the command reads current Gmail filters that apply the resolved label ID. It
-combines supported addresses/domains from their From, To, and search-query fields, using the same
-matching rules. Structured From/To fields accept full addresses or domains, optionally quoted or
-grouped with spaces/`OR`. Unsupported structured fields are skipped as a whole. Subject and
-negated-query fields do not contribute. A filter with no usable criteria contributes nothing;
-other filters can still supply criteria.
+With `--label`, the preview shows one list of sender addresses. A label can contain messages
+from unrelated senders. The command cannot determine which addresses matched the filter that
+applied a label. Use `--exclude` or `--exclude-file` to skip particular addresses, or use
+`--search` with full addresses or domains in `from:`/`to:` criteria to separate matching
+addresses from other senders. Label runs do not fetch Gmail filters or ask about them.
 
-Currently, each label run fetches the account’s complete filter list before scanning messages.
-This read can be slow and can time out after retries. Filters are not cached yet. Search mode
-does not make this request.
-
-Filters can change, and labels can be applied manually. These groups describe matches to current
-address criteria, not the historical reason a message received a label. Filter reads use the
-existing Gmail read-only permission; no additional authorization is required. Gmail filters and
-labels are not modified.
-
-When no applicable filter supplies usable criteria, label runs keep a single list and explain:
-`Ungrouped: no usable address criteria in label filters.`
-Runs without additions omit the fallback explanation. Failed or malformed filter reads stop the
-command before message scanning or contact updates.
-
-Both groups start included. In interactive runs, when Other senders is nonempty, the command
-asks `Exclude Other senders? [y/N]` before final write confirmation. Yes selects only matching
+In search mode, both groups start included. In interactive runs, when Other senders is nonempty,
+the command asks `Exclude Other senders? [y/N]` before final write confirmation. Yes selects only matching
 addresses; Enter or No keeps both. Invalid answers repeat the question; end-of-input cancels
 without writing. The summary names the groups that will be added or skipped without repeating
 the lists:
@@ -314,11 +299,10 @@ candidates reports `No additions selected; no update made.` and skips final conf
 Existing contacts and manual exclusions are preserved. Selection applies only to this run;
 after declining the final confirmation, the retry hint includes `--exclude-other` when needed.
 
-`--exclude-other` requires usable positive full-address/domain criteria. With `--search`, missing
-criteria are rejected before authorization or account access. With `--label`, they are rejected
-after reading the label's filters, before scanning messages or writing. The flag is never silently
-ignored and unavailable criteria are not treated as a result with every sender in Other senders.
-The same selection and confirmation behavior applies in both modes.
+`--exclude-other` requires `--search` with usable positive full-address/domain criteria.
+Using it with `--label`, or with a search lacking those criteria, fails before authorization or
+account access. The flag is never silently ignored. Runs without additions omit the fallback
+explanation.
 
 For a query starting with a minus sign, use `--search='-from:person@example.com subject:delivery'`
 so the shell argument is passed as the search value.
@@ -641,8 +625,28 @@ needed. Inline fields, labels and `--apply` are not supported. See [local valida
 See [detailed Google setup instructions](google-setup.md). Existing `gmail.metadata` authorizations need upgrading to
 `gmail.readonly`; the CLI detects insufficient permissions and offers browser reauthorization.
 See [upgrading an existing authorization](google-setup.md#upgrading-an-existing-authorization).
-The permission permits reading message bodies. This CLI reads message headers, labels, sending
-addresses, and filters; it does not request message bodies.
+The permission permits reading message bodies. This CLI reads message headers, labels, and sending
+addresses; it does not request message bodies.
+
+## Network timeouts
+
+Each Google API read has a 15-second overall deadline, including connection setup, DNS lookup,
+response download, and retry delays. An expired-token refresh before the command has its own
+15-second deadline. These are per-operation limits, not a limit on the entire command.
+A timed-out read stops the command and names the operation, for example:
+
+```text
+Error: Reading contact timed out after 15 seconds. Check your connection and retry.
+```
+
+DNS resolution failures stop without retrying. Other eligible read failures can retry within the
+same deadline. The CLI stops and cleans up the read worker on timeout or Ctrl+C; brief process
+cleanup can add a fraction of a second. Use `--diagnostics` with sender-sync to record details.
+
+Writes are not retried and retain their existing transport behavior. A timeout while verifying
+an already-submitted write still reports an unverified result; it does not imply the write failed.
+Photo downloads retain their separate limits. Browser authorization keeps its separate five-minute
+waiting period; `--auth-timeout` only controls that authorization wait.
 
 ## Global options
 

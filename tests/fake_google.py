@@ -24,8 +24,6 @@ class FakeGoogle:
         self.send_as = json.loads((FIXTURES / "send-as.json").read_text())
         # Explicit query-to-ID contracts, not an emulation of Gmail search syntax.
         self.search_results = {}
-        self.filters_response = {}
-        self.filters_status = 200
         self.send_as_status = 200
         self.groups = {}
         self.created = {}
@@ -60,8 +58,6 @@ class FakeGoogle:
 
         if method == "GET" and url.path == "/gmail/v1/users/me/settings/sendAs":
             return reply(self.send_as, self.send_as_status)
-        if method == "GET" and url.path == "/gmail/v1/users/me/settings/filters":
-            return reply(self.filters_response, self.filters_status)
         if method == "GET" and url.path == "/gmail/v1/users/me/labels":
             return reply({"labels": self.mailbox["labels"]})
         if method == "GET" and url.path == "/gmail/v1/users/me/messages":

@@ -64,10 +64,11 @@ Use either `--label` or `--search`:
 ./contacts-cli sender-sync --search 'from:example.com after:2026/01/01' --contact c123456789
 ```
 
-Case-only Gmail label matches prompt for a choice in interactive runs. Previews group senders
-by address criteria from the search or the Gmail filters applying the label, then let you exclude
-Other senders. Use `--exclude-other` to select only matching addresses explicitly;
-`--apply` alone keeps both groups. See [grouping and selection rules](docs/command-reference.md#grouping-additions-by-address-criteria).
+Case-only Gmail label matches prompt for a choice in interactive runs. A label can contain
+messages from unrelated senders; use `--exclude` or `--exclude-file` to skip their addresses.
+With `--search 'from:dhl.com OR subject:dhl'`, the preview separates addresses matching `dhl.com`
+from other senders. You can choose to skip those other senders, or use `--exclude-other` to skip
+them automatically. `--apply` alone includes both. See [address selection rules](docs/command-reference.md#grouping-additions-by-address-criteria).
 
 Adds missing sender addresses from a Gmail label or search, excluding addresses already on the
 contact and your Gmail sending addresses. Sender names become email labels when useful. Use `--exclude ADDRESS`

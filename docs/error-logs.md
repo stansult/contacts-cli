@@ -82,6 +82,9 @@ API request start, transport attempt start/end/error, request completion/error, 
 Events include local timestamps and elapsed seconds. Requests record the API method, configured
 retry limit, available transport timeout, attempt/retry totals, and durations. A null timeout
 means the wrapper could not obtain a numeric timeout, not that the request cannot time out.
+A `read_deadline` event records the overall read budget. Transport timeout values describe socket
+settings; the overall deadline also covers worker startup, DNS, and retry delays. Worker-reported
+failures add a `read_worker_error` event with the underlying exception details.
 Time between attempts includes the client's retry backoff. Attempts are counted at the Google
 client transport boundary; internal credential refreshes or redirects are not separate events.
 

@@ -8,7 +8,6 @@ from pathlib import Path
 
 import httplib2
 from google.auth.exceptions import GoogleAuthError
-from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_httplib2 import AuthorizedHttp
 from google_auth_oauthlib.flow import InstalledAppFlow, WSGITimeoutError
@@ -17,6 +16,7 @@ from oauthlib.oauth2 import OAuth2Error
 from requests.exceptions import RequestException
 
 from .api import GoogleAPI
+from .deadline import DeadlineHTTP, refresh_credentials
 from .errors import InsufficientScopes, MissingToken, SyncError
 from .output import stamp
 
@@ -118,7 +118,7 @@ def load_credentials(token_path: Path) -> Credentials:
         if not credentials.valid:
             if not credentials.refresh_token:
                 raise SyncError("No refresh token available; repeat explicit authorization.")
-            credentials.refresh(Request())
+            credentials = refresh_credentials(credentials)
             save_credentials(credentials, token_path)
         return credentials
     except (OSError, ValueError, GoogleAuthError, RequestException) as exc:
@@ -130,7 +130,9 @@ def load_credentials(token_path: Path) -> Credentials:
 def connect(token_path: Path) -> GoogleAPI:
     credentials = load_credentials(token_path)
     # Refresh expired tokens before requests, but do not replay a write after a 401.
-    http = AuthorizedHttp(credentials, http=httplib2.Http(timeout=30), max_refresh_attempts=0)
+    http = DeadlineHTTP(
+        AuthorizedHttp(credentials, http=httplib2.Http(timeout=30), max_refresh_attempts=0)
+    )
     # The client library bundles discovery documents; no discovery network request.
     return GoogleAPI(
         build("gmail", "v1", http=http, cache_discovery=False, static_discovery=True),
