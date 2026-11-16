@@ -204,14 +204,80 @@ def _stable(value):
     return value
 
 
+def _email_preservation_details(original, saved, missing, extra, *, check_primary=True):
+    fields = ("value", "type", "displayName", "sourcePrimary")
+
+    def display(entry, field):
+        source = entry.get("metadata", {}) if field == "sourcePrimary" else entry
+        return json.dumps(source[field], ensure_ascii=True) if field in source else "<not set>"
+
+    details = []
+    for signature in missing:
+        before_matches = [
+            entry for entry in original if address_key(entry["value"]) == address_key(signature[0])
+        ]
+        saved_matches = [
+            entry for entry in saved if address_key(entry["value"]) == address_key(signature[0])
+        ]
+        if len(before_matches) != 1 or len(saved_matches) != 1:
+            continue
+        before_entry, saved_entry = before_matches[0], saved_matches[0]
+        saved_signature = _email_signature(saved_entry)
+        for index, field in enumerate(fields):
+            if signature[index] != saved_signature[index] and (index != 3 or check_primary):
+                details.append(
+                    f"Email {json.dumps(signature[0])} — {field}:\n"
+                    f"  Before: {display(before_entry, field)}\n"
+                    f"  Saved: {display(saved_entry, field)}"
+                )
+    if details and all(
+        sum(address_key(entry["value"]) == address_key(sig[0]) for entry in original) == 1
+        and sum(address_key(entry["value"]) == address_key(sig[0]) for entry in saved) == 1
+        for sig in missing
+    ):
+        return "\n".join(details)
+
+    # Pairing entries with changed addresses or duplicates would guess their identity.
+    def records(counter):
+        return json.dumps(
+            [dict(zip(fields, sig, strict=True), count=count) for sig, count in counter.items()],
+            ensure_ascii=True,
+        )
+
+    return (
+        "Entries could not be paired unambiguously.\n"
+        f"Unmatched before entries: {records(missing)}\n"
+        f"Unmatched saved entries (may include intended additions): {records(extra)}"
+    )
+
+
 def verify_saved(plan: Plan, saved: dict) -> None:
     validate_contact(saved)
     if contact_source(saved)["id"] != contact_source(plan.person)["id"]:
         raise SyncError("Saved result refers to a different contact source.")
-    before = Counter(_email_signature(item) for item in plan.person.get("emailAddresses", []))
-    after = Counter(_email_signature(item) for item in saved.get("emailAddresses", []))
+    original_emails = plan.person.get("emailAddresses", [])
+    saved_emails = saved.get("emailAddresses", [])
+    # An absent/false sourcePrimary does not record a primary choice. Google can
+    # assign one on save. Once a choice is explicit, preserve the strict comparison.
+    check_primary = any(_email_signature(item)[3] for item in original_emails)
+
+    def signature(item):
+        value = _email_signature(item)
+        return value if check_primary else (*value[:3], False)
+
+    before = Counter(signature(item) for item in original_emails)
+    after = Counter(signature(item) for item in saved_emails)
     if before - after:
-        raise SyncError("An existing email value, label, display name, or primary choice changed.")
+        details = _email_preservation_details(
+            original_emails,
+            saved_emails,
+            before - after,
+            after - before,
+            check_primary=check_primary,
+        )
+        raise SyncError(
+            "An existing email value, label, display name, or primary choice changed.\n" + details
+        )
     saved_keys = {address_key(item["value"]) for item in saved.get("emailAddresses", [])}
     if any(address_key(value) not in saved_keys for value in plan.additions):
         raise SyncError("Some proposed email additions were not found in the saved contact.")

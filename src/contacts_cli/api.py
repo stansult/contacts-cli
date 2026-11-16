@@ -21,7 +21,7 @@ from .core import (
     verify_saved,
 )
 from .duplicate import READ_FIELDS, download_photo, verify_duplicate
-from .error_logs import save_http_error
+from .error_logs import save_http_error, save_verification_error
 from .errors import SyncError, WriteUnverified
 from .metrics import ACTIVE, counts, execute_measured
 
@@ -320,13 +320,27 @@ class GoogleAPI:
                 body=body,
             ),
         )
+        stage = "update response"
+        saved = result
         try:
             verify(result)
+            stage = "independent readback"
             # Resource names can change when a contact links to a profile.
-            verify(self.get_contact(result["resourceName"]))
+            saved = None
+            saved = self.get_contact(result["resourceName"])
+            verify(saved)
         except SyncError as exc:
+            if field == "emailAddresses":
+                save_verification_error(
+                    exc,
+                    stage=stage,
+                    person=person,
+                    expected=body.get("emailAddresses", []),
+                    saved=saved,
+                )
             raise WriteUnverified(
-                f"Update was submitted but verification failed: {exc} Inspect a new preview."
+                f"Update was submitted but verification failed ({stage}): {exc}\n"
+                "Inspect a new preview."
             ) from exc
         return True
 

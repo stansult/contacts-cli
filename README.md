@@ -65,8 +65,9 @@ Use either `--label` or `--search`:
 ```
 
 Case-only Gmail label matches prompt for a choice in interactive runs. Search previews group
-senders by explicit `from:` / `to:` address criteria when available. Both groups remain included;
-see [grouping rules](docs/command-reference.md#grouping-search-additions-by-address-criteria).
+senders by explicit `from:` / `to:` address criteria when available, then let you exclude
+Other senders. Use `--exclude-other` to select only matching addresses explicitly;
+`--apply` alone keeps both groups. See [grouping and selection rules](docs/command-reference.md#grouping-search-additions-by-address-criteria).
 
 Adds missing sender addresses from a Gmail label or search, excluding addresses already on the
 contact and your Gmail sending addresses. Sender names become email labels when useful. Use `--exclude ADDRESS`

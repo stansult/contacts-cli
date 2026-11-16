@@ -22,7 +22,7 @@ Pytest disables network sockets globally; tests must never use real credentials 
 | Duplication | `test_duplicate.py` | Copyable fields, photo handling, identities, and independent verification |
 | Sender sync | `test_search.py`, `test_search_input.py`, `test_sender_criteria.py`, `test_sync.py` | Search requests, completeness, conflicts, writes, and reruns |
 | Sender identities | `test_own_addresses.py`, `test_sender_labels.py` | Own-address exclusions and saved display labels |
-| Explicit exclusions | `test_exclude.py`, `test_exclude_files.py` | Inline/file parsing, matching, and query integration |
+| Explicit exclusions | `test_exclude.py`, `test_exclude_files.py`, `test_exclude_other.py` | Inline/file parsing, matching, and query integration |
 | Email editing | `test_email_edit.py` | Listing, addition, removal, conflicts, duplicates, and preservation |
 | Contact labels | `test_label_edit.py`, `test_remove_label.py`, `test_label_output.py` | Membership edits, case choices, output, and partial failures |
 | Custom fields | `test_custom_fields.py` | Exact selectors, duplicate handling, and verified single-field updates |
@@ -353,3 +353,41 @@ does not evaluate Gmail syntax; configured query-to-ID mappings represent server
 Regression tests ran before implementation and failed for missing grouping and criteria support.
 Tests validate the CLI's documented classification rules, not equivalence to Gmail's full search
 semantics. No live account reads or writes are part of this coverage.
+
+
+### Excluding Other senders (#8)
+
+`test_exclude_other.py` covers interactive keep/exclude/default decisions, invalid answers,
+EOF cancellation, final write confirmation, explicit flags, and noninteractive preview/apply.
+It verifies the actual saved plan and retained original entries, not just displayed counts.
+Output tests check explicit add/skip group summaries and contact-specific confirmation wording;
+eight wording regressions failed before those messages replaced the selected/excluded summary.
+It also covers unusable criteria before authorization, no-other/no-results/all-excluded cases,
+manual exclusions, malformed scans, and retained saved-result verification. Existing direct
+transport contracts cover the synthetic selected messages and update/readback behavior.
+Fifteen cases failed against the prior implementation before the feature was added.
+
+### Email verification diagnostics (#10)
+
+`test_verification_details.py` checks named field differences, raw omitted versus true
+sourcePrimary values, unpaired duplicate counts, and update-response versus readback stages.
+The original seven cases failed before the diagnostics were added. A later user reproduction
+confirmed that omitted-to-true sourcePrimary caused a false verification failure. Verification now
+allows primary assignment when no source-primary choice was recorded, while preserving explicit
+choices, email content, and duplicate counts. The affected diagnostic test now expects success;
+additional regressions cover explicit-primary loss and content loss during normalization.
+
+`test_primary_normalization.py` independently checks synthetic transport normalization, then
+exercises the actual update response and independent readback through the API. Both API regressions
+and the omitted/false-to-true unit regressions failed before the fix. Success creates no verification
+log. Tests use synthetic contacts and do not establish other Google normalization behavior.
+Email verification failures still save bounded local evidence as described below.
+
+
+### Verification log retention
+
+`test_verification_logs.py` covers raw before/expected/saved email snapshots, both failure
+stages, command context, owner-only files, no logging on success, and unavailable readback.
+Retention uses independently created files with explicit timestamps to verify exactly 20
+verification logs remain and HTTP/unrelated files survive. Storage failures preserve the original
+unverified error. Six regressions failed before logging was implemented.

@@ -3,6 +3,7 @@
 import argparse
 import shlex
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from .address_inputs import bare_address, edit_inputs, file_lines, split_entry
@@ -111,6 +112,11 @@ def parser() -> argparse.ArgumentParser:
         "--apply",
         action="store_true",
         help="Append missing emails without asking and verify the result",
+    )
+    sync.add_argument(
+        "--exclude-other",
+        action="store_true",
+        help="Exclude senders outside positive from:/to: address criteria in --search",
     )
     sync.add_argument(
         "--exclude",
@@ -319,6 +325,20 @@ def choose_gmail_label(name, similar):
         emit(f"Enter a number from 1 to {len(options)}.", file=sys.stderr)
 
 
+def confirm_exclude_other():
+    while True:
+        emit("\nExclude Other senders? [y/N] ", file=sys.stderr, end="", flush=True)
+        try:
+            answer = input().strip().casefold()
+        except EOFError:
+            raise LabelChoiceCancelled from None
+        if answer in {"", "n", "no"}:
+            return False
+        if answer in {"y", "yes"}:
+            return True
+        emit("Enter y or n.", file=sys.stderr)
+
+
 def run(args, api) -> int:
     resource = contact_resource(args.contact)
     with ScanProgress() as progress:
@@ -353,10 +373,13 @@ def run(args, api) -> int:
     entries = [addition_entry(plan, address) for address in plan.additions]
     criteria = extract_search_criteria(args.search)
     heading = "\nAdding" if args.apply else "\nProposed additions"
-    if criteria and entries:
+    grouped = bool(criteria and entries)
+    exclude_other = args.exclude_other
+    if grouped:
         matching, other = criteria.partition(entries)
         rows = email_rows(matching + other)
-        emit(f"{heading}: {len(entries)} {'entry' if len(entries) == 1 else 'entries'}")
+        total = len(matching) if exclude_other else len(entries)
+        emit(f"{heading}: {total} {'entry' if total == 1 else 'entries'}")
         emit("", primary=False)
         emit_list(
             "Matching address criteria",
@@ -366,12 +389,11 @@ def run(args, api) -> int:
         )
         emit("", primary=False)
         emit_list(
-            "Other senders",
+            "Other senders (excluded)" if exclude_other else "Other senders",
             rows[len(matching) :],
             unit=("address", "addresses"),
             primary=False,
         )
-        emit("Both groups are included.", primary=False)
     else:
         emit_list(
             heading,
@@ -386,6 +408,37 @@ def run(args, api) -> int:
         emit(f"Warning: {problem}", file=sys.stderr)
     if scan.problems:
         raise SyncError("Preview is incomplete because of invalid From headers; no changes made.")
+    if grouped:
+        interactive = all(stream.isatty() for stream in (sys.stdin, sys.stdout, sys.stderr))
+        if other and interactive and not args.apply and not exclude_other:
+            exclude_other = confirm_exclude_other()
+        if exclude_other:
+            plan = replace(plan, additions=tuple(entry["value"] for entry in matching))
+        selected = len(plan.additions)
+        excluded = len(other) if exclude_other else 0
+        emit("", primary=False)
+        if selected:
+            group = (
+                "only Matching address criteria"
+                if exclude_other
+                else "both groups"
+                if matching and other
+                else "Matching address criteria"
+                if matching
+                else "Other senders"
+            )
+            emit(f"Will add {group}: {selected} {'address' if selected == 1 else 'addresses'}.")
+        if exclude_other:
+            emit(
+                f"Will skip Other senders: {excluded} "
+                f"{'address' if excluded == 1 else 'addresses'}.",
+                primary=False,
+            )
+        counts(additions=selected)
+        if not selected:
+            emit("No additions selected; no update made.")
+            outcome("no_changes")
+            return 0
     # Check local limits in preview too, so users can review an actionable result.
     if plan.additions:
         update_body(plan)
@@ -393,15 +446,26 @@ def run(args, api) -> int:
         emit("No additions needed; no update made.")
         outcome("no_changes")
         return 0
-    if args.apply or confirm_apply("Apply these additions?"):
+    question = (
+        (
+            "Add this address to this contact?"
+            if len(plan.additions) == 1
+            else f"Add these {len(plan.additions)} addresses to this contact?"
+        )
+        if grouped
+        else "Apply these additions?"
+    )
+    if args.apply or confirm_apply(question):
         if api.apply(plan):
-            emit(f"Saved and verified {len(plan.additions)} additions.")
+            count = len(plan.additions)
+            emit(f"Saved and verified {count} {'addition' if count == 1 else 'additions'}.")
             outcome("applied")
         else:
             emit("No additions needed; no update made.")
             outcome("no_changes")
     else:
-        emit("Preview only; no changes made. Use --apply to save additions.")
+        flags = "--exclude-other --apply" if exclude_other else "--apply"
+        emit(f"Preview only; no changes made. Use {flags} to save additions.")
         outcome("preview")
     return 0
 
@@ -657,6 +721,11 @@ def run_command(args):
             if args.search is not None:
                 args.search = args.search.strip()
             exclusion_query(set(args.exclude), search=args.search)
+            if args.exclude_other and not extract_search_criteria(args.search):
+                raise SyncError(
+                    "--exclude-other requires full addresses or domains "
+                    "in positive from:/to: criteria."
+                )
         elif args.command in {"add-email", "remove-email"}:
             action = args.command.split("-")[0]
             args.entries = edit_inputs(

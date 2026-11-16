@@ -23,7 +23,8 @@ def test_grouped_preview_preserves_all_additions(api, server, monkeypatch, capsy
     assert "Other senders: 1 address" in output
     assert "1. new@example.com — New sender" in output
     assert "2. trash@example.com" in output
-    assert "Both groups are included." in output
+    assert "Will add both groups: 2 addresses." in output
+    assert "Both groups are included." not in output
     assert server.writes == int(apply)
     if apply:
         assert {e["value"] for e in server.person["emailAddresses"]} >= {

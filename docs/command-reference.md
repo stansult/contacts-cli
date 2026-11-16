@@ -251,10 +251,45 @@ list with this explanation below the total:
 `Ungrouped: no full addresses or domains in from:/to: criteria.`
 Label mode and runs without additions keep their existing output without that explanation.
 
-**Both groups remain included**, including with `--apply`. Existing manual exclusions still
-apply before this preview. No additional selection prompt is added here. Optional exclusion
-of Other senders is tracked in [#8](https://github.com/stansult/contacts-cli/issues/8); Gmail filter criteria for label mode are tracked
-in [#9](https://github.com/stansult/contacts-cli/issues/9).
+Both groups start included. In interactive runs, when Other senders is nonempty, the command
+asks `Exclude Other senders? [y/N]` before final write confirmation. Yes selects only matching
+addresses; Enter or No keeps both. Invalid answers repeat the question; end-of-input cancels
+without writing. The summary names the groups that will be added or skipped without repeating
+the lists:
+
+```text
+Exclude Other senders? [y/N] y
+Will add only Matching address criteria: 2 addresses.
+Will skip Other senders: 1 address.
+
+Add these 2 addresses to this contact? [y/N]
+```
+
+Keeping both says `Will add both groups: 3 addresses.` before confirmation. When only one
+group has entries, the summary names that group. No additions selected means no write or
+confirmation prompt.
+
+Use `--exclude-other` to explicitly exclude that group without the selection question:
+
+```sh
+./contacts-cli sender-sync --search 'from:example.com OR subject:delivery' --contact c123456789 --exclude-other
+```
+
+Without `--apply`, final confirmation is still required in a terminal; noninteractive runs
+only preview. With `--exclude-other --apply`, only matching additions are saved. With
+`--apply` alone, both groups are saved without an exclusion question. Noninteractive runs never
+ask selection questions; without the flag, both groups remain selected.
+
+With the flag, the additions total counts only matching entries and the second group is marked
+`Other senders (excluded)`. No Other senders means no selection question. Excluding all
+candidates reports `No additions selected; no update made.` and skips final confirmation.
+Existing contacts and manual exclusions are preserved. Selection applies only to this run;
+after declining the final confirmation, the retry hint includes `--exclude-other` when needed.
+
+`--exclude-other` requires usable positive full-address/domain criteria. If none can be extracted,
+it fails before authorization or account access instead of ignoring the flag or excluding
+everything. It is currently unavailable with `--label`; Gmail filter criteria for label mode
+are tracked in [#9](https://github.com/stansult/contacts-cli/issues/9). This selection behavior implements [#8](https://github.com/stansult/contacts-cli/issues/8).
 
 For a query starting with a minus sign, use `--search='-from:person@example.com subject:delivery'`
 so the shell argument is passed as the search value.
@@ -287,7 +322,8 @@ so the shell argument is passed as the search value.
   company name ignoring case and surrounding whitespace, the address is shown and saved without
   a custom label. Both names and companies are checked even when the contact has both. The search does not
   fetch other messages to look for alternate names. Existing values, labels, display names, and
-  source-primary choices are retained. Saved additions are checked for their proposed labels.
+  explicit source-primary choices are retained. If no email had an explicit source-primary choice,
+  Google assigning one during saving is allowed. Saved additions are checked for their proposed labels.
 - The People API is read directly using `getBatchGet`, with contact-only sources and an explicit
   field mask. Profile-only data is not copied. Multiple editable contact sources and
   incomplete/error responses are rejected. Full-list retrieval relies on Google's documented API
@@ -598,6 +634,14 @@ domains such as `name@localhost` or `name@1` are rejected. Validation does not c
 domain or mailbox exists.
 
 ## API error details
+
+Sender-sync email-preservation failures show before/saved field values when entries can be
+paired unambiguously. Missing entries or duplicates show unmatched entry counts instead of
+guessing which entry replaced another. Update verification failures identify whether the failure
+occurred in the update response or independent readback. The update was already submitted;
+these diagnostics do not imply rollback or relax preservation checks. Verification details appear
+in the terminal and in a separate local verification log. The 20 most recent verification logs
+are retained; HTTP error logs remain separate. See [verification logs](error-logs.md#email-verification-failures).
 
 Failed Google API HTTP responses are saved locally, and the terminal prints the log path. See
 [API error logs](error-logs.md) for locations, recorded fields, and troubleshooting details.
