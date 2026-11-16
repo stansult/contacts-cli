@@ -63,6 +63,30 @@ The transport regression uses the real authorized HTTP wrapper with synthetic cr
 responses. It verifies that a 401 does not cause a second write request after refresh. Setting
 `execute(num_retries=0)` alone does not disable that separate retry layer.
 
+## New external-call validation
+
+Follow the [integration gate](../CONTRIBUTING.md#validate-new-external-calls-before-integration)
+before a new external operation enters the normal command path:
+
+1. Verify the official API contract and identify the intended scope, client/transport, request
+   shape, and expected response. State what the probe will read or change.
+2. Prepare a standalone probe for that operation. Use a short explicit timeout and one attempt
+   with automatic retries disabled. Agree on a larger bound if the operation needs it; do not
+   discover a long retry sequence through the normal user command.
+3. Obtain authorization for the specific live access, or have the user run the probe. Keep
+   credentials and account data outside tracked files. Mutations need an explicitly approved
+   target and cleanup plan; permission to read does not authorize writes.
+4. Capture the operation, relevant environment/configuration, duration, response status/shape,
+   and underlying exception if it fails. Keep private details in ignored local evidence and a
+   sanitized result in the issue. A timeout or generic failure is unresolved evidence, not a pass.
+5. After a successful probe, integrate the call with deliberate timeout/retry limits and visible
+   progress. Test failure handling offline as well. If the probe fails or cannot run, stop the
+   integration and discuss the next diagnostic or an explicitly agreed alternative.
+
+A successful probe is evidence for the tested configuration, not a guarantee of future service
+availability. Keep live checks separate from the network-disabled automated suite. Existing
+fixture-contract and regression requirements still apply; neither kind of test replaces the other.
+
 ## Packaging and live checks
 
 `make build` creates the wheel and source archive. Inspect both archive listings to confirm that

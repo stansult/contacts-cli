@@ -21,6 +21,28 @@ Keep mutations behind final confirmation or explicit apply. Do not add live Goog
 suite. The [email editing rationale](docs/email-editing-plan.md) records design decisions;
 user-facing behavior belongs in the command reference.
 
+## Validate new external calls before integration
+
+Before adding a new external API operation to a normal command flow, verify it independently
+against the real service using the intended credentials, scopes, client/transport, and request
+shape. Documentation and passing offline tests do not establish live access, latency, or behavior.
+This gate applies before enabling the call locally, not only before committing or releasing it.
+
+Prepare a minimal isolated probe with a short finite timeout, one attempt, and diagnostics for
+elapsed time, status or underlying exception. Obtain explicit authorization before running it
+against an account, or let the user run it. A general feature-implementation approval does not
+by itself authorize live account access. Writes require explicit approval and an agreed test target.
+See the [external-call validation procedure](docs/testing.md#new-external-call-validation).
+
+Do not make an unverified or failing operation a dependency of the existing command. Keep probe
+and offline implementation work isolated until the live check succeeds. If validation cannot be
+completed, explain the missing evidence and agree on how to proceed; do not silently replace it
+with mocks or make the user's normal command the first live experiment.
+
+Record the result and timing before integration, then choose timeout, retry, progress, and failure
+behavior appropriate to the observed operation. Repeat the check when a material change to the
+endpoint, scopes, transport, or request shape invalidates the existing evidence.
+
 ## Documentation paths
 
 Keep ordinary user and contributor guides under `docs/`, including nested directories.
