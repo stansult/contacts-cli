@@ -1,7 +1,7 @@
 # contacts-cli
 
 A command-line tool for creating and managing Google Contacts, including copying contacts and
-collecting email senders from Gmail.
+collecting email addresses from Gmail senders or webpages.
 
 ## Install and authorize
 
@@ -27,7 +27,8 @@ Later commands reuse the saved authorization. Local file validation needs no Goo
   as `https://contacts.google.com/person/c123456789` or its bare ID, `c123456789`.
 - Commands that change contacts show a preview and ask for confirmation. Enter or `n` at the
   final confirmation makes no changes. `--apply` skips that final confirmation; conflict choices
-  follow each command's rules. Piped or redirected runs without `--apply` do not write.
+  follow each command's rules. For URL email input, Enter or `n` returns to selection; `q` cancels.
+  Piped or redirected runs without `--apply` do not write.
 - `add-contact` and `duplicate` create new contacts each time; they do not merge with existing ones.
 - Use `./contacts-cli <command> --help` for command options. Global options, including `--token`,
   appear in `./contacts-cli --help` and work before or after the command.
@@ -90,8 +91,18 @@ Shows a numbered list with labels and duplicate references.
 ```
 
 Repeat the address option or use `--add-file` / `--remove-file` for lists. Removal deletes all
-matching entries. Adding an existing address can change its label or consolidate duplicates;
-see [email conflict and apply rules](docs/command-reference.md#add-email-and-remove-email).
+matching entries. Adding an existing address can change its label or consolidate duplicates.
+
+For a webpage, use `--from-url` instead of address/file options:
+
+```sh
+./contacts-cli add-email --contact c123456789 --from-url 'https://example.com/contact'
+```
+
+Select addresses using `all` or numbers/ranges such as `3-5,8`, then confirm. New addresses have
+no labels; existing addresses and labels stay unchanged. `--apply` adds all new addresses.
+See [webpage input](docs/command-reference.md#webpage-email-input) and
+[email conflict and apply rules](docs/command-reference.md#add-email-and-remove-email).
 
 ## Add or remove labels
 

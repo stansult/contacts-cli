@@ -5,8 +5,9 @@ matching, conflict choices, and output. This document records why the editing mo
 
 ## Normalize before resolving conflicts
 
-Addition normalizes addresses and labels, suppresses labels duplicating the address or contact
-identity, and deduplicates the resulting entries before comparing them with stored data.
+Inline and file addition normalizes addresses and labels, suppresses labels duplicating the
+address or contact identity, and deduplicates the resulting entries before comparing them
+with stored data.
 A bare address and the same address with a suppressed label therefore express the same request:
 an email without a label. Conflicting resulting labels in the input are rejected rather than
 resolved through prompts, so the meaning of a file does not depend on interactive choices.
@@ -38,3 +39,11 @@ Email lists use the shared numbered renderer. Editing displays existing entries 
 for a conflict decision; `list-email` provides the complete list. Each displayed list starts at 1.
 Help and examples use singular commands in list, add, remove order; plural forms are accepted
 silently for convenience.
+
+
+## Webpage input carries no label-change intent
+
+URL extraction supplies addresses without labels. It skips existing addresses, preserving their
+labels and duplicate entries, instead of treating missing page context as a request to remove labels.
+New addresses are reviewed through reusable numbered selection before final confirmation. Label
+inference is deferred until representative pages establish useful behavior.

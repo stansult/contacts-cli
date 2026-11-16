@@ -14,6 +14,9 @@ synchronized with the implementation.
 - `core.py`, `address_inputs.py`, and `contact_inputs.py` provide shared parsing and validation.
 - `api.py` handles Google requests, conflict protection, and shared update verification;
   `auth.py` handles OAuth setup and token storage.
+- `web_emails.py` reads static webpages; `url_email_add.py` handles their email-addition flow.
+  `selection.py` parses and prompts for displayed numbers independently of item type; commands
+  own their previews and final confirmations.
 - `output.py` and `progress.py` provide shared presentation; `metrics.py` and `error_logs.py`
   record local diagnostics.
 

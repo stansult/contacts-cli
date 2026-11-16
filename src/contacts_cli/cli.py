@@ -28,8 +28,10 @@ from .errors import InsufficientScopes, MissingToken, SyncError, WriteUnverified
 from .label_edit import run_label_edit
 from .metrics import ACTIVE, RunMetrics, counts, outcome
 from .output import OperationalOutput, email_rows, emit, emit_list
-from .progress import ScanProgress
+from .progress import ScanProgress, StageProgress
 from .sender_criteria import extract_search_criteria
+from .url_email_add import run_url_add
+from .web_emails import fetch_addresses, validate_url
 
 
 def positive_seconds(value: str) -> int:
@@ -172,6 +174,14 @@ def parser() -> argparse.ArgumentParser:
             "--apply", action="store_true", help="Save without the final confirmation"
         )
         if action == "add":
+            inputs.add_argument(
+                "--from-url",
+                metavar="URL",
+                help=(
+                    "Extract unlabeled emails from one HTML page; select by number interactively; "
+                    "--apply adds all new addresses; existing entries and labels are preserved"
+                ),
+            )
             command.add_argument(
                 "--replace-existing",
                 action="store_true",
@@ -491,6 +501,8 @@ def run_email_edit(args, api):
     emit(f"Existing email entries: {len(existing)}", primary=False)
     emit("", primary=False)
     interactive = all(stream.isatty() for stream in (sys.stdin, sys.stdout, sys.stderr))
+    if getattr(args, "from_url", None):
+        return run_url_add(args, api, person, interactive=interactive)
     all_choice = None
 
     def resolve(address, matches, label):
@@ -653,8 +665,14 @@ def main(argv=None) -> int:
     args = arguments.parse_args(argv)
     if args.command in {"add-email", "remove-email"}:
         action = args.command.split("-")[0]
-        if not getattr(args, action) and not getattr(args, action + "_file"):
-            arguments.error(f"{args.command} requires --{action} or --{action}-file")
+        url = getattr(args, "from_url", None)
+        if url is not None and (args.add or args.add_file or args.replace_existing):
+            arguments.error(
+                "--from-url cannot be combined with --add, --add-file, or --replace-existing"
+            )
+        if not url and not getattr(args, action) and not getattr(args, action + "_file"):
+            alternatives = " or --from-url" if action == "add" else ""
+            arguments.error(f"{args.command} requires --{action} or --{action}-file{alternatives}")
     if args.command == "add-contact":
         if args.file is not None and (args.name is not None or args.email):
             arguments.error("--file cannot be combined with --name or --email")
@@ -750,9 +768,26 @@ def run_command(args):
                 )
         elif args.command in {"add-email", "remove-email"}:
             action = args.command.split("-")[0]
-            args.entries = edit_inputs(
-                getattr(args, action), getattr(args, action + "_file"), f"--{action}"
-            )
+            if getattr(args, "from_url", None):
+                validate_url(args.from_url)
+                emit(f"Source: {args.from_url}")
+                with StageProgress() as progress:
+                    progress.start("Reading webpage")
+                    page = fetch_addresses(args.from_url)
+                if page["url"] != args.from_url:
+                    emit(f"Final URL: {page['url']}", primary=False)
+                args.entries = [(address, "", args.from_url) for address in page["addresses"]]
+                if not args.entries:
+                    emit("No email addresses found in the static HTML. No changes made.")
+                    emit(
+                        "JavaScript-rendered and obfuscated addresses are not supported.",
+                        primary=False,
+                    )
+                    return 0
+            else:
+                args.entries = edit_inputs(
+                    getattr(args, action), getattr(args, action + "_file"), f"--{action}"
+                )
         api = connect_with_authorization(args.token, args.auth_timeout)
         if api is None:
             return 1

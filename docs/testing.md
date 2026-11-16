@@ -468,3 +468,20 @@ The connected-client test verifies Gmail and People reads use the deadline trans
 tests verify refreshed tokens are saved. The connected-client assertion failed before activation.
 The transport was independently validated with authorized read-only Gmail-label and contact reads
 before activation. Offline tests do not establish live service latency or network reliability.
+
+
+### Webpage email input and numbered selection
+
+`tests/test_web_emails.py` covers static HTML/mailto extraction, explicitly hidden content,
+case-insensitive deduplication, reusable number/range selection, invalid input, cancellation,
+returning to selection, noninteractive preview, explicit apply, and preservation of existing
+labels and duplicates. A synthetic HTTP response is independently checked before exercising
+content-type and decompressed-size limits. A real stalled subprocess verifies deadline cleanup;
+no test contacts an external server. Controlled faults verify that extraction, selection,
+preservation, and size-limit regressions are detected.
+
+An isolated public-page fetch using the production reader returned the six expected addresses
+in about one second on 2026-11-16 before CLI integration. This validates that page's static HTML,
+not arbitrary website layouts. The user subsequently verified extraction, contact lookup, preview,
+and cancellation on the same page. Saving URL-derived additions has automated coverage but has
+not been verified against a live contact.

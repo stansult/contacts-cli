@@ -44,7 +44,8 @@ The saved token selects the account; a URL's `/u/0/` or `/u/1/` segment does not
 
 Contact-changing commands show their intended changes before saving. Interactive confirmation requires
 terminal input, output, and error streams. Enter, `n`, or end-of-input at the final confirmation
-makes no changes. Piped or redirected runs without `--apply` do not write; unresolved label choices
+makes no changes. URL email input returns to selection on Enter or `n`; `q` cancels.
+Piped or redirected runs without `--apply` do not write; unresolved label choices
 may stop the run before a complete preview.
 
 `--apply` skips final write confirmation, not every decision. Label case choices still prompt in
@@ -385,7 +386,8 @@ editing commands.
 
 `add-email` accepts repeatable `--add 'address — Label'` and `--add-file PATH` options.
 `remove-email` accepts repeatable `--remove ADDRESS` and `--remove-file PATH` options.
-Both require `--contact` and at least one individual or file option. Use the same UTF-8 file
+Both require `--contact`. Add-email also accepts `--from-url` instead of individual/file inputs.
+Otherwise, at least one individual or file option is required. Use the same UTF-8 file
 format as exclusions: one address per line, optional ` — Label`, blank lines and whole-line `#`
 comments. Options combine; files are read fresh relative to the current directory. An empty file
 requests no changes. Removal ignores labels and matches only normalized addresses.
@@ -431,6 +433,40 @@ Both the response and an independent read verify the complete expected email lis
 If the primary email is removed, Google may assign primary status to a remaining entry; this is
 allowed, while a surviving primary choice must be preserved. Failed verification reports an
 unverified update. These commands are not undo; [issue #5](https://github.com/stansult/contacts-cli/issues/5) tracks that separate enhancement.
+
+### Webpage email input
+
+```sh
+./contacts-cli add-email --contact c123456789 --from-url 'https://example.com/contact'
+```
+
+Reads one public HTTP/HTTPS page without Google credentials or browser cookies. Redirects are
+followed (up to five); linked pages are not crawled. The fetch has a 15-second total deadline,
+including DNS and redirects, and a 2 MiB limit on the final decompressed HTML body. Non-HTML
+responses and HTTP errors stop before Google authorization or contact access. URLs with embedded credentials are
+rejected. Empty results also stop before accessing Google.
+
+Extracts addresses from text and `mailto:` recipients, deduplicates case-insensitively, and sorts
+by address. Mailto subject/body/cc query parameters are ignored. Scripts, styles, comments,
+templates, page-head content, and explicitly hidden elements are ignored. This is static HTML
+parsing, not browser rendering: external CSS visibility, JavaScript-generated content, obfuscated
+addresses, and addresses split across markup are not reliably supported. Results can be incomplete;
+review the numbered preview. No labels are inferred.
+
+`--from-url` cannot combine with `--add`, `--add-file`, or `--replace-existing`. Unlike a bare
+address supplied through those other inputs, an extracted address carries no label-change request.
+Addresses already on the contact are skipped; all existing labels and duplicate entries remain.
+
+Interactive runs show only new addresses as numbered proposed additions. Enter `all` or numbers
+and ascending ranges such as `3-5,8`. Overlaps count once; selections preserve displayed order.
+Invalid input asks again; blank input repeats selection. `q` or end-of-input cancels without writes.
+The selected preview retains the original numbers. At final confirmation, `y` saves, `n` or Enter
+returns to selection, and `q` or end-of-input cancels. Numbered selection currently applies only to
+URL input; other commands retain their existing prompts.
+
+Noninteractive runs preview all additions without prompting or writing. `--apply` selects and saves
+all new addresses without selection or confirmation. Existing conflict protection and independent
+readback verification still apply. No Gmail search or sending-address exclusions are involved.
 
 ## Email list display
 
