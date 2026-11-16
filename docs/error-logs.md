@@ -1,4 +1,9 @@
-# API error and verification logs
+# Diagnostic logs
+
+The CLI records HTTP errors, email-verification failures, and sender-sync run traces separately.
+The sections below describe when each is written and how long it is kept.
+
+## Google API HTTP errors
 
 When a Google API request ends with an HTTP error, the CLI saves its full response body and prints:
 
@@ -58,4 +63,37 @@ After successfully writing a log, the CLI retains it and the 19 newest other ver
 by modification time. Older `verification-*.json` files are deleted automatically; HTTP error
 logs and other filenames are untouched. Do not use this filename prefix for unrelated files.
 A failed save or cleanup is reported separately and never masks the original verification error.
-Cleanup failures can temporarily leave more than 20 files. Successful verification creates no log.
+Cleanup failures can temporarily leave more than 20 files. Successful verification creates no
+verification log.
+
+
+## Sender-sync run diagnostics
+
+`sender-sync --diagnostics` creates a private `run-<unique>.jsonl` file in the same
+log directory. Normal runs do not create these traces. The terminal prints its path at startup and prints
+`Run finished (exit code N). Diagnostics: <path>` when the command returns. This is separate
+from the HTTP-error and verification logs above, and includes successful runs.
+
+Use `--diagnostics` when investigating slow or failing requests. HTTP-error and email-verification
+logs remain automatic without this option.
+
+Each line is an event flushed to disk immediately: command start (process ID and code fingerprint),
+API request start, transport attempt start/end/error, request completion/error, and command exit.
+Events include local timestamps and elapsed seconds. Requests record the API method, configured
+retry limit, available transport timeout, attempt/retry totals, and durations. A null timeout
+means the wrapper could not obtain a numeric timeout, not that the request cannot time out.
+Time between attempts includes the client's retry backoff. Attempts are counted at the Google
+client transport boundary; internal credential refreshes or redirects are not separate events.
+
+Non-HTTP failures include exception types, messages, errno, chained causes, and stack locations,
+without stack locals. URLs and common credential values are redacted. Arguments, request headers,
+request/response bodies, filter contents, and contact data are not deliberately recorded. Exception
+messages can still contain contextual details; keep these files local.
+
+While a request is stalled, its attempt-start event is already on disk. An exit event distinguishes
+a completed command from an unfinished log; its absence can also mean forced termination or a
+logging failure. These logs cannot explain text entered or printed by the shell after CLI exit.
+
+The current file and 19 newest previous `run-*.jsonl` files are retained; other log types are
+untouched. Storage/cleanup failures report a warning without changing the command result. There
+is no per-file size cap; file size grows with the number of API attempts in that run.

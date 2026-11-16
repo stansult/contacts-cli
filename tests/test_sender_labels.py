@@ -36,9 +36,7 @@ def test_completion_forces_last_counter_before_finished(terminal):
         progress("Searching senders", 9, 9)
         assert "9 inspected" not in stream.getvalue()
         progress("Search finished", 9, 9)
-    assert stream.getvalue().endswith(
-        "Searching senders: 9 inspected, 9 new senders\nSearch finished.\n"
-    )
+    assert stream.getvalue().endswith("Search finished: 9 inspected, 9 new senders.\n")
 
 
 def test_section_order_on_combined_output(api, monkeypatch):
@@ -51,15 +49,18 @@ def test_section_order_on_combined_output(api, monkeypatch):
     assert cli.main(ARGS) == 0
     output = undecorated(stream.getvalue())
     assert output.startswith(
-        "Reading contact…\nContact: 'name: Example Delivery' (c123)\n\n"
-        "Reading sending addresses…\nFinding label…\n"
+        "Reading contact…\nReading contact: finished.\nContact: 'name: Example Delivery' (c123)\n\n"
+        "Reading sending addresses…\nReading sending addresses: finished.\n"
+        "Finding label…\nFinding label: finished.\n"
         "Label: 'Example/Delivery' (including Spam and Trash)\n\n"
-        "Searching senders:"
+        "Reading label filters…\nReading label filters: finished.\nSearching senders:"
     )
     assert (
-        "Searching senders: 3 inspected, 3 new senders\nSearch finished.\n"
+        "Search finished: 3 inspected, 3 new senders.\n"
         "Existing email entries: 2\n\n"
-        "Proposed additions: 3 entries\n  1. new@example.com — New sender\n"
+        "Proposed additions: 3 entries\n"
+        "Ungrouped: no usable address criteria in label filters.\n\n"
+        "  1. new@example.com — New sender\n"
     ) in output
 
 

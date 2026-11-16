@@ -24,6 +24,7 @@ from .duplicate import READ_FIELDS, download_photo, verify_duplicate
 from .error_logs import save_http_error, save_verification_error
 from .errors import SyncError, WriteUnverified
 from .metrics import ACTIVE, counts, execute_measured
+from .sender_criteria import extract_filter_criteria
 
 # Conservative application guard, not a claimed Gmail server limit.
 MAX_QUERY_BYTES = 6000
@@ -111,6 +112,31 @@ class GoogleAPI:
         exclusion_query(addresses)
         return addresses
 
+    def label_address_criteria(self, label_id):
+        response = execute(self.gmail.users().settings().filters().list(userId="me"))
+        if not isinstance(response, dict) or not isinstance(response.get("filter", []), list):
+            raise SyncError("Incomplete Gmail filter response; no changes made.")
+        selected = []
+        for item in response.get("filter", []):
+            action = item.get("action") if isinstance(item, dict) else None
+            if not isinstance(action, dict):
+                raise SyncError("Incomplete Gmail filter action; no changes made.")
+            labels = action.get("addLabelIds", [])
+            if not isinstance(labels, list) or any(
+                not isinstance(label, str) or not label for label in labels
+            ):
+                raise SyncError("Incomplete Gmail filter labels; no changes made.")
+            if label_id not in labels:
+                continue
+            criteria = item.get("criteria", {})
+            if not isinstance(criteria, dict) or any(
+                key in criteria and not isinstance(criteria[key], str)
+                for key in ("from", "to", "query", "negatedQuery")
+            ):
+                raise SyncError("Incomplete Gmail filter criteria; no changes made.")
+            selected.append(criteria)
+        return extract_filter_criteria(selected)
+
     def scan(
         self,
         label_name: str | None = None,
@@ -121,6 +147,7 @@ class GoogleAPI:
         progress=None,
         label_found=None,
         choose_label=None,
+        criteria_found=None,
     ) -> Scan:
         def report(stage, processed=0, senders=0, problems=0):
             if stage in {"Searching senders", "Search finished", "Search stopped"}:
@@ -172,6 +199,9 @@ class GoogleAPI:
             label_id = matches[0]["id"]
             if label_found is not None:
                 label_found(label_name)
+            if criteria_found is not None:
+                report("Reading label filters")
+                criteria_found(self.label_address_criteria(label_id))
         messages = self.gmail.users().messages()
         seen_ids, senders = set(), {}
         labels = {}

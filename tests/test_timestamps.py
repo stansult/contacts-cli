@@ -54,9 +54,9 @@ def test_terminal_final_counter_and_shared_stream_date(terminal):
         emit("Proposed additions: 9\n  example@example.com", file=other)
     assert stream.getvalue().count("[2026-11-12]") == 1
     assert "[01:02:03] Reading contact…" in stream.getvalue()
-    assert "Searching senders: 9 inspected, 9 new senders\n" in stream.getvalue()
+    assert "Search finished: 9 inspected, 9 new senders.\n" in stream.getvalue()
     assert not re.search(r"\[\d{2}:\d{2}:\d{2}\] Searching senders:", stream.getvalue())
-    assert stream.getvalue().endswith("[01:02:04] Search finished.\n")
+    assert stream.getvalue().endswith("[01:02:04] Search finished: 9 inspected, 9 new senders.\n")
     assert other.getvalue() == "[01:02:04] Proposed additions: 9\n  example@example.com\n"
 
 

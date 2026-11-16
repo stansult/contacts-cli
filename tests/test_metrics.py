@@ -33,6 +33,7 @@ def test_preview_metrics_counts_and_privacy(api, server, monkeypatch):
     assert {key: value["calls"] for key, value in row["api"].items()} == {
         "contact_reads": 1,
         "labels": 1,
+        "filters": 1,
         "sending_addresses": 1,
         "message_list": 4,
         "headers": 3,

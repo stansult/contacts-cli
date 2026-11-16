@@ -66,7 +66,15 @@ Operational output begins with a local `[YYYY-MM-DD]` date line. Primary message
 `[HH:MM:SS]` timestamps, including stage messages, confirmation prompts, completion, and errors.
 Details and list entries remain unprefixed. Blank lines and help remain undecorated. If a run
 crosses midnight, the ending date appears after the last message. Updating sender counters have
-no timestamp and always show their final count.
+no timestamp; the completion line includes the final counts and finish timestamp.
+
+Sender-sync waiting and scanning stages share one progress helper. Interactive stderr shows an
+immediate spinner with a fixed start timestamp for waiting stages. After 5 seconds, it also shows
+`elapsed Ns`. Completion replaces the live line with a finish timestamp; stages lasting at least
+10 seconds include `(took N.Ns)`. Durations use a monotonic clock, independently of clock changes.
+Errors and interruptions end the stage as failed or interrupted, not finished. Progress stops
+before prompts and other output. Redirected stderr has plain start/completion lines and throttled
+counter updates, without animation or control codes. These thresholds require no CLI flags.
 
 ## Add-contact
 
@@ -197,9 +205,9 @@ Progress appears automatically on stderr: reading the contact and sending addres
 label when selected, then messages inspected and new senders found. In a terminal, the scan counter
 updates in place at most once per second; redirected output uses separate lines at most once every ten seconds. The contact and
 label details appear immediately after their lookups, with blank lines separating sections. The
-last counter update always appears, bypassing throttling, followed by `Search finished.` and the
-existing-email count. Updates occur as requests finish; there is no estimated total or percentage. Invalid From
-headers stop the search and block all writes.
+final counts appear in the timestamped `Search finished: …` completion line, followed by the
+existing-email count. Counters change as requests finish; the spinner continues while waiting.
+There is no estimated total or percentage. Invalid From headers stop the search and block all writes.
 The complete preview stays on stdout. Proposed addresses appear one per line without a `+` prefix,
 with a custom label after ` — ` when applicable. Counts describe inspected messages, not the total
 number of matching messages.
@@ -221,7 +229,7 @@ Each command scans current data; `--apply` is not approval of a frozen previous 
 same flags after changing a Gmail filter and applying it to matching messages. There is no need to
 maintain an exclusion query or a filter ID. A run with no missing addresses sends no contact update.
 
-### Grouping search additions by address criteria
+### Grouping additions by address criteria
 
 With `--search`, the additions preview separates **Matching address criteria** from **Other
 senders** when the query contains usable positive `from:` or `to:` criteria. Only explicitly
@@ -249,7 +257,27 @@ continues across groups; order within each group follows the normal sorted addit
 groups show zero. When there are no usable criteria, search runs with additions retain a single
 list with this explanation below the total:
 `Ungrouped: no full addresses or domains in from:/to: criteria.`
-Label mode and runs without additions keep their existing output without that explanation.
+
+With `--label`, the command reads current Gmail filters that apply the resolved label ID. It
+combines supported addresses/domains from their From, To, and search-query fields, using the same
+matching rules. Structured From/To fields accept full addresses or domains, optionally quoted or
+grouped with spaces/`OR`. Unsupported structured fields are skipped as a whole. Subject and
+negated-query fields do not contribute. A filter with no usable criteria contributes nothing;
+other filters can still supply criteria.
+
+Currently, each label run fetches the account’s complete filter list before scanning messages.
+This read can be slow and can time out after retries. Filters are not cached yet. Search mode
+does not make this request.
+
+Filters can change, and labels can be applied manually. These groups describe matches to current
+address criteria, not the historical reason a message received a label. Filter reads use the
+existing Gmail read-only permission; no additional authorization is required. Gmail filters and
+labels are not modified.
+
+When no applicable filter supplies usable criteria, label runs keep a single list and explain:
+`Ungrouped: no usable address criteria in label filters.`
+Runs without additions omit the fallback explanation. Failed or malformed filter reads stop the
+command before message scanning or contact updates.
 
 Both groups start included. In interactive runs, when Other senders is nonempty, the command
 asks `Exclude Other senders? [y/N]` before final write confirmation. Yes selects only matching
@@ -286,10 +314,11 @@ candidates reports `No additions selected; no update made.` and skips final conf
 Existing contacts and manual exclusions are preserved. Selection applies only to this run;
 after declining the final confirmation, the retry hint includes `--exclude-other` when needed.
 
-`--exclude-other` requires usable positive full-address/domain criteria. If none can be extracted,
-it fails before authorization or account access instead of ignoring the flag or excluding
-everything. It is currently unavailable with `--label`; Gmail filter criteria for label mode
-are tracked in [#9](https://github.com/stansult/contacts-cli/issues/9). This selection behavior implements [#8](https://github.com/stansult/contacts-cli/issues/8).
+`--exclude-other` requires usable positive full-address/domain criteria. With `--search`, missing
+criteria are rejected before authorization or account access. With `--label`, they are rejected
+after reading the label's filters, before scanning messages or writing. The flag is never silently
+ignored and unavailable criteria are not treated as a result with every sender in Other senders.
+The same selection and confirmation behavior applies in both modes.
 
 For a query starting with a minus sign, use `--search='-from:person@example.com subject:delivery'`
 so the shell argument is passed as the search value.
@@ -427,8 +456,9 @@ including missing addresses and skipped conflicts. Addition rows do not repeat �
 have a separate section showing the old and new values.
 
 Use `list-email` to see all existing entries. Add/remove commands show only the existing total;
-existing entries are displayed when needed for a conflict decision. Every displayed list starts
-at 1, including conflict matches and removal previews. Duplicate references point to the first
+existing entries are displayed when needed for a conflict decision. Email-editing lists start
+at 1, including conflict matches and removal previews. Sender-sync numbering continues across
+its two address groups. Duplicate references point to the first
 occurrence within that list. Numbers do not identify a preferred or primary address.
 
 Without `--apply`, change headings say Proposed additions, Proposed updates, or Proposed removals.
@@ -611,8 +641,8 @@ needed. Inline fields, labels and `--apply` are not supported. See [local valida
 See [detailed Google setup instructions](google-setup.md). Existing `gmail.metadata` authorizations need upgrading to
 `gmail.readonly`; the CLI detects insufficient permissions and offers browser reauthorization.
 See [upgrading an existing authorization](google-setup.md#upgrading-an-existing-authorization).
-The new permission permits reading message bodies, although this CLI continues to request only
-headers and labels. Sender searches use the Gmail read-only permission.
+The permission permits reading message bodies. This CLI reads message headers, labels, sending
+addresses, and filters; it does not request message bodies.
 
 ## Global options
 
@@ -644,7 +674,9 @@ in the terminal and in a separate local verification log. The 20 most recent ver
 are retained; HTTP error logs remain separate. See [verification logs](error-logs.md#email-verification-failures).
 
 Failed Google API HTTP responses are saved locally, and the terminal prints the log path. See
-[API error logs](error-logs.md) for locations, recorded fields, and troubleshooting details.
+[diagnostic logs](error-logs.md) for locations, recorded fields, and troubleshooting details.
+Use `sender-sync --diagnostics` to record detailed [run diagnostics](error-logs.md#sender-sync-run-diagnostics),
+including successful requests and transport failures. Normal runs omit these traces.
 
 ## Exit codes
 

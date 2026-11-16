@@ -5,6 +5,7 @@ from contextvars import ContextVar
 from datetime import datetime
 
 ACTIVE_OUTPUT = ContextVar("operational_output", default=None)
+ACTIVE_PROGRESS = ContextVar("active_progress", default=None)
 
 
 def local_now():
@@ -46,6 +47,9 @@ def stamp(text, stream):
 
 def emit(text, *, file=None, end="\n", flush=True, primary=True):
     stream = sys.stdout if file is None else file
+    progress = ACTIVE_PROGRESS.get()
+    if progress is not None:
+        progress.pause()
     output = ACTIVE_OUTPUT.get()
     if output is not None:
         output.last_stream = stream

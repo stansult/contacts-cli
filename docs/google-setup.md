@@ -102,9 +102,9 @@ replace its example values with your own.
 
 The requested scopes are `gmail.readonly` and `contacts` (with Google's
 `https://www.googleapis.com/auth/` prefix). Gmail read-only access permits reading messages,
-including bodies, but no mail changes. The CLI requests only headers and labels; sender search
-requires this permission. Contacts permission
-allows writes across the account; Google does not offer a scope restricted to the selected contact.
+including bodies, but no mail changes. The CLI reads message headers, labels, sending addresses,
+and filters; it does not request message bodies. Sender search requires this permission.
+Contacts permission allows writes across the account; Google does not offer a scope restricted to the selected contact.
 The CLI writes contacts only after interactive confirmation or when `--apply` is present.
 
 See Google's [desktop OAuth setup](https://developers.google.com/identity/protocols/oauth2/native-app) and [Gmail scope descriptions](https://developers.google.com/workspace/gmail/api/auth/scopes).

@@ -37,9 +37,7 @@ def test_scan_reports_progress_before_requests(api, server, monkeypatch, capsys,
     assert server.writes == 0
     if failure is None:
         assert result == 0
-        assert "Searching senders: 3 inspected, 3 new senders\nSearch finished." in undecorated(
-            output.err
-        )
+        assert "Search finished: 3 inspected, 3 new senders." in undecorated(output.err)
         assert "Proposed additions: 3" in output.out
     else:
         assert result == (1 if failure == "error" else 130)
@@ -73,7 +71,8 @@ def test_progress_rate_limit_and_line_cleanup(terminal, interval):
         assert "2 inspected, 1 new senders" in stream.getvalue()
         progress("Search finished", 3, 2)
     output = stream.getvalue()
-    assert output.endswith("Searching senders: 3 inspected, 2 new senders\nSearch finished.\n")
+    duration = " (took 10.0s)" if not terminal else ""
+    assert output.endswith(f"Search finished: 3 inspected, 2 new senders{duration}.\n")
     assert ("\r" in output) is terminal
 
 
@@ -90,7 +89,9 @@ def test_terminal_progress_finishes_line_on_exception():
     with pytest.raises(KeyboardInterrupt), ScanProgress(stream) as progress:
         progress("Searching senders", 4, 2)
         raise KeyboardInterrupt
-    assert stream.getvalue().endswith("4 inspected, 2 new senders\n")
+    assert stream.getvalue().endswith(
+        "Searching senders: interrupted: 4 inspected, 2 new senders.\n"
+    )
     assert "Search finished" not in stream.getvalue()
 
 

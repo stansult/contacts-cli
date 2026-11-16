@@ -64,10 +64,10 @@ Use either `--label` or `--search`:
 ./contacts-cli sender-sync --search 'from:example.com after:2026/01/01' --contact c123456789
 ```
 
-Case-only Gmail label matches prompt for a choice in interactive runs. Search previews group
-senders by explicit `from:` / `to:` address criteria when available, then let you exclude
+Case-only Gmail label matches prompt for a choice in interactive runs. Previews group senders
+by address criteria from the search or the Gmail filters applying the label, then let you exclude
 Other senders. Use `--exclude-other` to select only matching addresses explicitly;
-`--apply` alone keeps both groups. See [grouping and selection rules](docs/command-reference.md#grouping-search-additions-by-address-criteria).
+`--apply` alone keeps both groups. See [grouping and selection rules](docs/command-reference.md#grouping-additions-by-address-criteria).
 
 Adds missing sender addresses from a Gmail label or search, excluding addresses already on the
 contact and your Gmail sending addresses. Sender names become email labels when useful. Use `--exclude ADDRESS`
@@ -128,6 +128,6 @@ Validates locally without authorization or Google access. See [validation detail
 - [Command reference](docs/command-reference.md): options, matching, conflicts, limits, and exit codes.
 - [Contact input](docs/contact-input.md): JSON fields, validation, and creation outcomes.
 - [Google setup](docs/google-setup.md): credentials, permissions, and authorization troubleshooting.
-- [API error logs](docs/error-logs.md): Google error responses saved locally for troubleshooting.
+- [Diagnostic logs](docs/error-logs.md): API errors, email-verification failures, and sender-sync traces.
 - [Local metrics](docs/metrics.md): sender-sync timing and API counts; `make metrics` summarizes runs.
 - [Contributing](CONTRIBUTING.md) and [testing](docs/testing.md): development workflow and checks.

@@ -20,14 +20,14 @@ Pytest disables network sockets globally; tests must never use real credentials 
 | Authorization | `test_auth.py`, `test_reauthorization.py` | OAuth setup, consent, scope upgrades, token storage, and failures |
 | Creation and validation | `test_contact_inputs.py`, `test_contact_create.py` | Person JSON, local validation, creation, labels, and partial outcomes |
 | Duplication | `test_duplicate.py` | Copyable fields, photo handling, identities, and independent verification |
-| Sender sync | `test_search.py`, `test_search_input.py`, `test_sender_criteria.py`, `test_sync.py` | Search requests, completeness, conflicts, writes, and reruns |
+| Sender sync | `test_search.py`, `test_search_input.py`, `test_sender_criteria.py`, `test_label_criteria.py`, `test_sync.py` | Search requests, completeness, conflicts, writes, and reruns |
 | Sender identities | `test_own_addresses.py`, `test_sender_labels.py` | Own-address exclusions and saved display labels |
 | Explicit exclusions | `test_exclude.py`, `test_exclude_files.py`, `test_exclude_other.py` | Inline/file parsing, matching, and query integration |
-| Email editing | `test_email_edit.py` | Listing, addition, removal, conflicts, duplicates, and preservation |
+| Email editing | `test_email_edit.py`, `test_primary_normalization.py` | Listing, addition, removal, conflicts, duplicates, and preservation |
 | Contact labels | `test_label_edit.py`, `test_remove_label.py`, `test_label_output.py` | Membership edits, case choices, output, and partial failures |
 | Custom fields | `test_custom_fields.py` | Exact selectors, duplicate handling, and verified single-field updates |
-| Interaction and output | `test_apply_prompt.py`, `test_interrupt.py`, `test_progress.py`, `test_timestamps.py` | Consent, interruption state, counters, and timestamps |
-| Diagnostics | `test_metrics.py`, `test_error_logs.py` | Local storage, measurement, error responses, and privacy boundaries |
+| Interaction and output | `test_apply_prompt.py`, `test_interrupt.py`, `test_progress.py`, `test_stage_progress.py`, `test_timestamps.py` | Consent, interruption state, counters, and timestamps |
+| Diagnostics | `test_metrics.py`, `test_error_logs.py`, `test_run_diagnostics.py` | Local storage, measurement, error responses, and privacy boundaries |
 | Packaging and CI | `test_installed_cli.py`, `test_repository_checks.py`, `test_ci_scope.py` | Installed execution, archives, links, subprocess guards, and CI routing |
 
 Synthetic contact and message inputs live in [tests/fixtures](../tests/fixtures). [FakeGoogle](../tests/fake_google.py) is an in-memory HTTP
@@ -415,3 +415,42 @@ stages, command context, owner-only files, no logging on success, and unavailabl
 Retention uses independently created files with explicit timestamps to verify exactly 20
 verification logs remain and HTTP/unrelated files survive. Storage failures preserve the original
 unverified error. Six regressions failed before logging was implemented.
+
+
+### Gmail filter criteria for labels (#9)
+
+The [filter-list API](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.settings.filters/list) accepts the existing `gmail.readonly` scope.
+`test_label_criteria.py` independently checks filter-list transport responses and errors, then
+covers selection by resolved label ID, unions across filters, structured From/To values, query
+criteria, unsupported/negated values, missing filters, and malformed responses. CLI tests exercise
+interactive case choice and exclusion, explicit flags, noninteractive preview, and unchanged
+search mode. Filter failures and explicit exclusion without criteria stop before message search
+or contact writes. The fixture returns configured filter data; it does not emulate Gmail's filter
+application. Twenty-two regressions failed before implementation. Existing grouping, matching,
+and selection tests cover the shared behavior.
+
+
+### Opt-in run diagnostics
+
+`test_run_diagnostics.py` runs sender-sync with `--diagnostics` through the real API client and
+synthetic transport. It reads the flushed log from inside the pending filter request, then checks
+success, timeout/retries, interruption, exit codes, exception frames, credential redaction, file
+permissions, and context reset. Four regressions failed before implementation. Retry backoff is
+removed only in tests; the client still performs its actual retry logic. Retention uses independently
+created files with explicit timestamps and checks that unrelated log types survive. Storage failure
+must preserve the command result. These tests do not call Google or establish the live failure cause.
+
+
+The default-run regression confirms that omitting `--diagnostics` creates no run trace or diagnostic
+messages; it failed against unconditional tracing before the opt-in gate was added.
+
+### Shared stage progress
+
+`test_stage_progress.py` exercises the generic helper independently of Gmail: the 5-second and
+10-second boundaries, fixed start timestamps, backward wall-clock changes, monotonic durations,
+midnight completion, plain redirected output, final details, and updater cleanup on error and
+interruption. A synchronized stream observes animation while the main thread waits, then confirms
+that a prompt stops the updater. Nine regressions failed before the helper existed. Existing scan,
+CLI, and timestamp tests now expect one completion line carrying the final sender counts and cover
+unchanged processing results. Test-only injected clocks and disabled background animation allow
+deterministic boundary checks; these are not CLI flags.

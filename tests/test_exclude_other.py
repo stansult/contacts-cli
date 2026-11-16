@@ -97,7 +97,6 @@ def test_flags_and_noninteractive(api, server, monkeypatch, capsys, tty, apply, 
 @pytest.mark.parametrize(
     "source",
     [
-        ["--label", "Example/Delivery"],
         ["--search", "subject:delivery"],
         ["--search", "from:example"],
         ["--search=-from:example.com"],

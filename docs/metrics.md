@@ -27,11 +27,12 @@ owner-only permissions. A storage failure prints a warning and does not change t
   The fingerprint distinguishes local code changes even when the package version is unchanged.
 - Total elapsed seconds, including authorization and confirmation waits. API seconds exclude those
   waits and include library retry backoff; compare those when judging scan performance.
-- Per-operation API calls, HTTP attempts, retries, and cumulative seconds: sending-address lookup, label lookup, message
-  listing, header retrieval, contact reads, and contact writes. Attempts count calls to the Google
-  client's HTTP transport, not lower-level redirects or token refresh requests. Read retry limits
-  and the prohibition on write retries are unchanged.
+- Per-operation API calls, HTTP attempts, retries, and cumulative seconds: sending-address lookup,
+  label lookup, filter lookup, message listing, header retrieval, contact reads, and contact writes.
+  Attempts count calls to the Google client's HTTP transport, not lower-level redirects or token
+  refresh requests. Read retry limits and the prohibition on write retries are unchanged.
 - Processed messages, unique senders, invalid headers, existing email entries, and proposed additions.
+  The additions count reflects the selected groups once selection is complete.
   Unavailable counts are omitted. Interrupted scans retain the last completed message counts;
   `scan_complete` is false until the search returns no remaining matches.
 - Exit code and outcome: `preview`, `applied`, `no_changes`, `failed`, `interrupted`, or

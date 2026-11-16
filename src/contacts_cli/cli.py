@@ -23,6 +23,7 @@ from .custom_fields import run_custom_field
 from .duplicate import READ_FIELDS, make_duplicate_plan, replacement_name
 from .email_edit import make_edit_plan, verify_edit
 from .error_logs import COMMAND as ERROR_LOG_COMMAND
+from .error_logs import TRACE, RunDiagnostics
 from .errors import InsufficientScopes, MissingToken, SyncError, WriteUnverified
 from .label_edit import run_label_edit
 from .metrics import ACTIVE, RunMetrics, counts, outcome
@@ -100,6 +101,9 @@ def parser() -> argparse.ArgumentParser:
         help="Preview or append Gmail senders to an existing contact",
         description="Preview missing From addresses from a Gmail label or search for one contact.",
     )
+    sync.add_argument(
+        "--diagnostics", action="store_true", help="Save detailed local API run diagnostics"
+    )
     source = sync.add_mutually_exclusive_group(required=True)
     source.add_argument(
         "--label", help="Gmail label name; case-only matches prompt (includes Spam and Trash)"
@@ -111,12 +115,12 @@ def parser() -> argparse.ArgumentParser:
     sync.add_argument(
         "--apply",
         action="store_true",
-        help="Append missing emails without asking and verify the result",
+        help="Skip write and sender-group confirmations; label choices still prompt",
     )
     sync.add_argument(
         "--exclude-other",
         action="store_true",
-        help="Exclude senders outside positive from:/to: address criteria in --search",
+        help="Exclude senders outside address criteria in the search or label filters",
     )
     sync.add_argument(
         "--exclude",
@@ -216,7 +220,7 @@ def parser() -> argparse.ArgumentParser:
     validation.add_argument(
         "--file", type=Path, required=True, help="UTF-8 JSON Person object or array"
     )
-    setup = commands.add_parser("authorize", help="Run explicit initial OAuth setup")
+    setup = commands.add_parser("authorize", help="Authorize or reauthorize Google access")
     setup.add_argument(
         "--credentials",
         type=Path,
@@ -341,6 +345,14 @@ def confirm_exclude_other():
 
 def run(args, api) -> int:
     resource = contact_resource(args.contact)
+    criteria = extract_search_criteria(args.search)
+
+    def criteria_found(value):
+        nonlocal criteria
+        criteria = value
+        if args.exclude_other and not criteria:
+            raise SyncError("--exclude-other requires usable address criteria in label filters.")
+
     with ScanProgress() as progress:
         progress("Reading contact")
         person = api.get_contact(resource)
@@ -366,12 +378,12 @@ def run(args, api) -> int:
             progress=progress,
             label_found=label_found,
             choose_label=choose_label,
+            criteria_found=criteria_found,
         )
     plan = make_plan(person, scan)
     counts(existing_entries=len(person.get("emailAddresses", [])), additions=len(plan.additions))
     emit(f"Existing email entries: {len(person.get('emailAddresses', []))}", primary=False)
     entries = [addition_entry(plan, address) for address in plan.additions]
-    criteria = extract_search_criteria(args.search)
     heading = "\nAdding" if args.apply else "\nProposed additions"
     grouped = bool(criteria and entries)
     exclude_other = args.exclude_other
@@ -401,6 +413,8 @@ def run(args, api) -> int:
             note=(
                 "Ungrouped: no full addresses or domains in from:/to: criteria."
                 if args.search is not None and entries
+                else "Ungrouped: no usable address criteria in label filters."
+                if entries
                 else None
             ),
         )
@@ -588,7 +602,7 @@ def connect_with_authorization(token: Path, timeout_seconds: int = 300):
         reauthorize = isinstance(exc, InsufficientScopes)
         reason = (
             f"{exc}\nGmail read-only permission allows reading message bodies; "
-            "this CLI requests only headers and labels."
+            "this CLI reads message headers, labels, sending addresses, and filters, not bodies."
             if reauthorize
             else "You're not authorized: no token file was found."
         )
@@ -668,6 +682,10 @@ def execute_command(args):
         return run_command(args)
     metrics = RunMetrics()
     token = ACTIVE.set(metrics)
+    diagnostics = (
+        RunDiagnostics(args.command, metrics.record["code_version"]) if args.diagnostics else None
+    )
+    trace_token = TRACE.set(diagnostics)
     result = 1
     try:
         result = run_command(args)
@@ -675,6 +693,9 @@ def execute_command(args):
     finally:
         ACTIVE.reset(token)
         metrics.finish(result)
+        if diagnostics is not None:
+            diagnostics.finish(result)
+        TRACE.reset(trace_token)
 
 
 def run_command(args):
@@ -721,7 +742,11 @@ def run_command(args):
             if args.search is not None:
                 args.search = args.search.strip()
             exclusion_query(set(args.exclude), search=args.search)
-            if args.exclude_other and not extract_search_criteria(args.search):
+            if (
+                args.exclude_other
+                and args.search is not None
+                and not extract_search_criteria(args.search)
+            ):
                 raise SyncError(
                     "--exclude-other requires full addresses or domains "
                     "in positive from:/to: criteria."

@@ -123,3 +123,22 @@ def extract_search_criteria(query):
 
     visit(tree)
     return AddressCriteria(frozenset(addresses), frozenset(domains))
+
+
+def extract_filter_criteria(filters):
+    """Union supported positive criteria; other filter conditions are not provenance."""
+    addresses, domains = set(), set()
+    for criteria in filters:
+        query = extract_search_criteria(criteria.get("query"))
+        addresses.update(query.addresses)
+        domains.update(query.domains)
+        for field in ("from", "to"):
+            if not criteria.get(field):
+                continue
+            try:
+                values = [_criterion(word) for word in _values(_tree(criteria[field]))]
+            except ValueError:
+                continue
+            for category, text in values:
+                (addresses if category == "address" else domains).add(text)
+    return AddressCriteria(frozenset(addresses), frozenset(domains))

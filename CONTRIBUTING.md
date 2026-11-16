@@ -154,4 +154,9 @@ Keep the shared convention used by the screenshots and pdf-slim projects: local 
 before the first operational message, local `[HH:MM:SS]` on primary messages, and an ending date
 only when the run crosses midnight. Leave updating sender counters, continuation lines, blank
 separators, and help undecorated. Use `output.py` for date state shared across stdout/stderr and
-test with an injected clock. Progress throttling uses monotonic time independently of the displayed wall clock.
+test with an injected clock. `StageProgress` in `progress.py` owns animation, timing, rendering,
+and updater cleanup; adapters supply stage names, optional details/counters, timestamp preference,
+and completion text. Keep Gmail/contact logic out of that helper. Central constants define elapsed
+display after 5 seconds and completion duration at 10 seconds. Use monotonic timing and fixed start
+timestamps; stop the updater before prompts/output and on success, failure, or interruption.
+Animate only interactive stderr. Preserve plain redirected output and final counts.

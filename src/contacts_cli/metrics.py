@@ -13,12 +13,14 @@ from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
 
+from .error_logs import TRACE, exception_details
 from .output import emit
 
 ACTIVE = ContextVar("run_metrics", default=None)
 METHODS = {
     "gmail.users.settings.sendAs.list": "sending_addresses",
     "gmail.users.labels.list": "labels",
+    "gmail.users.settings.filters.list": "filters",
     "gmail.users.messages.list": "message_list",
     "gmail.users.messages.get": "headers",
     "people.people.getBatchGet": "contact_reads",
@@ -97,34 +99,91 @@ def outcome(value):
 
 
 class CountingHTTP:
-    def __init__(self, http, counters):
+    def __init__(self, http, counters, operation=None):
         self.http = http
         self.counters = counters
         self.attempts = 0
+        self.operation = operation
 
     def request(self, *args, **kwargs):
         self.counters["attempts"] += 1
         if self.attempts:
             self.counters["retries"] += 1
         self.attempts += 1
-        return self.http.request(*args, **kwargs)
+        trace = TRACE.get()
+        started = time.monotonic()
+        if trace:
+            trace.event("attempt_start", operation=self.operation, attempt=self.attempts)
+        try:
+            response, content = self.http.request(*args, **kwargs)
+        except BaseException as exc:
+            if trace:
+                trace.event(
+                    "attempt_error",
+                    operation=self.operation,
+                    attempt=self.attempts,
+                    seconds=time.monotonic() - started,
+                    exceptions=exception_details(exc),
+                )
+            raise
+        if trace:
+            trace.event(
+                "attempt_end",
+                operation=self.operation,
+                attempt=self.attempts,
+                seconds=time.monotonic() - started,
+                http_status=int(response.status),
+            )
+        return response, content
 
     def __getattr__(self, name):
         return getattr(self.http, name)
 
 
 def execute_measured(request, *, num_retries):
-    current = ACTIVE.get()
-    if current is None:
+    current, trace = ACTIVE.get(), TRACE.get()
+    if current is None and trace is None:
         return request.execute(num_retries=num_retries)
-    operation = METHODS.get(getattr(request, "methodId", None), "other")
-    counters = current.record["api"].setdefault(
+    method = getattr(request, "methodId", None)
+    method = method if isinstance(method, str) else "unknown"
+    operation = METHODS.get(method, "other")
+    counters = (current.record["api"] if current else {}).setdefault(
         operation, {"calls": 0, "attempts": 0, "retries": 0, "seconds": 0.0}
     )
     counters["calls"] += 1
     started = time.monotonic()
+    http = CountingHTTP(request.http, counters, method)
+    if trace:
+        timeout = getattr(request.http, "timeout", None)
+        trace.event(
+            "request_start",
+            operation=method,
+            max_retries=num_retries,
+            timeout_seconds=timeout if isinstance(timeout, (int, float)) else None,
+        )
     try:
-        return request.execute(http=CountingHTTP(request.http, counters), num_retries=num_retries)
+        result = request.execute(http=http, num_retries=num_retries)
+    except BaseException as exc:
+        if trace:
+            trace.event(
+                "request_error",
+                operation=method,
+                seconds=time.monotonic() - started,
+                attempts=http.attempts,
+                retries=max(0, http.attempts - 1),
+                exceptions=exception_details(exc),
+            )
+        raise
+    else:
+        if trace:
+            trace.event(
+                "request_end",
+                operation=method,
+                seconds=time.monotonic() - started,
+                attempts=http.attempts,
+                retries=max(0, http.attempts - 1),
+            )
+        return result
     finally:
         counters["seconds"] = round(counters["seconds"] + time.monotonic() - started, 6)
 
