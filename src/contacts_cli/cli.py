@@ -29,6 +29,7 @@ from .label_edit import run_label_edit
 from .metrics import ACTIVE, RunMetrics, counts, outcome
 from .output import OperationalOutput, email_rows, emit, emit_list
 from .progress import ScanProgress, StageProgress
+from .selection import review_address_additions
 from .sender_criteria import extract_search_criteria
 from .url_email_add import run_url_add
 from .web_emails import fetch_addresses, validate_url
@@ -117,7 +118,7 @@ def parser() -> argparse.ArgumentParser:
     sync.add_argument(
         "--apply",
         action="store_true",
-        help="Skip write and sender-group confirmations; label choices still prompt",
+        help="Add all eligible addresses without asking; label choices still prompt",
     )
     sync.add_argument(
         "--exclude-other",
@@ -388,6 +389,7 @@ def run(args, api) -> int:
     emit(f"Existing email entries: {len(person.get('emailAddresses', []))}", primary=False)
     entries = [addition_entry(plan, address) for address in plan.additions]
     heading = "\nAdding" if args.apply else "\nProposed additions"
+    interactive = all(stream.isatty() for stream in (sys.stdin, sys.stdout, sys.stderr))
     grouped = bool(criteria and entries)
     exclude_other = args.exclude_other
     if grouped:
@@ -410,9 +412,10 @@ def run(args, api) -> int:
             primary=False,
         )
     else:
+        rows = email_rows(entries)
         emit_list(
             heading,
-            email_rows(entries),
+            rows,
             note=(
                 "Ungrouped: no full addresses or domains in from:/to: criteria."
                 if args.search is not None and entries
@@ -424,10 +427,10 @@ def run(args, api) -> int:
     if scan.problems:
         raise SyncError("Preview is incomplete because of invalid From headers; no changes made.")
     if grouped:
-        interactive = all(stream.isatty() for stream in (sys.stdin, sys.stdout, sys.stderr))
         if other and interactive and not args.apply and not exclude_other:
             exclude_other = confirm_exclude_other()
         if exclude_other:
+            rows = rows[: len(matching)]
             plan = replace(plan, additions=tuple(entry["value"] for entry in matching))
         selected = len(plan.additions)
         excluded = len(other) if exclude_other else 0
@@ -442,7 +445,9 @@ def run(args, api) -> int:
                 if matching
                 else "Other senders"
             )
-            emit(f"Will add {group}: {selected} {'address' if selected == 1 else 'addresses'}.")
+            emit(
+                f"Available from {group}: {selected} {'address' if selected == 1 else 'addresses'}."
+            )
         if exclude_other:
             emit(
                 f"Will skip Other senders: {excluded} "
@@ -454,23 +459,24 @@ def run(args, api) -> int:
             emit("No additions selected; no update made.")
             outcome("no_changes")
             return 0
-    # Check local limits in preview too, so users can review an actionable result.
-    if plan.additions:
-        update_body(plan)
     if not plan.additions:
         emit("No additions needed; no update made.")
         outcome("no_changes")
         return 0
-    question = (
-        (
-            "Add this address to this contact?"
-            if len(plan.additions) == 1
-            else f"Add these {len(plan.additions)} addresses to this contact?"
-        )
-        if grouped
-        else "Apply these additions?"
-    )
-    if args.apply or confirm_apply(question):
+    approved = args.apply
+    if interactive and not args.apply:
+        selected_numbers = review_address_additions(rows)
+        if selected_numbers is None:
+            emit("Cancelled; no changes made.")
+            outcome("preview")
+            return 0
+        displayed = matching + other if grouped else entries
+        plan = replace(plan, additions=tuple(displayed[i - 1]["value"] for i in selected_numbers))
+        counts(additions=len(plan.additions))
+        approved = True
+    # Validate the selected plan (or all eligible additions for noninteractive preview).
+    update_body(plan)
+    if approved:
         if api.apply(plan):
             count = len(plan.additions)
             emit(f"Saved and verified {count} {'addition' if count == 1 else 'additions'}.")

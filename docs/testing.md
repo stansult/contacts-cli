@@ -485,3 +485,19 @@ in about one second on 2026-11-16 before CLI integration. This validates that pa
 not arbitrary website layouts. The user subsequently verified extraction, contact lookup, preview,
 and cancellation on the same page. Saving URL-derived additions has automated coverage but has
 not been verified against a live contact.
+
+
+`tests/test_partial_selection.py` covers sender-sync subsets across grouped and ungrouped
+previews, original numbering, excluded-number rejection, returning to selection, cancellation,
+redirected streams, and exact saved entries. The subset-save regressions failed against the
+previous confirmation-only implementation. Existing fixture-contract tests independently verify
+the synthetic Gmail search results and headers used by these scenarios. URL tests exercise the
+same shared review flow, including preserving existing labels and duplicates.
+
+The direct-input selection tests also failed against the intermediate two-step menu: numeric
+answers were rejected and the scripted replies were exhausted. The shared prompt now accepts
+`all`, numbers/ranges, or `q` directly, without a preceding `some` choice.
+
+Single-available-address confirmation tests cover Yes, No, Enter, q, and end-of-input, including
+retained nonsequential numbering. They failed against the redundant cancel menu before the fix.
+Selecting one address from several separately verifies that Return to selection remains available.

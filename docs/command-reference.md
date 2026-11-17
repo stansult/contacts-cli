@@ -44,7 +44,8 @@ The saved token selects the account; a URL's `/u/0/` or `/u/1/` segment does not
 
 Contact-changing commands show their intended changes before saving. Interactive confirmation requires
 terminal input, output, and error streams. Enter, `n`, or end-of-input at the final confirmation
-makes no changes. URL email input returns to selection on Enter or `n`; `q` cancels.
+makes no changes. Sender-sync and URL email input return to selection on Enter or `n` when
+multiple addresses are available; with one address, they cancel. `q` always cancels.
 Piped or redirected runs without `--apply` do not write; unresolved label choices
 may stop the run before a complete preview.
 
@@ -268,20 +269,28 @@ addresses from other senders. Label runs do not fetch Gmail filters or ask about
 In search mode, both groups start included. In interactive runs, when Other senders is nonempty,
 the command asks `Exclude Other senders? [y/N]` before final write confirmation. Yes selects only matching
 addresses; Enter or No keeps both. Invalid answers repeat the question; end-of-input cancels
-without writing. The summary names the groups that will be added or skipped without repeating
-the lists:
+without writing. A summary names the available groups and skipped addresses.
+
+After exclusions, both label and search runs offer partial selection when more than one address
+remains:
 
 ```text
-Exclude Other senders? [y/N] y
-Will add only Matching address criteria: 2 addresses.
-Will skip Other senders: 1 address.
-
-Add these 2 addresses to this contact? [y/N]
+Choose addresses:
+  all     Select all
+  3-5,8   Select by number or range
+  q       Cancel
+Selection:
 ```
 
-Keeping both says `Will add both groups: 3 addresses.` before confirmation. When only one
-group has entries, the summary names that group. No additions selected means no write or
-confirmation prompt.
+Enter `all`, displayed numbers, or ascending ranges directly; overlaps count
+once and displayed order is preserved. Excluded numbers cannot be selected. Invalid or blank
+input asks again; `q` or end-of-input cancels without writes.
+
+A subset preview keeps original numbers and shows its total. Selecting all does not repeat the
+list. Final confirmation offers Yes to add, No or Enter to return to selection, and `q` to cancel.
+With just one available address, only `Add this address to this contact? [y/N]` is shown;
+No or Enter cancels. Selecting one address from several still offers Return to selection. Zero eligible addresses
+means no selection or confirmation. Selection affects only this run and does not save exclusions.
 
 Use `--exclude-other` to explicitly exclude that group without the selection question:
 
@@ -295,10 +304,9 @@ only preview. With `--exclude-other --apply`, only matching additions are saved.
 ask selection questions; without the flag, both groups remain selected.
 
 With the flag, the additions total counts only matching entries and the second group is marked
-`Other senders (excluded)`. No Other senders means no selection question. Excluding all
+`Other senders (excluded)`. No Other senders means no group-exclusion question. Excluding all
 candidates reports `No additions selected; no update made.` and skips final confirmation.
-Existing contacts and manual exclusions are preserved. Selection applies only to this run;
-after declining the final confirmation, the retry hint includes `--exclude-other` when needed.
+Existing contact entries and manual exclusions are preserved.
 
 `--exclude-other` requires `--search` with usable positive full-address/domain criteria.
 Using it with `--label`, or with a search lacking those criteria, fails before authorization or
@@ -457,12 +465,11 @@ review the numbered preview. No labels are inferred.
 address supplied through those other inputs, an extracted address carries no label-change request.
 Addresses already on the contact are skipped; all existing labels and duplicate entries remain.
 
-Interactive runs show only new addresses as numbered proposed additions. Enter `all` or numbers
-and ascending ranges such as `3-5,8`. Overlaps count once; selections preserve displayed order.
-Invalid input asks again; blank input repeats selection. `q` or end-of-input cancels without writes.
-The selected preview retains the original numbers. At final confirmation, `y` saves, `n` or Enter
-returns to selection, and `q` or end-of-input cancels. Numbered selection currently applies only to
-URL input; other commands retain their existing prompts.
+Interactive runs show only new addresses as numbered proposed additions. They use the same
+single-step selection prompt and final confirmation as
+[sender-sync](#grouping-additions-by-address-criteria). Enter `all` or numbers and ranges directly;
+a subset preview retains original numbers. Selecting all does not repeat the list. One available
+address goes straight to confirmation. Other commands retain their existing prompts.
 
 Noninteractive runs preview all additions without prompting or writing. `--apply` selects and saves
 all new addresses without selection or confirmation. Existing conflict protection and independent

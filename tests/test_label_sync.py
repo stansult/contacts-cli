@@ -17,8 +17,8 @@ def test_label_sync_without_filter_fetch(api, server, monkeypatch, capsys, apply
     prompts = []
 
     def decline():
-        prompts.append(capsys.readouterr().err)
-        return "n"
+        prompts.append(capsys.readouterr().out)
+        return "q"
 
     monkeypatch.setattr("builtins.input", decline)
     assert cli.main(ARGS + (["--apply"] if apply else [])) == 0
@@ -26,7 +26,7 @@ def test_label_sync_without_filter_fetch(api, server, monkeypatch, capsys, apply
     assert not any("filter" in path for _, path, _, _ in server.calls)
     assert len(prompts) == (0 if apply else 1)
     if prompts:
-        assert "Apply these additions?" in prompts[0]
+        assert "Choose addresses:" in prompts[0]
     assert "Ungrouped:" not in output.out
     assert server.writes == int(apply)
     assert len(server.person["emailAddresses"]) == (5 if apply else 2)

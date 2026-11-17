@@ -27,7 +27,8 @@ Later commands reuse the saved authorization. Local file validation needs no Goo
   as `https://contacts.google.com/person/c123456789` or its bare ID, `c123456789`.
 - Commands that change contacts show a preview and ask for confirmation. Enter or `n` at the
   final confirmation makes no changes. `--apply` skips that final confirmation; conflict choices
-  follow each command's rules. For URL email input, Enter or `n` returns to selection; `q` cancels.
+  follow each command's rules. For sender-sync and URL input with multiple addresses, Enter or `n`
+  returns to selection; `q` cancels.
   Piped or redirected runs without `--apply` do not write.
 - `add-contact` and `duplicate` create new contacts each time; they do not merge with existing ones.
 - Use `./contacts-cli <command> --help` for command options. Global options, including `--token`,
@@ -69,7 +70,8 @@ Case-only Gmail label matches prompt for a choice in interactive runs. A label c
 messages from unrelated senders; use `--exclude` or `--exclude-file` to skip their addresses.
 With `--search 'from:dhl.com OR subject:dhl'`, the preview separates addresses matching `dhl.com`
 from other senders. You can choose to skip those other senders, or use `--exclude-other` to skip
-them automatically. `--apply` alone includes both. See [address selection rules](docs/command-reference.md#grouping-additions-by-address-criteria).
+them automatically. You can then choose all remaining addresses or some by number.
+`--apply` alone includes both groups without selection. See [address selection rules](docs/command-reference.md#grouping-additions-by-address-criteria).
 
 Adds missing sender addresses from a Gmail label or search, excluding addresses already on the
 contact and your Gmail sending addresses. Sender names become email labels when useful. Use `--exclude ADDRESS`
@@ -99,7 +101,7 @@ For a webpage, use `--from-url` instead of address/file options:
 ./contacts-cli add-email --contact c123456789 --from-url 'https://example.com/contact'
 ```
 
-Select addresses using `all` or numbers/ranges such as `3-5,8`, then confirm. New addresses have
+Enter `all` or numbers/ranges such as `3-5,8`, then confirm. New addresses have
 no labels; existing addresses and labels stay unchanged. `--apply` adds all new addresses.
 See [webpage input](docs/command-reference.md#webpage-email-input) and
 [email conflict and apply rules](docs/command-reference.md#add-email-and-remove-email).

@@ -15,8 +15,8 @@ synchronized with the implementation.
 - `api.py` handles Google requests, conflict protection, and shared update verification;
   `auth.py` handles OAuth setup and token storage.
 - `web_emails.py` reads static webpages; `url_email_add.py` handles their email-addition flow.
-  `selection.py` parses and prompts for displayed numbers independently of item type; commands
-  own their previews and final confirmations.
+  `selection.py` provides number/range parsing, direct all/number/cancel choices, and reusable review
+  confirmation. Commands supply rows and wording, then map selected numbers to their write plans.
 - `output.py` and `progress.py` provide shared presentation; `metrics.py` and `error_logs.py`
   record local diagnostics.
 

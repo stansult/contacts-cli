@@ -14,7 +14,7 @@ def setup(api, server, monkeypatch, *, interactive=True, names=("Example/Deliver
     monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: api)
     for stream in (sys.stdin, sys.stdout, sys.stderr):
         monkeypatch.setattr(stream, "isatty", lambda: interactive)
-    monkeypatch.setattr(cli, "confirm_apply", lambda q: False)
+    monkeypatch.setattr(cli, "review_address_additions", lambda rows: None)
 
 
 ARGS = ["sender-sync", "--label", "example/delivery", "--contact", "c123"]
@@ -101,7 +101,8 @@ def test_multiple_default_and_eof(api, server, monkeypatch, capsys, answer):
     monkeypatch.setattr("builtins.input", respond)
     assert cli.main(ARGS) == 0
     output = capsys.readouterr().out
-    assert ("Cancelled" in output) == (answer == "EOF")
+    if answer == "EOF":
+        assert "Cancelled" in output
     if answer == "":
         assert "Label: 'EXAMPLE/DELIVERY'" in output
     assert server.writes == 0

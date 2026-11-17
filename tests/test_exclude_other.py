@@ -31,8 +31,8 @@ def configure(api, server, monkeypatch, *, tty=False, answers=(), query=QUERY):
     "answers,expected",
     [
         (["y", "y"], {"new@example.com"}),
-        (["n", "y"], {"new@example.com", "trash@example.com"}),
-        (["", "y"], {"new@example.com", "trash@example.com"}),
+        (["n", "all", "y"], {"new@example.com", "trash@example.com"}),
+        (["", "all", "y"], {"new@example.com", "trash@example.com"}),
         (["invalid", "yes", "y"], {"new@example.com"}),
         (["y", "n"], set()),
         ([None], set()),
@@ -54,14 +54,14 @@ def test_interactive_selection(api, server, monkeypatch, capsys, answers, expect
         noun = "addition" if count == 1 else "additions"
         assert f"Saved and verified {count} {noun}." in output.out
     if answers[0] in {"n", ""}:
-        assert "Will add both groups: 2 addresses." in output.out
-        assert "Add these 2 addresses to this contact?" in output.err
+        assert "Available from both groups: 2 addresses." in output.out
+        assert "Add these 2 addresses to this contact?" in output.out
     if answers[0] == "y":
-        assert "Will add only Matching address criteria: 1 address." in output.out
+        assert "Available from only Matching address criteria: 1 address." in output.out
         assert "Will skip Other senders: 1 address." in output.out
-        assert "Add this address to this contact?" in output.err
+        assert "Add this address to this contact?" in output.out
         if not expected:
-            assert "--exclude-other --apply" in output.out
+            assert "Cancelled; no changes made." in output.out
 
 
 @pytest.mark.parametrize(
@@ -122,7 +122,7 @@ def test_all_other_selected_out_is_noop(api, server, monkeypatch, capsys):
 
 def test_no_other_does_not_ask_group_question(api, server, monkeypatch, capsys):
     query = "to:example.com"
-    configure(api, server, monkeypatch, tty=True, answers=["n"], query=query)
+    configure(api, server, monkeypatch, tty=True, answers=["q"], query=query)
     assert cli.main(["sender-sync", "--contact", "c123", "--search", query]) == 0
     assert "Exclude Other senders?" not in capsys.readouterr().err
     assert server.writes == 0
@@ -133,7 +133,7 @@ def test_flag_still_requires_final_confirmation(api, server, monkeypatch, capsys
     assert cli.main(ARGS + ["--exclude-other"]) == 0
     output = capsys.readouterr()
     assert "Exclude Other senders?" not in output.err
-    assert "Add this address to this contact?" in output.err
+    assert "Add this address to this contact?" in output.out
     assert server.writes == 1
     assert "trash@example.com" not in {e["value"] for e in server.person["emailAddresses"]}
 

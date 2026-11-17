@@ -10,7 +10,6 @@ from contacts_cli import cli
 @pytest.mark.parametrize(
     "command,prompt",
     [
-        ("sender-sync", "Apply these additions? [y/N]"),
         ("duplicate", "Create this duplicate? [y/N]"),
     ],
 )
