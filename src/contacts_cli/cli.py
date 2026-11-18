@@ -15,13 +15,13 @@ from .core import (
     addition_entry,
     address_key,
     contact_resource,
-    email_update_body,
     make_plan,
     update_body,
 )
 from .custom_fields import run_custom_field
 from .duplicate import READ_FIELDS, make_duplicate_plan, replacement_name
-from .email_edit import make_edit_plan, verify_edit
+from .email_edit import make_edit_plan
+from .email_edit_ui import finish_email_edit
 from .error_logs import COMMAND as ERROR_LOG_COMMAND
 from .error_logs import TRACE, RunDiagnostics
 from .errors import InsufficientScopes, MissingToken, SyncError, WriteUnverified
@@ -173,7 +173,9 @@ def parser() -> argparse.ArgumentParser:
             help="UTF-8 address list (repeatable; combines with individual addresses)",
         )
         command.add_argument(
-            "--apply", action="store_true", help="Save without the final confirmation"
+            "--apply",
+            action="store_true",
+            help="Save all eligible changes without selection or final confirmation",
         )
         if action == "add":
             inputs.add_argument(
@@ -549,41 +551,7 @@ def run_email_edit(args, api):
     plan = make_edit_plan(
         person, args.entries, remove=args.command == "remove-email", resolve=resolve
     )
-    if args.command == "remove-email":
-        addresses = len(plan.changes)
-        emit_list(
-            "Removing" if args.apply else "Proposed removals",
-            email_rows(plan.removed),
-            suffix=f" ({addresses} {'address' if addresses == 1 else 'addresses'})",
-        )
-    else:
-        emit_list("Adding" if args.apply else "Proposed additions", email_rows(plan.added))
-        if plan.updates:
-            emit_list(
-                "Updating" if args.apply else "Proposed updates",
-                enumerate(plan.updates, 1),
-                unit=("change", "changes"),
-            )
-    if plan.absent:
-        emit_list("Not found", enumerate(plan.absent, 1), unit=("address", "addresses"))
-    if plan.skipped:
-        emit_list("Skipped conflicts", enumerate(plan.skipped, 1), unit=("conflict", "conflicts"))
-    emit(f"Remaining email entries: {len(plan.emails)}", primary=False)
-    if not plan.changes:
-        emit("No changes selected; no update made.")
-        return 0
-    body = email_update_body(plan.person, plan.emails)
-    question = (
-        "Remove these email entries?"
-        if args.command == "remove-email"
-        else "Apply these email changes?"
-    )
-    if args.apply or confirm_apply(question):
-        api.apply_email_change(plan.person, body, lambda saved: verify_edit(plan, saved))
-        emit(f"Saved and verified {len(plan.changes)} change(s).")
-    else:
-        emit("Preview only; no changes made. Use --apply to save changes.")
-    return 0
+    return finish_email_edit(args, api, plan, interactive=interactive)
 
 
 def run_duplicate(args, api):
@@ -831,6 +799,10 @@ def run_command(args):
         else:
             emit("\nInterrupted; no contact changes made.", file=sys.stderr)
         return 130
+    finally:
+        close = getattr(api, "close", None)
+        if callable(close):
+            close()
 
 
 if __name__ == "__main__":

@@ -94,3 +94,17 @@ def test_authorization_file_errors(guarded_cli, tmp_path, case):
         assert token.read_text() == case["content"]
     else:
         assert not token.exists()
+
+
+def test_installed_persistent_worker_rejects_write_without_network(guarded_cli):
+    code = (
+        "from contacts_cli.persistent_reader import PersistentReader; "
+        "reader = PersistentReader(); "
+        "result = reader.request({'action': 'read', 'method': 'PATCH', 'headers': {}}); "
+        "assert result['error']['kind'] == 'read'; "
+        "assert reader.process is None; reader.close()"
+    )
+    result, log = guarded_cli(["-c", code], python=True)
+    assert result.returncode == 0, result.stderr
+    assert "blocked external action" not in log
+    assert log.count("guard ready") == 2  # Both installed parent and worker load the guard.

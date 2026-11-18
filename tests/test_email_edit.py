@@ -67,7 +67,8 @@ def test_remove_all_duplicates_and_noop(connected, server, capsys, apply):
     assert "Remaining email entries: 0" in text
     assert ("Removing" if apply else "Proposed removals") + ": 2 entries (1 address)" in text
     assert (
-        "  1. same@example.com — Work\n  2. SAME@example.com — Billing [duplicate of #1]\n" in text
+        "  1. same@example.com — 2 entries\n"
+        "     same@example.com — Work\n     SAME@example.com — Billing\n" in text
     )
     assert "absent@example.com" in text
     assert "entry(s)" not in text
@@ -140,7 +141,7 @@ def test_interactive_conflicts_then_final_confirmation(
     for stream in (cli.sys.stdin, cli.sys.stdout, cli.sys.stderr):
         monkeypatch.setattr(stream, "isatty", lambda: True)
     answers = iter(
-        ([choice] if choice in {"a", "s"} else [choice, choice]) + (["y"] if changes else [])
+        ([choice] if choice in {"a", "s"} else [choice, choice]) + (["all", "y"] if changes else [])
     )
     monkeypatch.setattr("builtins.input", lambda: next(answers))
     assert cli.main(args("add", "--add", "one@example.com", "--add", "two@example.com")) == 0
@@ -304,13 +305,13 @@ def test_removal_duplicates_reference_first_row_per_address(connected, server, c
         == 0
     )
     text = capsys.readouterr().out
-    assert "  1. a@example.com — Work\n" in text
-    assert "  2. A@example.com [duplicate of #1]\n" in text
-    assert "  3. a@example.com — Other [duplicate of #1]\n" in text
-    assert "  4. b@example.com\n" in text
-    assert "  5. B@example.com — Home [duplicate of #4]\n" in text
-    assert "  6. c@example.com\n" in text
-    assert text.count("[duplicate of #") == 3
+    assert "  1. a@example.com — 3 entries\n" in text
+    assert "     A@example.com — (no label)\n" in text
+    assert "     a@example.com — Other\n" in text
+    assert "  2. b@example.com — 2 entries\n" in text
+    assert "     B@example.com — Home\n" in text
+    assert "  3. c@example.com\n" in text
+    assert "[duplicate of" not in text
     assert server.writes == 0
 
 
@@ -350,7 +351,7 @@ def test_conflicts_use_local_numbers_after_consolidation(connected, server, monk
         "  2. A@example.com — Second [duplicate of #1]" in text
     )
     assert "Existing matches: 1 entry\n  1. b@example.com — Third" in text
-    assert "Skipped conflicts: 1 conflict\n  1. b@example.com" in text
+    assert "  2. b@example.com" in text
     assert server.writes == 0
 
 
@@ -367,7 +368,7 @@ def test_removal_not_found_and_local_numbers(connected, server, capsys):
     )
     text = capsys.readouterr().out
     assert "Proposed removals: 1 entry (1 address)\n  1. remove@example.com" in text
-    assert "Not found: 1 address\n  1. missing@example.com" in text
+    assert "  2. missing@example.com" in text
 
 
 @pytest.mark.parametrize("command", ["list-email", "list-emails"])

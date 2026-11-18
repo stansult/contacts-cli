@@ -502,6 +502,35 @@ Single-available-address confirmation tests cover Yes, No, Enter, q, and end-of-
 retained nonsequential numbering. They failed against the redundant cancel menu before the fix.
 Selecting one address from several separately verifies that Return to selection remains available.
 
+`tests/test_email_selection.py` covers mixed addition/update selection, whole-address duplicate
+removal (case variants, missing labels, primary markers), returning to selection without repeated
+conflict prompts, cancellation, informational-number rejection, stale previews, and a valid subset
+of an oversized proposal. Exact saved-list assertions verify preservation of unselected data.
+The initial selection regressions failed before integration. Temporarily bypassing the selected-input
+filter caused eight tests to fail, including preservation, skipped conflicts, and size limits; the
+fault was restored. Existing transport fixtures model full-field replacement and concurrent edits;
+the stale-preview tests expect the external edit to remain saved with zero CLI writes.
+
+### Persistent read transport
+
+[The transport design and benchmark guide](persistent-reader-prototype.md) describes the worker and its
+local-only test server. `test_persistent_reader_probe.py` runs a child fixture with real loopback
+HTTP keep-alive, synthetic credentials, explicit stalls, and protocol failures. This is an explicit
+exception to socket-free child fixtures: it binds only localhost and never contacts Google.
+These tests now import the production worker and IPC client directly. `test_read_deadline.py`
+also verifies successful retries reuse the process, connection failures replace it, backoff shares
+the original deadline, refreshed read credentials reach parent-side writes, and command exits
+close resources on success, handled errors, interruption, and unexpected exceptions. Repeated CLI
+invocations get separate workers. The installed-wheel suite starts the real packaged worker and
+checks its write guard with external actions blocked.
+
+
+Integration regression sensitivity was checked with reversible faults: disabling connection reuse,
+skipping command cleanup, dropping refreshed credentials, and extending the read deadline each
+failed the corresponding test. Each fault was restored before the final complete suite. The retry
+fixture independently proves a 503-then-200 sequence. The fake Google transport exposes close
+calls, and the installed subprocess guard appends evidence from both parent and worker.
+
 
 ### Command active timing
 

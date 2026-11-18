@@ -95,3 +95,12 @@ def test_fixture_search_does_not_collapse_plus_or_dot_variants(server):
         ),
     )
     assert [item["id"] for item in result["messages"]] == ["1", "2"]
+
+
+def test_fixture_close_is_observable_and_does_not_modify_data(server):
+    original = deepcopy(server.person)
+    assert server.close_calls == 0
+    server.close()
+    assert server.close_calls == 1
+    assert server.person == original
+    assert server.writes == 0

@@ -178,3 +178,21 @@ def test_connected_reads_use_deadline_transport(monkeypatch):
     assert isinstance(
         api.people.people().get(resourceName="people/c123", personFields="names").http, DeadlineHTTP
     )
+
+
+def test_failed_client_setup_closes_transport(monkeypatch):
+    from contacts_cli.deadline import DeadlineHTTP
+
+    monkeypatch.setattr(auth, "load_credentials", lambda _: Mock(universe_domain="googleapis.com"))
+    closed = []
+    original = DeadlineHTTP.close
+
+    def close(self):
+        original(self)
+        closed.append(self.closed)
+
+    monkeypatch.setattr(DeadlineHTTP, "close", close)
+    monkeypatch.setattr(auth, "build", Mock(side_effect=ValueError("synthetic build failure")))
+    with pytest.raises(ValueError, match="synthetic build failure"):
+        auth.connect(None)
+    assert closed == [True]

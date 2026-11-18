@@ -30,8 +30,19 @@ def stalled(*args, **kwargs):
         os.close(writer)
 
 
+REQUEST_COUNTS = {}
+
+
 def request(self, uri, method="GET", *args, **kwargs):
     mode = urlsplit(uri).path.lstrip("/")
+    REQUEST_COUNTS[mode] = REQUEST_COUNTS.get(mode, 0) + 1
+    if mode == "retry-once" and REQUEST_COUNTS[mode] == 1:
+        return httplib2.Response({"status": "503"}), b"{}"
+    if mode == "connection-once":
+        attempt = Path(os.environ["CONNECTION_ATTEMPT_FILE"])
+        if not attempt.exists():
+            attempt.write_text("connection failed")
+            raise ConnectionResetError("synthetic disconnect")
     marker = os.environ.get("DEADLINE_TEST_MARKER")
     if marker:
         Path(marker).write_text(str(os.getpid()))

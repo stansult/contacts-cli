@@ -52,13 +52,15 @@ def select_numbers(numbers, *, noun="items"):
             emit(str(exc))
 
 
-def review_selection(rows, *, noun, heading, unit, question, action):
+def review_selection(rows, *, noun, heading, unit, question, action, preview=None):
     """Review displayed choices and confirm; return numbers or None, never write."""
     rows = list(rows)
     numbers = [number for number, _ in rows]
     if not numbers:
         return None
     if len(numbers) == 1:
+        if preview:
+            preview(numbers)
         emit(f"\n{question(1)} [y/N] ", end="")
         try:
             return numbers if read_input().strip().casefold() in {"y", "yes"} else None
@@ -69,7 +71,9 @@ def review_selection(rows, *, noun, heading, unit, question, action):
         selected = select_numbers(numbers, noun=noun)
         if selected is None:
             return None
-        if selected != numbers:
+        if preview:
+            preview(selected)
+        elif selected != numbers:
             emit_list(heading, [(i, text) for i, text in rows if i in selected], unit=unit)
         while True:
             emit(question(len(selected)))

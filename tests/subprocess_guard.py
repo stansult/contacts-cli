@@ -32,4 +32,5 @@ webbrowser.open = blocked
 webbrowser.open_new = blocked
 webbrowser.open_new_tab = blocked
 webbrowser.get = blocked
-LOG.write_text("guard ready\n")
+with LOG.open("a") as stream:
+    stream.write("guard ready\n")

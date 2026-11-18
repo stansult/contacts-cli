@@ -16,7 +16,21 @@ from contacts_cli import deadline
 from contacts_cli.api import execute
 from contacts_cli.errors import SyncError
 
-POPEN_CLASS = deadline.subprocess.Popen
+
+@pytest.fixture(autouse=True)
+def close_transports(monkeypatch):
+    transports = []
+    original = deadline.DeadlineHTTP.__init__
+
+    def init(self, *args, **kwargs):
+        original(self, *args, **kwargs)
+        transports.append(self)
+
+    monkeypatch.setattr(deadline.DeadlineHTTP, "__init__", init)
+    yield
+    for transport in transports:
+        transport.close()
+
 
 WORKER = [sys.executable, str(Path(__file__).parent / "fixtures" / "deadline_worker.py")]
 
@@ -32,7 +46,9 @@ def credentials():
 
 
 def request(mode):
-    transport = deadline.DeadlineHTTP(AuthorizedHttp(credentials()), worker_command=WORKER)
+    transport = deadline.DeadlineHTTP(
+        AuthorizedHttp(credentials()), worker_command=WORKER + ["--persistent"]
+    )
     return HttpRequest(
         transport,
         lambda resp, content: json.loads(content),
@@ -107,7 +123,7 @@ def test_interrupt_reaps_worker(monkeypatch, workers):
     def interrupted(self, *args, **kwargs):
         raise KeyboardInterrupt
 
-    monkeypatch.setattr(POPEN_CLASS, "communicate", interrupted)
+    monkeypatch.setattr(deadline.PersistentReader, "_exchange", interrupted)
     with pytest.raises(KeyboardInterrupt):
         execute(request("response-stall"))
     assert len(workers) == 1
@@ -210,3 +226,137 @@ def test_repeated_success_reuses_refreshed_token():
     assert execute(req) == {"ok": True}
     # The fixture checks the Authorization header, including on the next read.
     assert execute(req) == {"ok": True}
+
+
+def test_retries_reuse_worker_and_fresh_operation_budget(monkeypatch):
+    req = request("retry-once")
+    req._sleep = lambda seconds: None
+    assert execute(req) == {"ok": True}
+    child = req.http.reader.process
+    assert req.http.reader.sequence == 2
+    assert child.poll() is None
+    assert execute(req) == {"ok": True}
+    assert req.http.reader.process is child
+    assert req.http.reader.sequence == 3
+    req.http.close()
+    assert child.poll() is not None
+    assert all(pipe.closed for pipe in (child.stdin, child.stdout, child.stderr))
+
+
+def test_connection_retry_replaces_failed_worker(monkeypatch, tmp_path, workers):
+    monkeypatch.setenv("CONNECTION_ATTEMPT_FILE", str(tmp_path / "attempt"))
+    req = request("connection-once")
+    req._sleep = lambda seconds: None
+    assert execute(req) == {"ok": True}
+    assert len(workers) == 2
+    assert workers[0].poll() is not None
+    assert workers[1].poll() is None
+    req.http.close()
+
+
+def test_backoff_timeout_discards_idle_worker(monkeypatch, workers):
+    monkeypatch.setattr(deadline, "READ_TIMEOUT_SECONDS", 0.8)
+    req = request("backoff")
+    req._rand = lambda: 10
+    with pytest.raises(SyncError, match="timed out"):
+        execute(req)
+    assert req.http.reader.process is None
+    assert len(workers) == 1
+
+
+def test_read_refresh_is_used_by_parent_write():
+    req = request("success")
+    assert execute(req) == {"ok": True}
+    parent = req.http.http
+    parent.http.request = Mock(return_value=(httplib2.Response({"status": "200"}), b"{}"))
+    write = HttpRequest(req.http, lambda r, c: {}, "https://example.invalid", method="PATCH")
+    execute(write, write=True)
+    assert (
+        parent.http.request.call_args.kwargs["headers"]["authorization"]
+        == "Bearer synthetic-refreshed"
+    )
+    assert req.http.reader.sequence == 1
+
+
+def test_dns_details_preserved_in_diagnostics():
+    from contacts_cli.error_logs import TRACE, RunDiagnostics
+
+    trace = RunDiagnostics("sender-sync", "synthetic")
+    token = TRACE.set(trace)
+    try:
+        with pytest.raises(SyncError, match="resolve"):
+            execute(request("dns-error"))
+    finally:
+        TRACE.reset(token)
+        trace.finish(1)
+    from contacts_cli import error_logs
+
+    text = next(error_logs.log_directory().glob("run-*.jsonl")).read_text()
+    assert "read_worker_error" in text and "gaierror" in text
+    assert "synthetic-refreshed" not in text
+
+
+@pytest.mark.parametrize(
+    "failure", [None, SyncError("synthetic"), KeyboardInterrupt(), RuntimeError("synthetic")]
+)
+def test_cli_closes_worker_on_every_exit_and_repeated_invocation(monkeypatch, failure):
+    from types import SimpleNamespace
+
+    from contacts_cli import cli
+    from contacts_cli.api import GoogleAPI
+
+    children = []
+    transports = []
+
+    def connect(*args):
+        req = request("success")
+        transports.append(req.http)
+        return GoogleAPI(SimpleNamespace(_http=req.http), None)
+
+    def run(args, api):
+        req = HttpRequest(api.gmail._http, lambda r, c: {}, "https://example.invalid/success")
+        execute(req)
+        children.append(req.http.reader.process)
+        if failure is not None:
+            raise failure
+        return 0
+
+    monkeypatch.setattr(cli, "connect_with_authorization", connect)
+    monkeypatch.setattr(cli, "run_list_email", run)
+    for _ in range(2):
+        if isinstance(failure, RuntimeError):
+            with pytest.raises(RuntimeError, match="synthetic"):
+                cli.main(["list-email", "--contact", "c123"])
+        else:
+            code = cli.main(["list-email", "--contact", "c123"])
+            assert code == (130 if isinstance(failure, KeyboardInterrupt) else 1 if failure else 0)
+        assert children[-1].poll() is not None
+        assert all(p.closed for p in (children[-1].stdin, children[-1].stdout, children[-1].stderr))
+        assert transports[-1].closed
+    assert children[0].pid != children[1].pid
+
+
+def test_retry_fixture_contract():
+    payload = {
+        "action": "read",
+        "credentials": json.loads(credentials().to_json()),
+        "uri": "https://example.invalid/retry-once",
+        "method": "GET",
+        "body": None,
+        "headers": {},
+        "redirections": 5,
+        "timeout": 1,
+    }
+    packets = [{"id": number, "payload": payload} for number in (1, 2)]
+    result = deadline.subprocess.run(
+        WORKER + ["--persistent"],
+        input="".join(json.dumps(packet) + "\n" for packet in packets),
+        text=True,
+        capture_output=True,
+        timeout=3,
+        check=True,
+    )
+    replies = [json.loads(line) for line in result.stdout.splitlines()]
+    assert [reply["id"] for reply in replies] == [1, 2]
+    assert [reply["result"]["headers"]["status"] for reply in replies] == ["503", "200"]
+    assert not result.stderr

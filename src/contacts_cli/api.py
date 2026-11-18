@@ -98,6 +98,9 @@ class GoogleAPI:
         self.people = people
         self.write_started = False
 
+    def close(self):
+        self.gmail._http.close()
+
     def write(self, request, *, operation="update"):
         # Keep this set through subsequent reads: an interruption during
         # verification must not claim that no contact changes were made.

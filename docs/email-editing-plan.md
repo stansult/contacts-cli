@@ -36,7 +36,8 @@ duplicate consolidation. This keeps scripted operations predictable without new 
 ## Share display and naming conventions
 
 Email lists use the shared numbered renderer. Editing displays existing entries only when needed
-for a conflict decision; `list-email` provides the complete list. Each displayed list starts at 1.
+for a conflict decision; `list-email` provides the complete list. Additions and updates share continuous numbering; removals number whole address groups.
+Informational numbers follow proposed changes and cannot be selected. Conflict lists start at 1.
 Help and examples use singular commands in list, add, remove order; plural forms are accepted
 silently for convenience.
 
@@ -47,3 +48,11 @@ URL extraction supplies addresses without labels. It skips existing addresses, p
 labels and duplicate entries, instead of treating missing page context as a request to remove labels.
 New addresses are reviewed through reusable numbered selection before final confirmation. Label
 inference is deferred until representative pages establish useful behavior.
+
+## Select approved address changes
+
+Conflict decisions establish eligible changes before selection. Each selected update includes
+its complete duplicate consolidation; removal always selects all entries matching one address.
+Rebuild the selected result from the original contact and selected approved inputs, preserving
+unselected entries and avoiding repeated conflict prompts. Validate the selected contact size
+and retain the existing fresh-read/etag checks before writing.

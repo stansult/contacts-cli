@@ -1,4 +1,4 @@
-"""Bound network reads with a disposable process, including blocking DNS resolution."""
+"""Bound network reads with a reusable process, including blocking DNS resolution."""
 
 import base64
 import json
@@ -13,6 +13,7 @@ from google.oauth2.credentials import Credentials
 
 from .error_logs import TRACE
 from .errors import SyncError
+from .persistent_reader import PersistentReader
 
 READ_TIMEOUT_SECONDS = 15
 DEADLINE = ContextVar("read_deadline", default=None)
@@ -53,6 +54,11 @@ def read_budget(operation, request=None):
     try:
         yield
         remaining()
+    except BaseException:
+        transport = getattr(request, "http", None)
+        if isinstance(transport, DeadlineHTTP):
+            transport.reader._stop()
+        raise
     finally:
         if callable(original_sleep):
             request._sleep = original_sleep
@@ -79,21 +85,7 @@ def worker_call(payload, command=None):
         if process.returncode:
             raise SyncError("Google read worker failed; retry the command.")
         result = json.loads(output)
-        if "error" in result:
-            error = result["error"]
-            trace = TRACE.get()
-            if trace:
-                trace.event("read_worker_error", exceptions=error["details"])
-            kind = error["kind"]
-            if kind == "dns":
-                raise SyncError(
-                    "Could not resolve the Google server address. Check your connection and retry."
-                )
-            if kind == "timeout":
-                raise TimeoutError("Google read connection timed out")
-            if kind == "connection":
-                raise ConnectionError("Google read connection failed")
-            raise SyncError("Google API read failed; check connectivity and authorization.")
+        check_worker_result(result)
         return result
     finally:
         if process.poll() is None:
@@ -105,6 +97,25 @@ def worker_call(payload, command=None):
         process.wait()
         for pipe in (process.stdin, process.stdout, process.stderr):
             pipe.close()
+
+
+def check_worker_result(result):
+    if "error" in result:
+        error = result["error"]
+        trace = TRACE.get()
+        if trace:
+            trace.event("read_worker_error", exceptions=error["details"])
+        kind = error["kind"]
+        if kind == "dns":
+            raise SyncError(
+                "Could not resolve the Google server address. Check your connection and retry."
+            )
+        if kind == "timeout":
+            raise TimeoutError("Google read connection timed out")
+        if kind == "connection":
+            raise ConnectionError("Google read connection failed")
+        raise SyncError("Google API read failed; check connectivity and authorization.")
+    return result
 
 
 def is_read(method, headers):
@@ -121,19 +132,31 @@ class DeadlineHTTP:
     def __init__(self, http, *, worker_command=None):
         self.http = http
         self.worker_command = worker_command
+        self.reader = PersistentReader(worker_command)
+        self.closed = False
+
+    def close(self):
+        if not self.closed:
+            self.closed = True
+            try:
+                self.reader.close()
+            finally:
+                self.http.close()
 
     @property
     def credentials(self):
         return self.http.credentials
 
     def request(self, uri, method="GET", body=None, headers=None, **kwargs):
+        if self.closed:
+            raise SyncError("Google transport is closed")
         if DEADLINE.get() is None:
             return self.http.request(uri, method, body=body, headers=headers, **kwargs)
         if not is_read(method, headers):
             raise SyncError("A network read attempted a write; no request sent.")
         if kwargs.get("connection_type") is not None:
             raise SyncError("Custom read connection types are unsupported.")
-        result = worker_call(
+        result = self.read(
             {
                 "action": "read",
                 "credentials": json.loads(self.credentials.to_json()),
@@ -145,11 +168,20 @@ class DeadlineHTTP:
                 "headers": dict(headers or {}),
                 "timeout": remaining(),
                 "redirections": kwargs.get("redirections", httplib2.DEFAULT_MAX_REDIRECTS),
-            },
-            self.worker_command,
+            }
         )
         self.http.credentials = Credentials.from_authorized_user_info(result["credentials"])
         return httplib2.Response(result["headers"]), base64.b64decode(result["content"])
+
+    def read(self, payload):
+        try:
+            result = self.reader.request(payload, seconds=remaining())
+        except TimeoutError:
+            remaining()
+            raise ReadTimeout("Google API read timed out; retry the command.") from None
+        except (OSError, RuntimeError, ValueError, KeyError, TypeError) as exc:
+            raise SyncError("Google read worker failed; retry the command.") from exc
+        return check_worker_result(result)
 
     def __getattr__(self, name):
         return getattr(self.http, name)

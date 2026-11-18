@@ -31,6 +31,7 @@ class FakeGoogle:
         self.photo_status = 200
         self.drop_copy_field = None
         self.calls = []
+        self.close_calls = 0
         self.writes = 0
         self.batch_reads = 0
         self.batch_status = 0
@@ -40,6 +41,9 @@ class FakeGoogle:
         self.reject_write = False
         self.lose_additions = False
         self.fail_verification = False
+
+    def close(self):
+        self.close_calls += 1
 
     def clients(self):
         return (

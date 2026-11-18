@@ -136,7 +136,11 @@ def connect(token_path: Path) -> GoogleAPI:
         AuthorizedHttp(credentials, http=httplib2.Http(timeout=30), max_refresh_attempts=0)
     )
     # The client library bundles discovery documents; no discovery network request.
-    return GoogleAPI(
-        build("gmail", "v1", http=http, cache_discovery=False, static_discovery=True),
-        build("people", "v1", http=http, cache_discovery=False, static_discovery=True),
-    )
+    try:
+        return GoogleAPI(
+            build("gmail", "v1", http=http, cache_discovery=False, static_discovery=True),
+            build("people", "v1", http=http, cache_discovery=False, static_discovery=True),
+        )
+    except BaseException:
+        http.close()
+        raise

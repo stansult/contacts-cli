@@ -44,7 +44,7 @@ The saved token selects the account; a URL's `/u/0/` or `/u/1/` segment does not
 
 Contact-changing commands show their intended changes before saving. Interactive confirmation requires
 terminal input, output, and error streams. Enter, `n`, or end-of-input at the final confirmation
-makes no changes. Sender-sync and URL email input return to selection on Enter or `n` when
+makes no changes. Sender-sync and email edits return to selection on Enter or `n` when
 multiple addresses are available; with one address, they cancel. `q` always cancels.
 Piped or redirected runs without `--apply` do not write; unresolved label choices
 may stop the run before a complete preview.
@@ -419,21 +419,35 @@ primary status is preserved. The preview shows the old labels and the entry-coun
 Conflict choices are `y` (Replace), `n` or Enter (Keep), `a` (Replace all conflicts), and `s`
 (Keep all conflicts). All applies to current and remaining stored-entry conflicts, not unrelated
 new additions. End-of-input keeps remaining conflicts. After these choices, the final preview
-lists changes, skipped conflicts, and remaining email entries, followed by one apply confirmation.
+lists changes, skipped conflicts, and remaining email entries. Interactive runs then select
+changes by number before final confirmation.
 
 `--replace-existing` approves all stored-entry conflicts but still requires final confirmation
 unless `--apply` is also supplied. With `--apply` alone, existing conflicts are preserved and
 reported while non-conflicting changes are saved. Noninteractive runs do not ask conflict questions;
 without `--apply` they only preview. Unresolved conflicts are shown under Skipped conflicts.
 
-Removal deletes all entries matching each address, regardless of labels, with counts shown in
-the preview. Each stored entry has its own numbered row, including duplicates; rows show the
-address and its label when present. Later occurrences of the same address (ignoring case) show
-`[duplicate of #N]`, referencing its first row, without implying a preferred entry.
-The heading counts both entries and distinct addresses.
+Removal deletes all entries matching each address, regardless of labels. Each distinct address
+has one selectable number, including case-only duplicates. Duplicate groups show every stored
+spelling and label on indented lines; empty labels say `(no label)`, and primary entries are
+marked `(primary)`. Repeated labels are shown once per stored entry. A single unlabeled entry
+shows only its address. The heading counts both entries and distinct addresses.
 Absent addresses are listed under Not found. Removing every email is allowed and
 leaves the contact intact with zero email entries. A no-op performs no update. Later sender-sync
 runs can add matching senders again; reuse the removal list as exclusions if appropriate.
+
+Interactive add/remove runs use `all`, numbers/ranges such as `3-5,8`, or `q` to cancel.
+Additions and updates have continuous numbering; each update (including duplicate consolidation)
+is indivisible. Removal numbers select whole address groups. Not found and Skipped conflicts
+use separate, nonselectable numbers after the proposed changes and are marked informational.
+Subset previews retain original numbers and recalculate remaining email entries. Only selected
+changes are applied; unselected entries retain their original labels, duplicates, and metadata.
+
+No or Enter at final confirmation returns to selection without repeating label-conflict decisions.
+With one eligible change, a simple `[y/N]` confirmation replaces selection; for a duplicate removal
+it states the full entry count. Zero changes means no prompt. A smaller selected subset is checked
+against size limits independently of the full proposal. `--apply` saves all eligible changes,
+respecting the existing conflict rules; noninteractive runs without it remain preview-only.
 
 Only emailAddresses is written. Other contact fields and retained email metadata are preserved.
 A fresh read and etag check reject concurrent changes; writes are not automatically retried.
@@ -469,7 +483,7 @@ Interactive runs show only new addresses as numbered proposed additions. They us
 single-step selection prompt and final confirmation as
 [sender-sync](#grouping-additions-by-address-criteria). Enter `all` or numbers and ranges directly;
 a subset preview retains original numbers. Selecting all does not repeat the list. One available
-address goes straight to confirmation. Other commands retain their existing prompts.
+address goes straight to confirmation.
 
 Noninteractive runs preview all additions without prompting or writing. `--apply` selects and saves
 all new addresses without selection or confirmation. Existing conflict protection and independent
@@ -483,10 +497,10 @@ including missing addresses and skipped conflicts. Addition rows do not repeat â
 have a separate section showing the old and new values.
 
 Use `list-email` to see all existing entries. Add/remove commands show only the existing total;
-existing entries are displayed when needed for a conflict decision. Email-editing lists start
-at 1, including conflict matches and removal previews. Sender-sync numbering continues across
-its two address groups. Duplicate references point to the first
-occurrence within that list. Numbers do not identify a preferred or primary address.
+existing entries are displayed when needed for a conflict decision. Conflict-match lists start at 1. Proposed additions and updates share continuous numbering;
+removal previews number distinct addresses. Sender-sync numbering continues across
+its two address groups. Duplicate references in list-email and conflict lists point to the first
+occurrence within that list; removal previews use grouped details instead. Numbers do not identify a preferred or primary address.
 
 Without `--apply`, change headings say Proposed additions, Proposed updates, or Proposed removals.
 With `--apply`, they say Adding, Updating, or Removing. These headings describe the requested action;
@@ -691,8 +705,9 @@ Error: Reading contact timed out after 15 seconds. Check your connection and ret
 ```
 
 DNS resolution failures stop without retrying. Other eligible read failures can retry within the
-same deadline. The CLI stops and cleans up the read worker on timeout or Ctrl+C; brief process
-cleanup can add a fraction of a second. Use `--diagnostics` with sender-sync to record details.
+same deadline. Reads reuse a worker and HTTP connections within the command to reduce repeated
+startup and connection overhead. The worker is closed when the command ends, and discarded on
+failure or Ctrl+C. Brief process cleanup can add a fraction of a second. Use `--diagnostics` with sender-sync to record details.
 
 Writes are not retried and retain their existing transport behavior. A timeout while verifying
 an already-submitted write still reports an unverified result; it does not imply the write failed.

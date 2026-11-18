@@ -27,7 +27,7 @@ Later commands reuse the saved authorization. Local file validation needs no Goo
   as `https://contacts.google.com/person/c123456789` or its bare ID, `c123456789`.
 - Commands that change contacts show a preview and ask for confirmation. Enter or `n` at the
   final confirmation makes no changes. `--apply` skips that final confirmation; conflict choices
-  follow each command's rules. For sender-sync and URL input with multiple addresses, Enter or `n`
+  follow each command's rules. For sender-sync and email edits with multiple eligible changes, Enter or `n`
   returns to selection; `q` cancels.
   Piped or redirected runs without `--apply` do not write.
 - `add-contact` and `duplicate` create new contacts each time; they do not merge with existing ones.
@@ -94,6 +94,8 @@ Shows a numbered list with labels and duplicate references.
 
 Repeat the address option or use `--add-file` / `--remove-file` for lists. Removal deletes all
 matching entries. Adding an existing address can change its label or consolidate duplicates.
+Select all proposed changes or specific numbers/ranges before confirming. Each removal number
+selects one address and all its duplicate entries.
 
 For a webpage, use `--from-url` instead of address/file options:
 
