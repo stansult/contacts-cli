@@ -517,6 +517,10 @@ the stale-preview tests expect the external edit to remain saved with zero CLI w
 local-only test server. `test_persistent_reader_probe.py` runs a child fixture with real loopback
 HTTP keep-alive, synthetic credentials, explicit stalls, and protocol failures. This is an explicit
 exception to socket-free child fixtures: it binds only localhost and never contacts Google.
+Server startup skips `HTTPServer`'s reverse-DNS lookup; a regression test forbids both hostname
+and reverse-address resolution while exercising a complete fixture request. That test failed at
+`HTTPServer.server_bind` before the override. Intentional DNS-stall scenarios still test the
+client resolver independently.
 These tests now import the production worker and IPC client directly. `test_read_deadline.py`
 also verifies successful retries reuse the process, connection failures replace it, backoff shares
 the original deadline, refreshed read credentials reach parent-side writes, and command exits

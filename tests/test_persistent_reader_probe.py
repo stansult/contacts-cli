@@ -124,3 +124,25 @@ def test_write_guard_precedes_transport():
 
     with pytest.raises(ValueError, match="Only reads"):
         ReadSession(forbidden).perform({"action": "read", "method": "PATCH", "headers": {}})
+
+
+def test_fixture_startup_does_not_resolve_hostnames():
+    # HTTPServer normally does reverse DNS even when bound to a numeric loopback address.
+    # Make that hidden dependency fail deterministically instead of relying on host DNS speed.
+    code = (
+        "import runpy, socket, sys; "
+        "deny = lambda *a, **k: (_ for _ in ()).throw(AssertionError('unexpected reverse DNS')); "
+        "socket.getfqdn = deny; socket.gethostbyaddr = deny; "
+        "runpy.run_path(sys.argv[1], run_name='__main__')"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code, WORKER[1]],
+        input=json.dumps({"id": 1, "payload": {"timeout": 2}}) + "\n",
+        text=True,
+        capture_output=True,
+        timeout=5,
+    )
+    assert result.returncode == 0, result.stderr
+    reply = json.loads(result.stdout)
+    assert reply["id"] == 1
+    assert body(reply["result"])["connections"] == 1

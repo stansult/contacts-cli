@@ -4,6 +4,7 @@ import json
 import os
 import signal
 import socket
+import socketserver
 import sys
 import threading
 import time
@@ -19,6 +20,11 @@ from contacts_cli.read_worker import ReadSession  # noqa: E402
 class Server(ThreadingHTTPServer):
     accepted = 0
     daemon_threads = True
+
+    def server_bind(self):
+        # HTTPServer.server_bind performs reverse DNS, unrelated to this loopback fixture.
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
 
     def get_request(self):
         result = super().get_request()
