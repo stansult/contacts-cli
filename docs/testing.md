@@ -562,3 +562,25 @@ and Created markers, plus original input numbers and selected-only counts after 
 interruption. Single-contact confirmation, noninteractive previews, and `--apply` retain their
 existing behavior; validation still covers the full input. Six subset/failure cases failed
 against the original all-or-nothing implementation before the change.
+
+### Custom-field removal selection
+
+`test_custom_field_selection.py` checks subsets, ranges, overlap, reselection, cancellation,
+EOF/interruption, all-match apply, and noninteractive previews. It verifies exact-pair duplicate
+groups, separately selectable case variants, selected entry counts, and
+preservation of unselected and unrelated fields. Concurrent changes reject the selected write.
+Ten selection/output regression cases failed against the previous confirmation-only behavior.
+Existing custom-field fixture contracts and verification-failure tests remain in the full suite.
+
+Case-variant selection regressions check mixed groups and case-only key/value matches, retained
+spelling, all-match apply, and absence of existing/remaining totals. Updated assertions failed
+against the previous informational-only behavior before implementation. Addition stays exact.
+
+### Multiple custom-field additions
+
+`test_custom_field_add_pairs.py` covers repeatable two-argument `--field`, missing values before
+another option, blank/control-character input, rejection of legacy/mixed syntax, exact input
+deduplication, skipped existing pairs, case-distinct additions, subsets, reselection, cancellation,
+noninteractive preview, and all-new-pair apply. Selected additions retain concurrency and readback
+verification. New syntax/selection cases failed on the previous implementation; existing single-pair
+coverage now uses `--field`. Removal selector syntax is unchanged.

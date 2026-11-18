@@ -27,8 +27,8 @@ Later commands reuse the saved authorization. Local file validation needs no Goo
   as `https://contacts.google.com/person/c123456789` or its bare ID, `c123456789`.
 - Commands that change contacts show a preview and ask for confirmation. Enter or `n` at the
   final confirmation makes no changes. `--apply` skips that final confirmation; conflict choices
-  follow each command's rules. For contact creation, sender-sync, and email edits with multiple
-  choices, Enter or `n` returns to selection; `q` cancels.
+  follow each command's rules. For contact creation, sender-sync, email edits, and custom-field edits
+  with multiple choices, Enter or `n` returns to selection; `q` cancels.
   Piped or redirected runs without `--apply` do not write.
 - `add-contact` and `duplicate` create new contacts each time; they do not merge with existing ones.
 - Use `./contacts-cli <command> --help` for command options. Global options, including `--token`,
@@ -126,13 +126,18 @@ even with `--apply`. See [label choices](docs/command-reference.md#label-choices
 ## Add or remove custom fields
 
 ```sh
-./contacts-cli add-custom-field --contact c123456789 --key 'Pipeline ID' --value P-001
+./contacts-cli add-custom-field --contact c123456789 --field 'Pipeline ID' P-001
 ./contacts-cli remove-custom-field --contact c123456789 --key 'Pipeline ID' --value P-001
 ./contacts-cli remove-custom-field --contact c123456789 --key Created
 ```
 
-Keys and values match exactly, including case. Addition skips an existing pair and appends a new
-value. Removal without `--value` removes every entry with that key.
+Repeat `--field KEY VALUE` to add multiple pairs; quote text containing spaces. Addition matches
+exactly, skips existing pairs, and offers selection when several new pairs are proposed.
+The old addition `--key`/`--value` syntax is no longer supported.
+Removal offers exact and case-different matches in separate selectable groups. Without `--value`,
+it offers all values under the key and its case variants. Choose `all` or numbers/ranges
+before confirming; identical key/value duplicates stay together. `--apply` removes all matches,
+including case variants.
 See [custom field details](docs/command-reference.md#add-custom-field-and-remove-custom-field).
 
 ## Validate a contact file

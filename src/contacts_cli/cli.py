@@ -238,20 +238,42 @@ def parser() -> argparse.ArgumentParser:
     custom_commands = []
     for action in ("add", "remove"):
         custom = commands.add_parser(
-            f"{action}-custom-field", help=f"{action.title()} custom fields on a contact"
-        )
-        custom.add_argument("--contact", required=True, help="Google Contacts URL or bare ID")
-        custom.add_argument("--key", required=True, help="Exact, case-sensitive custom field name")
-        custom.add_argument(
-            "--value",
-            required=action == "add",
-            help=(
-                "Exact, case-sensitive value to add"
-                if action == "add"
-                else "Exact, case-sensitive value; omit to remove all entries with this key"
+            f"{action}-custom-field",
+            help=f"{action.title()} custom fields on a contact",
+            description=(
+                "Choose all or numbers/ranges from exact and case-different matches; "
+                "identical duplicates are removed together."
+                if action == "remove"
+                else None
             ),
         )
-        custom.add_argument("--apply", action="store_true", help="Save without final confirmation")
+        custom.add_argument("--contact", required=True, help="Google Contacts URL or bare ID")
+        if action == "add":
+            custom.add_argument(
+                "--field",
+                nargs=2,
+                action="append",
+                required=True,
+                metavar=("KEY", "VALUE"),
+                help="Nonblank key and value to add (repeatable); choose new pairs before saving",
+            )
+        else:
+            custom.add_argument(
+                "--key", required=True, help="Custom field name; case variants also offered"
+            )
+            custom.add_argument(
+                "--value",
+                help="Value, including case variants; omit to offer all values for the key",
+            )
+        custom.add_argument(
+            "--apply",
+            action="store_true",
+            help=(
+                "Remove all matches, including case variants, without selection or confirmation"
+                if action == "remove"
+                else "Add all new pairs without selection or final confirmation"
+            ),
+        )
         custom_commands.append(custom)
     validation = commands.add_parser(
         "validate-contact", help="Validate a contact JSON file locally without Google access"
@@ -737,7 +759,11 @@ def run_command(args):
             return 0
         # Reject bad input before touching credentials or the network.
         contact_resource(args.contact)
-        if args.command in {"add-custom-field", "remove-custom-field"}:
+        if args.command == "add-custom-field":
+            for number, (key, value) in enumerate(args.field, 1):
+                text_value(key, f"--field #{number} key")
+                text_value(value, f"--field #{number} value")
+        elif args.command == "remove-custom-field":
             text_value(args.key, "--key")
             if args.value is not None:
                 text_value(args.value, "--value")

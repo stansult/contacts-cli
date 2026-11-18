@@ -44,8 +44,9 @@ The saved token selects the account; a URL's `/u/0/` or `/u/1/` segment does not
 
 Contact-changing commands show their intended changes before saving. Interactive confirmation requires
 terminal input, output, and error streams. Enter, `n`, or end-of-input at the final confirmation
-makes no changes. Contact creation, sender-sync, and email edits return to selection on Enter or
-`n` when multiple items are available; with one item, they cancel. `q` always cancels.
+makes no changes. Contact creation, sender-sync, email edits, and custom-field edits return to
+selection on Enter or `n` when multiple choices are available; with one item, they cancel.
+`q` always cancels.
 Piped or redirected runs without `--apply` do not write; unresolved label choices
 may stop the run before a complete preview.
 
@@ -663,28 +664,61 @@ saved if a later operation fails.
 ## Add-custom-field and remove-custom-field
 
 ```sh
-./contacts-cli add-custom-field --contact c123456789 --key 'Pipeline ID' --value P-001
+./contacts-cli add-custom-field --contact c123456789 --field 'Pipeline ID' P-001
 ./contacts-cli remove-custom-field --contact c123456789 --key 'Pipeline ID' --value P-001
 ./contacts-cli remove-custom-field --contact c123456789 --key Duplicate
 ```
 
-These commands edit custom key/value entries (`userDefined` in Google Person JSON). Each invocation
-accepts one `--key`; addition requires `--value`. Removal accepts an optional value: supplying it
-removes all matching key/value pairs, including duplicates; omitting it removes every entry with
-that key. Removing `Created` or `Duplicate` affects only those stored custom fields, not the contact
-itself. These markers receive no special treatment.
+These commands edit custom key/value entries (`userDefined` in Google Person JSON).
+Addition requires repeatable `--field KEY VALUE`, with exactly two arguments per occurrence:
 
-Matching is exact and case-sensitive, with whitespace preserved. Input must be nonblank text
-without control characters. Case-only similarities are listed as notices, not selected as matches:
-adding `created` does not reuse `Created`; removing `created` does not remove `Created`.
-There is no case-choice menu. Adding an exact pair already present skips it, preserving any stored
-duplicates. A different value under the same key is appended, never used as a replacement. A removal
-with no matches reports a no-op. This version has no file input or replacement option.
+```sh
+./contacts-cli add-custom-field --contact c123456789 \
+  --field status active --field Status active --field Status Active
+```
 
-The numbered preview shows a total and the entries to add or remove, followed by the remaining
-entry count. Interactive runs ask for confirmation; noninteractive runs preview only unless
-`--apply` is supplied. `--apply` skips confirmation and uses Adding/Removing headings. The silent
-aliases `add-custom-fields` and `remove-custom-fields` are accepted; help uses singular names.
+Quote keys or values containing spaces. Missing arguments, empty/blank text, and control characters
+are rejected before Google access. A following `--field` cannot supply a preceding pair's missing
+value. The old addition syntax `--key KEY --value VALUE` is no longer accepted; replace it with
+`--field KEY VALUE`. Repeated identical input pairs count once, preserving input order. Existing
+exact pairs are skipped without consolidating their stored duplicates. Case-different pairs are
+separate additions. All supplied pairs are validated, including any later left unselected.
+
+Removal retains required `--key` and optional `--value`. Supplying a value
+limits candidates to that key/value pair and its case variants; omitting it offers all values
+under the key and its case variants.
+Removing a selected pair removes all its identical duplicates. Removing `Created` or `Duplicate`
+affects only those stored custom fields, not the contact itself. These markers receive no special treatment.
+
+Addition matches exactly and case-sensitively; case-only similarities remain informational.
+Adding an exact pair already present skips it, preserving stored duplicates. A different value
+under the same key is appended, never used as a replacement. Removal offers both exact matches
+and case-insensitive matches for the key and optional value, without a case-resolution prompt.
+Whitespace is preserved; supplied keys and values must be nonblank and contain no control characters.
+There is no file input, replacement option, or wildcard selector.
+
+The removal preview shows the total candidate entry count, then **Exact matches** and
+**Similar entries (case differs)**, omitting empty groups. Both groups are selectable with continuous
+numbering and stored spelling preserved. Identical key/value duplicates share one number and
+show their count, such as `Pipeline ID — P-001 (2 entries)`. Different spellings stay separate
+choices. Totals count entries, not groups. Neither addition nor removal displays existing or
+remaining custom-field counts. A removal with no candidates reports a no-op.
+
+With multiple matching pairs, choose `all`, numbers/ranges such as `1,3-5`, or `q` to cancel. A
+subset preview keeps original numbers. Final confirmation uses the full selected entry count;
+`n` or Enter returns to selection, and `q` or end-of-input
+cancels without writes. One matching pair uses a simple `[y/N]` confirmation, even when it has
+duplicates. Selecting one pair from several still offers Return to selection. All its duplicate
+entries are removed together. Unselected fields, including their order and metadata, are retained.
+
+Addition also offers `all`, numbers/ranges, and `q` when multiple new pairs are proposed, followed
+by confirmation. Subsets keep original numbers; `n` returns to selection. A single new pair uses
+simple `[y/N]` confirmation; no new pairs means no prompt or update. `--apply` adds every new pair
+without selection or confirmation. Unselected pairs are not added, and existing fields stay intact.
+
+Noninteractive runs preview only unless `--apply` is supplied. For removal, `--apply` removes all exact and case-different matches without
+selection or confirmation; headings use Adding/Removing. The silent aliases `add-custom-fields`
+and `remove-custom-fields` are accepted; help uses singular names.
 Both commands accept global `--token` and `--auth-timeout` options before or after the command.
 
 The update sends only the complete intended `userDefined` list and contact source metadata.

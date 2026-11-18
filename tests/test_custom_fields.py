@@ -58,10 +58,18 @@ def test_edits(action, value, expected, plural, apply, api, server, monkeypatch,
         "--key",
         "Pipeline ID",
     ]
-    if value is not None:
+    if action == "add":
+        args[-2:] = ["--field", "Pipeline ID", value]
+    elif value is not None:
         args += ["--value", value]
     assert cli.main(args + (["--apply"] if apply else [])) == 0
     output = capsys.readouterr().out
+    if action == "add":
+        assert "Existing custom field entries:" not in output
+        assert "Remaining custom field entries:" not in output
+    else:
+        assert "Existing custom field entries:" not in output
+        assert "Remaining custom field entries:" not in output
     assert server.person["userDefined"] == (expected if apply else ENTRIES)
     for key, entry in original.items():
         if key not in {"metadata", "userDefined"}:
@@ -76,7 +84,7 @@ def test_edits(action, value, expected, plural, apply, api, server, monkeypatch,
 
 
 @pytest.mark.parametrize("action", ["add", "remove"])
-def test_case_only_notice_is_not_a_match(action, api, server, monkeypatch, capsys):
+def test_case_only_notice_is_selectable_for_removal(action, api, server, monkeypatch, capsys):
     server.person["userDefined"] = [{"key": "Created", "value": "Example"}]
     monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: api)
     assert (
@@ -85,10 +93,11 @@ def test_case_only_notice_is_not_a_match(action, api, server, monkeypatch, capsy
                 f"{action}-custom-field",
                 "--contact",
                 "c123",
-                "--key",
-                "created",
-                "--value",
-                "example",
+                *(
+                    ["--field", "created", "example"]
+                    if action == "add"
+                    else ["--key", "created", "--value", "example"]
+                ),
                 "--apply",
             ]
         )
@@ -97,8 +106,8 @@ def test_case_only_notice_is_not_a_match(action, api, server, monkeypatch, capsy
     output = capsys.readouterr().out
     assert "Similar entries (case differs): 1 entry" in output
     assert "Created — Example" in output
-    assert len(server.person["userDefined"]) == (2 if action == "add" else 1)
-    assert server.writes == int(action == "add")
+    assert len(server.person["userDefined"]) == (2 if action == "add" else 0)
+    assert server.writes == 1
 
 
 @pytest.mark.parametrize("answer", [False, True])
@@ -121,7 +130,7 @@ def test_remove_final_entry_requires_confirmation(answer, api, server, monkeypat
 @pytest.mark.parametrize("key,value", [(" ", "x"), ("x", ""), ("x", "bad\nvalue")])
 def test_invalid_input_before_auth(key, value, monkeypatch):
     monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: pytest.fail("auth"))
-    assert cli.main(["add-custom-field", "--contact", "c123", "--key", key, "--value", value]) == 1
+    assert cli.main(["add-custom-field", "--contact", "c123", "--field", key, value]) == 1
 
 
 @pytest.mark.parametrize("fault", ["response", "readback", "unrelated", "concurrent"])
@@ -180,7 +189,7 @@ def test_global_options_and_singular_help(action):
         "5",
     ]
     if action == "add":
-        args += ["--value", "Example"]
+        args[3:5] = ["--field", "Created", "Example"]
     parsed = cli.parser().parse_args(args)
     assert str(parsed.token) == "/tmp/token.json" and parsed.auth_timeout == 5
     assert command + "s" not in cli.parser().format_help()
@@ -205,9 +214,8 @@ def test_size_guard_before_confirmation(api, server, monkeypatch):
                 "add-custom-field",
                 "--contact",
                 "c123",
-                "--key",
+                "--field",
                 "Example",
-                "--value",
                 "x" * (128 * 1024),
             ]
         )
@@ -227,7 +235,7 @@ def test_whitespace_is_significant(api, server, monkeypatch):
 
 def test_missing_add_value_is_usage_error():
     with pytest.raises(SystemExit) as exc:
-        cli.main(["add-custom-field", "--contact", "c123", "--key", "Created"])
+        cli.main(["add-custom-field", "--contact", "c123", "--field", "Created"])
     assert exc.value.code == 2
 
 
@@ -240,9 +248,8 @@ def test_add_first_custom_field(api, server, monkeypatch):
                 "add-custom-field",
                 "--contact",
                 "c123",
-                "--key",
+                "--field",
                 "Example",
-                "--value",
                 "First",
                 "--apply",
             ]
