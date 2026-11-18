@@ -12,6 +12,7 @@ from .core import contact_source, validate_contact
 from .duplicate import READ_FIELDS, creation_marker
 from .errors import SyncError, WriteUnverified
 from .output import emit, emit_list
+from .selection import review_selection
 from .timing import read_input
 
 
@@ -346,7 +347,6 @@ def contact_preview(person):
         for entry in entries:
             value = format_entry(field, entry).replace("\n", "\n       ")
             rows.append(f"     {FIELD_NAMES[field]}: {value}")
-    rows.append("     Custom field: Created: Created by contacts-cli (timestamp set at creation)")
     return "\n".join(rows)
 
 
@@ -370,9 +370,30 @@ def run_create(args, api, contacts, confirm):
     question = (
         "Create these contacts" + (f" and {len(missing)} new label(s)" if missing else "") + "?"
     )
-    if not args.apply and not confirm(question):
-        emit("Preview only; no changes made. Use --apply to create contacts.")
-        return 0
+    selected = list(range(1, len(contacts) + 1))
+    if not args.apply:
+        if len(contacts) > 1 and all(s.isatty() for s in (sys.stdin, sys.stdout, sys.stderr)):
+            selected = review_selection(
+                [(i, contact_preview(p)) for i, p in enumerate(contacts, 1)],
+                noun="contacts",
+                heading="Selected contacts",
+                unit=("contact", "contacts"),
+                question=lambda count: (
+                    ("Create this contact" if count == 1 else f"Create these {count} contacts")
+                    + (f" and {len(missing)} new label(s)" if missing else "")
+                    + "?"
+                ),
+                action="Create selected contacts",
+            )
+            if selected is None:
+                emit("Cancelled; no changes made.")
+                return 0
+        elif not confirm(question):
+            emit("Preview only; no changes made. Use --apply to create contacts.")
+            return 0
+    subset = len(selected) != len(contacts)
+    selected_contacts = [(number, contacts[number - 1]) for number in selected]
+    contacts = [person for _, person in selected_contacts]
     completed, created_labels, attempted = 0, 0, 0
     state, subject, kind = CreationState(), "", "label"
     try:
@@ -382,20 +403,21 @@ def run_create(args, api, contacts, confirm):
             labels[name] = create_label(api, name, state)
             created_labels += 1
         kind = "contact"
-        for i, person in enumerate(contacts, 1):
+        for i, (number, person) in enumerate(selected_contacts, 1):
             attempted = i
-            state, subject = CreationState(), f"Contact #{i}"
+            state, subject = CreationState(), f"Contact #{number}"
             body = deepcopy(person)
             if labels:
                 body["memberships"] = [
                     {"contactGroupMembership": {"contactGroupResourceName": resource}}
                     for resource in labels.values()
                 ]
-            emit(f"Creating contact {i} of {len(contacts)}…")
+            origin = f" (input #{number})" if subset else ""
+            emit(f"Creating contact {i} of {len(contacts)}{origin}…")
             create_contact(api, body, state)
             completed += 1
             if len(contacts) > 1:
-                emit(f"Verified contact {i} of {len(contacts)}.")
+                emit(f"Verified contact {i} of {len(contacts)}{origin}.")
     except (SyncError, KeyboardInterrupt) as exc:
         interrupted = isinstance(exc, KeyboardInterrupt)
         created = state.phase in {"created", "verified"}

@@ -432,3 +432,14 @@ def test_created_marker_is_verified(api, monkeypatch):
     monkeypatch.setattr(api, "get_contact", missing_marker)
     with pytest.raises(WriteUnverified, match="Custom field differs"):
         create_contact(api, {"names": [{"givenName": "Jane"}]})
+
+
+def test_preview_omits_automatic_marker_but_keeps_supplied_created_field():
+    from contacts_cli.contact_create import contact_preview
+
+    person = {"names": [{"givenName": "Jane"}]}
+    assert "Custom field:" not in contact_preview(person)
+    person["userDefined"] = [{"key": "Created", "value": "Imported history"}]
+    preview = contact_preview(person)
+    assert "Custom field: Created: Imported history" in preview
+    assert "Created by contacts-cli" not in preview

@@ -27,8 +27,8 @@ Later commands reuse the saved authorization. Local file validation needs no Goo
   as `https://contacts.google.com/person/c123456789` or its bare ID, `c123456789`.
 - Commands that change contacts show a preview and ask for confirmation. Enter or `n` at the
   final confirmation makes no changes. `--apply` skips that final confirmation; conflict choices
-  follow each command's rules. For sender-sync and email edits with multiple eligible changes, Enter or `n`
-  returns to selection; `q` cancels.
+  follow each command's rules. For contact creation, sender-sync, and email edits with multiple
+  choices, Enter or `n` returns to selection; `q` cancels.
   Piped or redirected runs without `--apply` do not write.
 - `add-contact` and `duplicate` create new contacts each time; they do not merge with existing ones.
 - Use `./contacts-cli <command> --help` for command options. Global options, including `--token`,
@@ -42,7 +42,9 @@ Later commands reuse the saved authorization. Local file validation needs no Goo
 ```
 
 Use inline options for a name and emails, or a JSON file for one or more contacts with additional
-fields. Each new contact gets a **Created** custom field with its creation time.
+fields. For multiple contacts, choose `all` or numbers/ranges such as `2,4-6`, then confirm.
+`--apply` creates every input contact without selection. Each new contact gets a **Created**
+custom field with its creation time.
 See [contact input and creation](docs/contact-input.md).
 
 ## Duplicate a contact

@@ -75,22 +75,37 @@ def file_exclusions(paths):
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(description="Work with Google contacts.")
     commands = result.add_subparsers(dest="command", required=True)
-    creation = commands.add_parser("add-contact", help="Preview or create new contacts")
+    creation = commands.add_parser(
+        "add-contact",
+        help="Preview or create new contacts",
+        description="Preview contacts; interactively select all or numbers/ranges before creation.",
+    )
     creation.add_argument("--name", help="Full name for one contact")
     creation.add_argument(
         "--email", action="append", default=[], help="Email for that contact (repeatable)"
     )
     creation.add_argument(
-        "--file", type=Path, help="UTF-8 JSON Person object or array; excludes inline fields"
+        "--file",
+        type=Path,
+        help=(
+            "UTF-8 JSON Person object or array; choose contacts interactively; "
+            "excludes inline fields"
+        ),
     )
     creation.add_argument(
         "--label",
         action="append",
         default=[],
-        help="Exact, case-sensitive contact label for all inputs; create if missing (repeatable)",
+        help=(
+            "Exact, case-sensitive label for every selected contact; create if missing (repeatable)"
+        ),
     )
     creation.add_argument(
-        "--apply", action="store_true", help="Skip final confirmation; label choices still prompt"
+        "--apply",
+        action="store_true",
+        help=(
+            "Create all inputs without selection or final confirmation; label choices still prompt"
+        ),
     )
     duplicate = commands.add_parser("duplicate", help="Preview or create a copy of a contact")
     duplicate.add_argument(

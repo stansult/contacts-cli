@@ -552,3 +552,13 @@ and validation before Google access. CLI cases cover duplicate groups, subsets, 
 noninteractive previews, apply, and concurrent edits. A stored literal-star address verifies
 that selection never expands patterns again. The new matching/selection tests failed against
 the original exact-address implementation before the feature was added.
+
+### Contact creation selection
+
+`test_contact_selection.py` exercises the shared number/range selector through `add-contact`:
+subsets, original input order/numbers, overlaps, invalid selections, reselection, cancellation,
+and end-of-input before any label or contact writes. It checks selected contact fields, labels,
+and Created markers, plus original input numbers and selected-only counts after failure or
+interruption. Single-contact confirmation, noninteractive previews, and `--apply` retain their
+existing behavior; validation still covers the full input. Six subset/failure cases failed
+against the original all-or-nothing implementation before the change.

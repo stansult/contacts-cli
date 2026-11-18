@@ -44,8 +44,8 @@ The saved token selects the account; a URL's `/u/0/` or `/u/1/` segment does not
 
 Contact-changing commands show their intended changes before saving. Interactive confirmation requires
 terminal input, output, and error streams. Enter, `n`, or end-of-input at the final confirmation
-makes no changes. Sender-sync and email edits return to selection on Enter or `n` when
-multiple addresses are available; with one address, they cancel. `q` always cancels.
+makes no changes. Contact creation, sender-sync, and email edits return to selection on Enter or
+`n` when multiple items are available; with one item, they cancel. `q` always cancels.
 Piped or redirected runs without `--apply` do not write; unresolved label choices
 may stop the run before a complete preview.
 
@@ -84,9 +84,13 @@ counter updates, without animation or control codes. These thresholds require no
 or an array. Repeatable `--label` reuses existing labels or previews missing labels for creation.
 Case-only label collisions require choosing an existing label, creating new, or cancelling;
 noninteractive collisions stop. `--apply` does not resolve this choice.
-Confirmation approves all contacts and new labels; `--apply` skips the final prompt. Noninteractive runs
-without `--apply` only preview. See [contact creation](contact-input.md) for supported fields,
-validation, progress, verification, and partial-failure behavior.
+For multiple contacts, choose `all` or original preview numbers/ranges, such as `2,4-6`, then
+confirm creation. A subset preview retains original numbers; `n` or Enter returns to selection,
+and `q` cancels. One input contact uses a simple `[y/N]` confirmation. Labels apply to all selected
+contacts and are created only after confirmation. `--apply` creates all input contacts without
+selection or final confirmation. Noninteractive runs without `--apply` only preview.
+See [contact creation](contact-input.md) for supported fields, validation, progress, verification,
+and partial-failure behavior.
 
 ## Duplicate a contact
 

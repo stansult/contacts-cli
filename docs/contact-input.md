@@ -1,7 +1,8 @@
 # New-contact input
 
-`add-contact` validates all input, previews every supplied field, and asks once before creating
-contacts and any missing labels. Use `--apply` to skip confirmation. Noninteractive runs without
+`add-contact` validates all input, previews every supplied field, and lets you select contacts
+before confirming creation and any missing labels. Use `--apply` to create all input contacts
+without selection or final confirmation. Noninteractive runs without
 `--apply` preview only. Each contact is created sequentially and independently read back to verify
 its supplied values; generated properties and entry reordering are allowed.
 
@@ -48,7 +49,7 @@ There is no wrapper object and no custom version field. For example:
 
 ## Contact labels
 
-Repeat `--label` to apply contact labels to every input contact. Label text must be nonblank.
+Repeat `--label` to apply contact labels to every selected contact. Label text must be nonblank.
 Label names match exactly, including case; repeated identical names are deduplicated. With no
 exact match, a case-only collision offers each existing label, Create new, or Cancel command.
 Enter selects the first existing label. Invalid answers repeat the prompt; end-of-input cancels. The final preview shows
@@ -56,8 +57,8 @@ the selected spelling. Choosing an existing label does not rename it.
 
 These choices require terminal input, output, and error streams. Noninteractive runs stop on a
 case-only collision and show the exact existing spellings to use with `--label`. `--apply` skips
-only final write confirmation; it still prompts for a label choice interactively and stops on a
-collision noninteractively. There is no extra flag to bypass this choice.
+contact selection and final write confirmation; it still prompts for a label choice interactively
+and stops on a collision noninteractively. There is no extra flag to bypass this choice.
 
 Existing user labels are reused, and missing labels appear under Labels to create. Ambiguous or
 system labels are rejected. Resolving a label choice makes no changes. Labels and contacts are
@@ -87,7 +88,7 @@ Every field is an array, even singleton fields. Every contact needs at least a n
 or organization with a company name. `add-contact` appends a custom field labeled **Created**:
 `Created by contacts-cli on November 14, 2026 at 1:30 AM (UTC−08:00)`. Its timestamp is generated
 immediately before each contact's creation request, using local time, and the field is verified
-with the other saved values. The preview shows that it will be added. Supplied custom fields,
+with the other saved values. This automatic field is omitted from the preview. Supplied custom fields,
 including an existing Created field, are preserved. The input file is unchanged; `validate-contact`
 only validates input and adds nothing. No Notes are added. Other omitted fields stay absent.
 
@@ -124,6 +125,22 @@ Contact #3 → emailAddresses[1].value: invalid or unsupported email address
 
 The numbered preview includes all supplied fields with readable property names, dates, and
 yes/no values, plus the labels applied to every contact.
+With multiple contacts, choose `all`, numbers/ranges such as `2,4-6`, or `q` to cancel. Overlapping
+selections count once, and creation follows original input order. A subset preview keeps original
+numbers and shows all supplied fields for the selected contacts. At final confirmation, `y`
+creates the selected contacts and any missing labels; `n` or Enter returns to selection; `q` or
+end-of-input cancels without writes. One input contact uses a simple `[y/N]` confirmation instead.
+Selecting just one from a larger list still offers Return to selection.
+
+All inputs are validated before selection; an invalid unselected record still needs correcting.
+Labels are shared across the input, not specified per record. They apply to every selected contact;
+cancellation creates no labels. `--apply` creates all inputs, and noninteractive runs without it
+only preview. Selection does not edit the source JSON file.
+
+For a subset, progress includes the original number, such as `Creating contact 1 of 2 (input #4)`.
+Errors identify the original input number too. Batch totals and not-attempted counts refer only
+to selected contacts; unselected records are not failures or pending creations.
+
 Timestamped progress identifies each label and contact being created. Created contact, followed
 by a Google Contacts link, confirms creation before readback verification begins. A later
 Verification failed message means the contact exists but its saved fields could not be verified.
