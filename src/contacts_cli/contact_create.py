@@ -12,6 +12,7 @@ from .core import contact_source, validate_contact
 from .duplicate import READ_FIELDS, creation_marker
 from .errors import SyncError, WriteUnverified
 from .output import emit, emit_list
+from .timing import read_input
 
 
 class LabelChoiceCancelled(Exception):
@@ -60,7 +61,7 @@ def choose_label(name, similar, *, allow_create=True, on_contact=None):
     while True:
         emit(f"Choose 1–{len(options)} (Enter = 1): ", file=sys.stderr, end="", flush=True)
         try:
-            answer = input().strip() or "1"
+            answer = read_input().strip() or "1"
         except EOFError:
             raise LabelChoiceCancelled from None
         if answer.isdecimal() and 1 <= int(answer) <= len(options):

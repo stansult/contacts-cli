@@ -501,3 +501,12 @@ answers were rejected and the scripted replies were exhausted. The shared prompt
 Single-available-address confirmation tests cover Yes, No, Enter, q, and end-of-input, including
 retained nonsequential numbering. They failed against the redundant cancel menu before the fix.
 Selecting one address from several separately verifies that Return to selection remains available.
+
+
+### Command active timing
+
+`test_command_timing.py` checks monotonic elapsed time excluding input waits, EOF and interruption
+while waiting, nested waits, repeated commands, and footer output on normal and exceptional exits.
+An AST check ensures terminal prompts use the shared timing wrapper. Help remains undecorated;
+the timestamp suite checks footer ordering at midnight. Browser authorization uses the same wait
+context. Stored sender-sync metrics retain their previous elapsed-time semantics.

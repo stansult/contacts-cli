@@ -85,5 +85,6 @@ def test_interrupt_rollover_is_closed(monkeypatch, capsys):
     monkeypatch.setattr(cli, "connect_with_authorization", interrupted)
     assert cli.main(["duplicate", "--contact", "people/c123"]) == 130
     assert capsys.readouterr().err.endswith(
-        "[00:00:02] Interrupted; no contact changes made.\n[2026-11-13]\n"
+        "[00:00:02] Interrupted; no contact changes made.\n"
+        "[00:00:02] Active time: 0.0s\n[2026-11-13]\n"
     )

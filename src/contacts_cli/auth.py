@@ -19,6 +19,7 @@ from .api import GoogleAPI
 from .deadline import DeadlineHTTP, refresh_credentials
 from .errors import InsufficientScopes, MissingToken, SyncError
 from .output import stamp
+from .timing import waiting_for_input
 
 SCOPES = (
     "https://www.googleapis.com/auth/gmail.readonly",
@@ -68,18 +69,19 @@ def authorize(
         flow = InstalledAppFlow.from_client_config(
             config, scopes=SCOPES, autogenerate_code_verifier=True
         )
-        credentials = flow.run_local_server(
-            host="127.0.0.1",
-            port=0,
-            open_browser=open_browser,
-            timeout_seconds=timeout_seconds,
-            prompt="consent",
-            authorization_prompt_message=(
-                "\n"
-                + stamp("Authorization URL (open manually if needed):", sys.stdout)
-                + "\n{url}\n"
-            ),
-        )
+        with waiting_for_input():
+            credentials = flow.run_local_server(
+                host="127.0.0.1",
+                port=0,
+                open_browser=open_browser,
+                timeout_seconds=timeout_seconds,
+                prompt="consent",
+                authorization_prompt_message=(
+                    "\n"
+                    + stamp("Authorization URL (open manually if needed):", sys.stdout)
+                    + "\n{url}\n"
+                ),
+            )
         granted = credentials.granted_scopes or credentials.scopes or ()
         if not set(SCOPES).issubset(granted) or not credentials.refresh_token:
             raise SyncError(

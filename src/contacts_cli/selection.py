@@ -3,6 +3,7 @@
 import re
 
 from .output import emit, emit_list
+from .timing import read_input
 
 
 def parse_selection(answer, numbers):
@@ -38,7 +39,7 @@ def select_numbers(numbers, *, noun="items"):
     while True:
         emit("Selection: ", end="", primary=False)
         try:
-            answer = input().strip()
+            answer = read_input().strip()
         except EOFError:
             return None
         if answer.casefold() == "q":
@@ -60,7 +61,7 @@ def review_selection(rows, *, noun, heading, unit, question, action):
     if len(numbers) == 1:
         emit(f"\n{question(1)} [y/N] ", end="")
         try:
-            return numbers if input().strip().casefold() in {"y", "yes"} else None
+            return numbers if read_input().strip().casefold() in {"y", "yes"} else None
         except EOFError:
             return None
     while True:
@@ -75,7 +76,7 @@ def review_selection(rows, *, noun, heading, unit, question, action):
             emit(f"  y   {action}\n  n   Return to selection\n  q   Cancel", primary=False)
             emit("Confirm [n]: ", end="", primary=False)
             try:
-                answer = input().strip().casefold()
+                answer = read_input().strip().casefold()
             except EOFError:
                 return None
             if answer in {"y", "yes"}:

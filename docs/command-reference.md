@@ -671,6 +671,14 @@ See [upgrading an existing authorization](google-setup.md#upgrading-an-existing-
 The permission permits reading message bodies. This CLI reads message headers, labels, and sending
 addresses; it does not request message bodies.
 
+## Active timing
+
+Operational commands end with `Active time: N.Ns`, including short runs, errors, and cancellation.
+The total excludes time waiting for terminal answers and the browser authorization flow. It
+includes API work, retries, and cleanup, and uses a monotonic clock. Help and argument-parser
+errors do not show a total. The line goes to stderr, leaving redirected data output unchanged.
+Sender-sync's stored metrics retain their existing wall-duration meaning, including input waits.
+
 ## Network timeouts
 
 Each Google API read has a 15-second overall deadline, including connection setup, DNS lookup,

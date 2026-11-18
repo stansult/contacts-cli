@@ -31,6 +31,7 @@ from .output import OperationalOutput, email_rows, emit, emit_list
 from .progress import ScanProgress, StageProgress
 from .selection import review_address_additions
 from .sender_criteria import extract_search_criteria
+from .timing import CommandTimer, read_input
 from .url_email_add import run_url_add
 from .web_emails import fetch_addresses, validate_url
 
@@ -280,7 +281,7 @@ def confirm_apply(question: str) -> bool:
     sys.stdout.flush()
     emit(f"\n{question} [y/N] ", end="", file=sys.stderr, flush=True)
     try:
-        return input().strip().casefold() in {"y", "yes"}
+        return read_input().strip().casefold() in {"y", "yes"}
     except EOFError:
         return False
 
@@ -316,7 +317,7 @@ def choose_gmail_label(name, similar):
                 flush=True,
             )
             try:
-                answer = input().strip().casefold()
+                answer = read_input().strip().casefold()
             except EOFError:
                 raise LabelChoiceCancelled from None
             if answer in {"", "y", "yes"}:
@@ -329,7 +330,7 @@ def choose_gmail_label(name, similar):
     while True:
         emit(f"Choose 1–{len(options)} (Enter = 1): ", file=sys.stderr, end="", flush=True)
         try:
-            answer = input().strip() or "1"
+            answer = read_input().strip() or "1"
         except EOFError:
             raise LabelChoiceCancelled from None
         if answer.isdecimal() and 1 <= int(answer) <= len(options):
@@ -344,7 +345,7 @@ def confirm_exclude_other():
     while True:
         emit("\nExclude Other senders? [y/N] ", file=sys.stderr, end="", flush=True)
         try:
-            answer = input().strip().casefold()
+            answer = read_input().strip().casefold()
         except EOFError:
             raise LabelChoiceCancelled from None
         if answer in {"", "n", "no"}:
@@ -534,7 +535,7 @@ def run_email_edit(args, api):
                 primary=False,
             )
             try:
-                choice = input().strip().casefold()
+                choice = read_input().strip().casefold()
             except EOFError:
                 all_choice = False
                 return False
@@ -633,7 +634,7 @@ def connect_with_authorization(token: Path, timeout_seconds: int = 300):
         action = "Reauthorize" if reauthorize else "Authorize"
         emit(f"\n{action} now in your browser? [y/N] ", end="", file=sys.stderr, flush=True)
         try:
-            answer = input().strip().casefold()
+            answer = read_input().strip().casefold()
         except EOFError:
             answer = ""
         if answer not in {"y", "yes"}:
@@ -686,7 +687,7 @@ def main(argv=None) -> int:
             arguments.error("add-contact requires --name, --email, or --file")
     token = ERROR_LOG_COMMAND.set(args.command)
     try:
-        with OperationalOutput():
+        with OperationalOutput(), CommandTimer():
             return execute_command(args)
     finally:
         ERROR_LOG_COMMAND.reset(token)

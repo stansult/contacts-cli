@@ -1,6 +1,7 @@
 """Creation contract, preview safety, sequential writes and independent verification."""
 
 import json
+import re
 from copy import deepcopy
 from datetime import UTC
 
@@ -215,7 +216,7 @@ def test_single_created_mismatch_is_clear(field, api, server, monkeypatch, capsy
     assert "Contact #1 was created, but verification failed." in output.out
     assert "Requested:" in output.out and "Saved: Not present" in output.out
     assert "Stopped:" not in output.out and "0 not attempted" not in output.out
-    assert "Unverified creation" not in output.err and not output.err
+    assert re.fullmatch(r"\[\d{2}:\d{2}:\d{2}\] Active time: \d+\.\ds\n", output.err)
 
 
 def test_readable_preview_preserves_values():
@@ -249,7 +250,7 @@ def test_single_interrupt_distinguishes_creation(stage, api, server, monkeypatch
     else:
         assert "was created, but verification was interrupted" in output.out
         assert "Created contact:" in output.out
-    assert not output.err
+    assert re.fullmatch(r"\[\d{2}:\d{2}:\d{2}\] Active time: \d+\.\ds\n", output.err)
 
 
 def test_label_readback_failure_reports_saved_label(api, server, monkeypatch, capsys):
