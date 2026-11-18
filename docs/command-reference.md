@@ -398,7 +398,28 @@ Both require `--contact`. Add-email also accepts `--from-url` instead of individ
 Otherwise, at least one individual or file option is required. Use the same UTF-8 file
 format as exclusions: one address per line, optional ` — Label`, blank lines and whole-line `#`
 comments. Options combine; files are read fresh relative to the current directory. An empty file
-requests no changes. Removal ignores labels and matches only normalized addresses.
+requests no changes. Removal ignores labels and matches addresses case-insensitively.
+
+Removal also accepts `*` patterns in both `--remove` and `--remove-file`. `*` matches zero or
+more characters, case-insensitively against the whole address. Only `*` is supported; `?` and
+bracket patterns are not. Quote patterns on the command line to prevent shell expansion:
+
+```sh
+./contacts-cli remove-email --contact c123456789 --remove '*@example.com'
+```
+
+- `*@example.com` matches that exact domain.
+- `*@*.example.com` matches its subdomains, not the base domain.
+- `*example.com` matches any suffix, including `person@notexample.com`.
+- `abc*@example.com` matches both `abc@example.com` and `abcdef@example.com`.
+- `*` matches every email address on the contact.
+
+In files, write patterns without quotes, one per line. Optional labels are ignored, just as for
+exact removals. Patterns expand against the contact read for the preview. Overlapping patterns
+and exact addresses produce one selectable group per distinct address; all its duplicate entries
+stay together. Selection uses those concrete groups, not a new pattern search. A contact changed
+after preview is rejected before writing. With `--apply`, every matched group is removed.
+Add-email and sender-sync exclusions still require exact addresses.
 
 These commands read contacts directly; they do not search Gmail or exclude your sending identities.
 They reuse the saved authorization. Address parsing is shared with exclusions, but Gmail query
@@ -432,9 +453,10 @@ has one selectable number, including case-only duplicates. Duplicate groups show
 spelling and label on indented lines; empty labels say `(no label)`, and primary entries are
 marked `(primary)`. Repeated labels are shown once per stored entry. A single unlabeled entry
 shows only its address. The heading counts both entries and distinct addresses.
-Absent addresses are listed under Not found. Removing every email is allowed and
-leaves the contact intact with zero email entries. A no-op performs no update. Later sender-sync
-runs can add matching senders again; reuse the removal list as exclusions if appropriate.
+Absent addresses and unmatched patterns are listed under Not found. Removing every email is
+allowed and leaves the contact intact with zero email entries. A no-op performs no update. Later
+sender-sync runs can add matching senders again; exact addresses from the removal list can be
+reused as exclusions. Exclusions do not accept patterns.
 
 Interactive add/remove runs use `all`, numbers/ranges such as `3-5,8`, or `q` to cancel.
 Additions and updates have continuous numbering; each update (including duplicate consolidation)
@@ -731,7 +753,8 @@ If supplied both before and after the command, the value after the command takes
 Email addresses supplied inline or through files for add-contact, add-email, remove-email, and
 sender-sync exclusions must have a dotted domain, such as `name@example.com`. Single-component
 domains such as `name@localhost` or `name@1` are rejected. Validation does not check whether a
-domain or mailbox exists.
+domain or mailbox exists. Removal patterns containing `*` are an exception: they match existing
+addresses and need not themselves be complete email addresses.
 
 ## API error details
 

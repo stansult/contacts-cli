@@ -57,7 +57,13 @@ def finish_email_edit(args, api, plan, *, interactive):
     show_changes(plan, choices, numbers, remove=remove, apply=args.apply)
     next_number = len(choices) + 1
     for heading, values, unit in [
-        ("Not found", plan.absent, ("address", "addresses")),
+        (
+            "Not found",
+            plan.absent,
+            ("address or pattern", "addresses or patterns")
+            if any("*" in x for x in plan.absent)
+            else ("address", "addresses"),
+        ),
         ("Skipped conflicts", plan.skipped, ("conflict", "conflicts")),
     ]:
         if values:
@@ -79,8 +85,14 @@ def finish_email_edit(args, api, plan, *, interactive):
         nonlocal selected_plan, last_selection
         keys = {address_key(choices[i - 1][0]) for i in selected}
         # Only changes already approved in the original plan may be rebuilt; no new decisions.
-        entries = [entry for entry in args.entries if address_key(entry[0]) in keys]
-        selected_plan = make_edit_plan(plan.person, entries, remove=remove, resolve=lambda *a: True)
+        entries = (
+            [(choices[i - 1][0], "", "selection") for i in selected]
+            if remove
+            else [entry for entry in args.entries if address_key(entry[0]) in keys]
+        )
+        selected_plan = make_edit_plan(
+            plan.person, entries, remove=remove, resolve=lambda *a: True, expand_patterns=False
+        )
         email_update_body(selected_plan.person, selected_plan.emails)
         if selected != numbers:
             show_changes(selected_plan, choices, selected, remove=remove, subset=True)

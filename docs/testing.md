@@ -543,3 +543,12 @@ while waiting, nested waits, repeated commands, and footer output on normal and 
 An AST check ensures terminal prompts use the shared timing wrapper. Help remains undecorated;
 the timestamp suite checks footer ordering at midnight. Browser authorization uses the same wait
 context. Stored sender-sync metrics retain their previous elapsed-time semantics.
+
+### Removal patterns
+
+`test_remove_patterns.py` covers zero-or-more `*` matching, whole-address anchoring, case,
+base domains versus subdomains, literal punctuation, overlap, file input, unmatched patterns,
+and validation before Google access. CLI cases cover duplicate groups, subsets, cancellation,
+noninteractive previews, apply, and concurrent edits. A stored literal-star address verifies
+that selection never expands patterns again. The new matching/selection tests failed against
+the original exact-address implementation before the feature was added.

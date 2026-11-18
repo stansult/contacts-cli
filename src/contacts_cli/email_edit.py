@@ -3,6 +3,7 @@
 from collections import Counter
 from copy import deepcopy
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
 
 from .address_inputs import normalized_entries
 from .core import (
@@ -38,8 +39,25 @@ class EmailEditPlan:
     updates: list
 
 
-def make_edit_plan(person, entries, *, remove=False, resolve=None):
+def expand_removals(person, entries):
+    """Expand against the original snapshot, keeping unmatched requests for reporting."""
+    for address, label, origin in entries:
+        if "*" not in address:
+            yield address, label, origin
+            continue
+        matches = [
+            e["value"]
+            for e in person.get("emailAddresses", [])
+            if fnmatchcase(address_key(e["value"]), address_key(address))
+        ]
+        for value in matches or [address]:
+            yield value, "", origin
+
+
+def make_edit_plan(person, entries, *, remove=False, resolve=None, expand_patterns=True):
     validate_contact(person)
+    if remove and expand_patterns:
+        entries = expand_removals(person, entries)
     incoming = normalized_entries(entries, person, email_label, remove=remove)
     emails = deepcopy(person.get("emailAddresses", []))
     changes, skipped, absent, removed = [], [], [], []

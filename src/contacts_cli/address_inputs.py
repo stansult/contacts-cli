@@ -4,6 +4,18 @@ from .core import address_key, parse_from_details
 from .errors import SyncError
 
 
+def removal_input(value):
+    if "*" not in value:
+        return bare_address(value)
+    if len(value) > 1024 or any(
+        c.isspace() or ord(c) < 32 or ord(c) == 127 or c in "?[]<>\"'\\,;" for c in value
+    ):
+        raise SyncError(
+            "expected an email address or * pattern; no names, quotes, spaces, or other wildcards"
+        )
+    return value
+
+
 def bare_address(value):
     address = value.strip()
     parsed = parse_from_details([address])
@@ -41,7 +53,7 @@ def edit_inputs(values, paths, option):
     for line, origin in lines:
         address, label = split_entry(line)
         try:
-            address = bare_address(address)
+            address = removal_input(address) if option == "--remove" else bare_address(address)
             if any(ord(c) < 32 or ord(c) == 127 for c in label):
                 raise SyncError("invalid control character in label")
         except SyncError as exc:

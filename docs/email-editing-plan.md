@@ -56,3 +56,10 @@ its complete duplicate consolidation; removal always selects all entries matchin
 Rebuild the selected result from the original contact and selected approved inputs, preserving
 unselected entries and avoiding repeated conflict prompts. Validate the selected contact size
 and retain the existing fresh-read/etag checks before writing.
+
+## Removal patterns
+
+Expand `*` patterns once against the original contact snapshot, then deduplicate overlapping
+matches into concrete address groups. Selection must use those concrete addresses literally,
+even if a stored address contains a `*`. Never expand again after selection or against a newer
+contact. Existing concurrency checks still reject a changed contact before writing.

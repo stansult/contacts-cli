@@ -162,7 +162,12 @@ def parser() -> argparse.ArgumentParser:
             action="append",
             default=[],
             metavar="ADDRESS",
-            help="Email address, optionally followed by ' — Label' (repeatable)",
+            help=(
+                "Email address or quoted * pattern; * matches zero or more characters, "
+                "case-insensitively across the whole address (repeatable; e.g. '*@example.com')"
+                if action == "remove"
+                else "Email address, optionally followed by ' — Label' (repeatable)"
+            ),
         )
         inputs.add_argument(
             f"--{action}-file",
@@ -170,7 +175,12 @@ def parser() -> argparse.ArgumentParser:
             default=[],
             type=Path,
             metavar="PATH",
-            help="UTF-8 address list (repeatable; combines with individual addresses)",
+            help=(
+                "UTF-8 list of addresses or * patterns, one per line without quotes; optional "
+                " — Label is ignored; blank lines and # comments allowed (repeatable)"
+                if action == "remove"
+                else "UTF-8 address list (repeatable; combines with individual addresses)"
+            ),
         )
         command.add_argument(
             "--apply",
