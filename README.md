@@ -5,7 +5,7 @@ collecting email addresses from Gmail senders or webpages.
 
 ## Install and authorize
 
-Requires Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). From a checkout:
+Requires macOS or Linux, Python 3.11 or newer, and [uv](https://docs.astral.sh/uv/). From a checkout:
 
 ```sh
 uv sync --locked
@@ -25,11 +25,12 @@ Later commands reuse the saved authorization. Local file validation needs no Goo
 
 - Replace the example values below with your own. `--contact` accepts a Google Contacts URL such
   as `https://contacts.google.com/person/c123456789` or its bare ID, `c123456789`.
-- Commands that change contacts show a preview and ask for confirmation. Enter or `n` at the
-  final confirmation makes no changes. `--apply` skips that final confirmation; conflict choices
-  follow each command's rules. For contact creation, sender-sync, email edits, custom-field edits, and label removal
-  with multiple choices, Enter or `n` returns to selection; `q` cancels.
-  Piped or redirected runs without `--apply` do not write.
+- Commands that change contacts or labels show a preview and ask for confirmation. With multiple
+  choices, contact creation, sender-sync, email edits, custom-field edits, and label removal offer
+  selection by number/range. Enter or `n` at the subsequent confirmation returns to selection;
+  `q` cancels. A simple `[y/N]` prompt writes only after `y` or `yes`.
+- `--apply` selects all eligible items and skips final confirmation; conflict choices follow each
+  command's rules. Piped or redirected runs without `--apply` do not write.
 - `add-contact` and `duplicate` create new contacts each time; they do not merge with existing ones.
 - Use `./contacts-cli <command> --help` for command options. Global options, including `--token`,
   appear in `./contacts-cli --help` and work before or after the command.
@@ -58,6 +59,9 @@ creation time. Omit `--name` to keep the original name. See [duplication details
 
 ## Sender-sync
 
+Adds missing sender addresses from a Gmail label or search, excluding addresses already on the
+contact and your Gmail sending addresses. Sender names become email labels when useful.
+
 ```sh
 ./contacts-cli sender-sync --label 'Example/Delivery' --contact c123456789
 ```
@@ -75,8 +79,6 @@ from other senders. You can choose to skip those other senders, or use `--exclud
 them automatically. You can then choose all remaining addresses or some by number.
 `--apply` alone includes both groups without selection. See [address selection rules](docs/command-reference.md#grouping-additions-by-address-criteria).
 
-Adds missing sender addresses from a Gmail label or search, excluding addresses already on the
-contact and your Gmail sending addresses. Sender names become email labels when useful.
 Use `--exclude ADDRESS` or a quoted pattern such as `--exclude '*@example.com'` to skip senders.
 `*` matches zero or more characters, ignoring case. `--exclude-file PATH` accepts one address or
 pattern per line, without shell quotes. Wildcards filter discovered senders locally. See [search and exclusion details](docs/command-reference.md#sender-sync-preview-and-apply).
@@ -126,11 +128,15 @@ See [webpage input](docs/command-reference.md#webpage-email-input) and
 
 `list-label` lists all account user labels with their contact counts. With `--contact`, it lists
 only that contact’s labels, without counts.
-`add-label` without `--contact` creates account labels without applying them to any contact.
-`remove-label` always requires a contact and shows only labels attached to it. Repeat `--label` for multiple labels when adding or removing. Addition creates missing
-labels; case-only matches may require a choice even with `--apply`. Removal accepts names or quoted `*` patterns such as
-`--label 'Recruit*'`, including case variants. Choose all or numbered labels before confirming;
-`--apply` removes all matches. Only memberships on this contact change; label definitions remain.
+
+`add-label` without `--contact` creates account labels. With `--contact`, it adds labels to that
+contact, creating missing labels first. Case-only matches may require a choice even with `--apply`.
+Repeat `--label` for multiple labels when adding or removing.
+
+`remove-label` requires a contact and offers only labels attached to it. It accepts names or
+quoted `*` patterns such as `--label 'Recruit*'`, including case variants. Choose all or numbered
+labels before confirming; `--apply` removes all matches. Removal detaches labels from this contact;
+the labels themselves remain available in the account.
 See [label choices](docs/command-reference.md#label-choices-and-output).
 
 ## Add or remove custom fields
@@ -143,7 +149,6 @@ See [label choices](docs/command-reference.md#label-choices-and-output).
 
 Repeat `--field KEY VALUE` to add multiple pairs; quote text containing spaces. Addition matches
 exactly, skips existing pairs, and offers selection when several new pairs are proposed.
-The old addition `--key`/`--value` syntax is no longer supported.
 Removal offers exact and case-different matches in separate selectable groups. Without `--value`,
 it offers all values under the key and its case variants. Choose `all` or numbers/ranges
 before confirming; identical key/value duplicates stay together. `--apply` removes all matches,

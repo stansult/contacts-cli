@@ -11,6 +11,7 @@
 - [List-label](#list-label), [add-label](#add-label), [remove-label](#remove-label), [label choices](#label-choices-and-output)
 - [Custom fields](#add-custom-field-and-remove-custom-field), [validate-contact](#validate-contact),
   [authorization](#authorization)
+- [Active timing](#active-timing), [network timeouts](#network-timeouts)
 - [Global options](#global-options), [email validation](#email-input-validation),
   [error details](#api-error-details), [exit codes](#exit-codes)
 
@@ -42,17 +43,18 @@ The saved token selects the account; a URL's `/u/0/` or `/u/1/` segment does not
 
 ## Previews, confirmation, and conflicts
 
-Contact-changing commands show their intended changes before saving. Interactive confirmation requires
-terminal input, output, and error streams. Enter, `n`, or end-of-input at the final confirmation
-makes no changes. Contact creation, sender-sync, email edits, custom-field edits, and label removal return to
-selection on Enter or `n` when multiple choices are available; with one item, they cancel.
-`q` always cancels.
+Commands that change contacts or labels show their intended changes before saving. Interactive
+confirmation requires terminal input, output, and error streams. A simple `[y/N]` prompt writes
+only after `y` or `yes`. With multiple choices, contact creation, sender-sync, email edits,
+custom-field edits, and label removal offer numbered selection followed by confirmation.
+At that confirmation, Enter or `n` returns to selection; `q` or end-of-input cancels.
 Piped or redirected runs without `--apply` do not write; unresolved label choices
 may stop the run before a complete preview.
 
-`--apply` skips final write confirmation, not every decision. Label case choices still prompt in
-interactive runs and stop noninteractive runs. With `--apply`, email conflicts are kept unless
-explicitly approved with `--replace-existing`. Each command's section describes its matching and conflict rules.
+`--apply` selects all eligible items and skips final write confirmation, not every decision.
+Label case choices still prompt in interactive runs and stop noninteractive runs. With `--apply`,
+email conflicts are kept unless explicitly approved with `--replace-existing`. Each command's
+section describes its matching and conflict rules.
 
 Each invocation reads current data: `--apply` does not approve a frozen preview from an earlier run.
 Creation commands create new contacts each time. Updates preserve unrelated contact data and
@@ -237,9 +239,9 @@ The complete preview stays on stdout. Proposed addresses appear one per line wit
 with a custom label after ` — ` when applicable. Counts describe inspected messages, not the total
 number of matching messages.
 
-In an interactive terminal, the preview is followed by `Apply these additions? [y/N]`.
-Answer `y` or `yes` to save; Enter, `n`, or any other answer leaves the contact unchanged.
-No prompt appears when there are no additions.
+In an interactive terminal, choose all eligible addresses or a subset by number/range, then
+confirm. One eligible address uses a simple `[y/N]` confirmation. No prompt appears when there
+are no additions. See [selection and grouped previews](#grouping-additions-by-address-criteria).
 
 To save without the confirmation prompt, use `--apply`:
 
@@ -442,7 +444,8 @@ exact removals. Patterns expand against the contact read for the preview. Overla
 and exact addresses produce one selectable group per distinct address; all its duplicate entries
 stay together. Selection uses those concrete groups, not a new pattern search. A contact changed
 after preview is rejected before writing. With `--apply`, every matched group is removed.
-Add-email and sender-sync exclusions still require exact addresses.
+Add-email requires exact addresses. Sender-sync exclusions accept the same `*` patterns; see
+[exclusion inputs](#sender-sync-preview-and-apply).
 
 These commands read contacts directly; they do not search Gmail or exclude your sending identities.
 They reuse the saved authorization. Address parsing is shared with exclusions, but Gmail query
@@ -478,8 +481,8 @@ marked `(primary)`. Repeated labels are shown once per stored entry. A single un
 shows only its address. The heading counts both entries and distinct addresses.
 Absent addresses and unmatched patterns are listed under Not found. Removing every email is
 allowed and leaves the contact intact with zero email entries. A no-op performs no update. Later
-sender-sync runs can add matching senders again; exact addresses from the removal list can be
-reused as exclusions. Exclusions do not accept patterns.
+sender-sync runs can add matching senders again. Addresses and patterns from the removal list
+can be reused with `--exclude-file` to skip those senders in later runs.
 
 Interactive add/remove runs use `all`, numbers/ranges such as `3-5,8`, or `q` to cancel.
 Additions and updates have continuous numbering; each update (including duplicate consolidation)
@@ -774,7 +777,7 @@ without selection or confirmation. Unselected pairs are not added, and existing 
 Noninteractive runs preview only unless `--apply` is supplied. For removal, `--apply` removes all exact and case-different matches without
 selection or confirmation; headings use Adding/Removing. The silent aliases `add-custom-fields`
 and `remove-custom-fields` are accepted; help uses singular names.
-Both commands accept global `--token` and `--auth-timeout` options before or after the command.
+Both commands accept the [global options](#global-options) before or after the command.
 
 The update sends only the complete intended `userDefined` list and contact source metadata.
 Unmatched custom fields are retained, as are other contact fields. A fresh read and source etag
@@ -846,8 +849,8 @@ If supplied both before and after the command, the value after the command takes
 Email addresses supplied inline or through files for add-contact, add-email, remove-email, and
 sender-sync exclusions must have a dotted domain, such as `name@example.com`. Single-component
 domains such as `name@localhost` or `name@1` are rejected. Validation does not check whether a
-domain or mailbox exists. Removal patterns containing `*` are an exception: they match existing
-addresses and need not themselves be complete email addresses.
+domain or mailbox exists. Removal and sender-exclusion patterns containing `*` are an exception:
+they match whole addresses and need not themselves be complete email addresses.
 
 ## API error details
 

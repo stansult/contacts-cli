@@ -52,8 +52,9 @@ There is no wrapper object and no custom version field. For example:
 Repeat `--label` to apply contact labels to every selected contact. Label text must be nonblank.
 Label names match exactly, including case; repeated identical names are deduplicated. With no
 exact match, a case-only collision offers each existing label, Create new, or Cancel command.
-Enter selects the first existing label. Invalid answers repeat the prompt; end-of-input cancels. The final preview shows
-the selected spelling. Choosing an existing label does not rename it.
+Enter selects the first existing label. `q`, `Q`, the numbered Cancel option, or end-of-input
+cancels. Invalid answers repeat the prompt. The final preview shows the selected spelling.
+Choosing an existing label does not rename it.
 
 These choices require terminal input, output, and error streams. Noninteractive runs stop on a
 case-only collision and show the exact existing spellings to use with `--label`. `--apply` skips

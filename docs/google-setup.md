@@ -22,14 +22,15 @@ See Google's [API enablement instructions](https://developers.google.com/workspa
 ## 3. Configure consent and test access
 
 1. Open [Google Auth Platform](https://console.cloud.google.com/auth) → [Branding](https://console.cloud.google.com/auth/branding) and click **Get Started**.
-If setup is already complete, edit the settings in [Branding](https://console.cloud.google.com/auth/branding), [Audience](https://console.cloud.google.com/auth/audience), and [Data Access](https://console.cloud.google.com/auth/scopes) instead.
+   If setup is already complete, edit the settings in [Branding](https://console.cloud.google.com/auth/branding), [Audience](https://console.cloud.google.com/auth/audience),
+   and [Data Access](https://console.cloud.google.com/auth/scopes) instead.
 2. Set the app name to **Contacts CLI** and select your email as the support email. Click **Next**.
 3. Choose **External** as the audience and click **Next**.
 4. Enter your email under **Contact Information** and click **Next**.
 5. Review the policy, accept it if you agree, then click **Continue → Create**.
 6. Open [Audience](https://console.cloud.google.com/auth/audience). Keep the app in **Testing** for this setup.
-7. Under **Test users**, click **Add users**, enter the Google account that owns your Gmail label
-   and contact, and save.
+7. Under **Test users**, click **Add users**, enter the Google account you want to use
+   with the CLI, and save.
 8. Open [Data Access](https://console.cloud.google.com/auth/scopes) and click **Add or Remove Scopes**. Scroll down to **Manually add scopes**,
    and paste the following scopes, one per line:
 
@@ -57,7 +58,7 @@ See Google's [consent-screen instructions](https://developers.google.com/workspa
 5. Download the client's JSON configuration
    - Save it as `~/.config/contacts-cli/credentials.json`.
    - If your browser automatically saves it to **Downloads**, move it to
-   `~/.config/contacts-cli/` and rename it `credentials.json`.
+     `~/.config/contacts-cli/` and rename it `credentials.json`.
 
 The client file must exist before browser authorization can start.
 See Google's [OAuth client creation instructions](https://developers.google.com/workspace/guides/create-credentials#desktop-app).
@@ -105,7 +106,7 @@ The requested scopes are `gmail.readonly` and `contacts` (with Google's
 including bodies, but no mail changes. The CLI reads message headers, labels, and sending
 addresses; it does not request message bodies. Sender search requires this permission.
 Contacts permission allows writes across the account; Google does not offer a scope restricted to the selected contact.
-The CLI writes contacts only after interactive confirmation or when `--apply` is present.
+The CLI changes contacts or labels only after interactive confirmation or when `--apply` is present.
 
 See Google's [desktop OAuth setup](https://developers.google.com/identity/protocols/oauth2/native-app) and [Gmail scope descriptions](https://developers.google.com/workspace/gmail/api/auth/scopes).
 

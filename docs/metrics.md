@@ -53,7 +53,9 @@ counted. Raw records retain per-operation timings and scan counts for closer ana
 Compare completed scans with similar message/sender counts and separate interrupted runs. Total
 elapsed time includes human waits; use API timings to explain the difference. Current
 `sender-exclusion-v1` runs are grouped separately from any earlier `full-scan-v1` records.
-For the new algorithm, messages count inspected headers and senders count new addresses; excluded
-messages and existing senders are not counted.
+Messages count inspected headers; senders count accepted new addresses. Wildcard-excluded
+senders contribute to inspected-message counts but not new-sender counts, because patterns are
+checked after reading a header. Exact exclusions, existing addresses, and Gmail sending addresses
+are excluded in the search query, normally avoiding those header reads.
 Keep analysis code and metric definitions in Git. Only publish synthetic benchmarks or findings
 that have been reviewed for privacy. Raw logs stay local.

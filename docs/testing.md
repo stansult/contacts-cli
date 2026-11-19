@@ -22,10 +22,11 @@ Pytest disables network sockets globally; tests must never use real credentials 
 | Duplication | `test_duplicate.py` | Copyable fields, photo handling, identities, and independent verification |
 | Sender sync | `test_search.py`, `test_search_input.py`, `test_sender_criteria.py`, `test_label_sync.py`, `test_sync.py` | Search requests, completeness, conflicts, writes, and reruns |
 | Sender identities | `test_own_addresses.py`, `test_sender_labels.py` | Own-address exclusions and saved display labels |
-| Explicit exclusions | `test_exclude.py`, `test_exclude_files.py`, `test_exclude_other.py` | Inline/file parsing, matching, and query integration |
+| Explicit exclusions | `test_exclude.py`, `test_exclude_files.py`, `test_exclude_patterns.py`, `test_exclude_other.py` | Exact and wildcard inputs, group exclusion, local matching, and query integration |
 | Email editing | `test_email_edit.py`, `test_primary_normalization.py` | Listing, addition, removal, conflicts, duplicates, and preservation |
-| Contact labels | `test_label_edit.py`, `test_remove_label.py`, `test_label_output.py` | Membership edits, case choices, output, and partial failures |
-| Custom fields | `test_custom_fields.py` | Exact selectors, duplicate handling, and verified single-field updates |
+| Contact labels | `test_label_edit.py`, `test_remove_label.py`, `test_label_output.py`, `test_label_selection.py` | Membership edits, case choices, wildcard removal, selection, and partial failures |
+| Account labels | `test_account_labels.py`, `test_list_label.py`, `test_label_counts.py`, `test_label_data.py` | Shared catalog reads, listing, counts, and label creation |
+| Custom fields | `test_custom_fields.py`, `test_custom_field_add_pairs.py`, `test_custom_field_selection.py` | Exact additions, case-insensitive removal choices, partial selection, duplicate handling, and preservation |
 | Interaction and output | `test_apply_prompt.py`, `test_interrupt.py`, `test_progress.py`, `test_stage_progress.py`, `test_timestamps.py` | Consent, interruption state, counters, and timestamps |
 | Diagnostics | `test_metrics.py`, `test_error_logs.py`, `test_run_diagnostics.py` | Local storage, measurement, error responses, and privacy boundaries |
 | Packaging and CI | `test_installed_cli.py`, `test_repository_checks.py`, `test_ci_scope.py` | Installed execution, archives, links, subprocess guards, and CI routing |
@@ -323,8 +324,8 @@ no mutation retries, and missing new or prior memberships during verification.
 
 `test_remove_label.py` checks removal fixture idempotency and last-membership refusal independently,
 then covers singular/plural commands, preview/confirmation/apply, missing and unapplied labels,
-no-create case choices, no-op reruns, retained label definitions and contact data, and verification
-of both requested absence and preserved memberships.
+case-variant matching without creation, no-op reruns, retained label definitions and contact data,
+and verification of both requested absence and preserved memberships.
 
 ### Label output scenarios
 
@@ -338,8 +339,8 @@ the previous implementation and failed for the intended wording and preview diff
 ### Custom field editing
 
 `tests/test_custom_fields.py` independently checks replacement/clearing and etag behavior in the
-HTTP fixture, then covers singular/plural commands, previews, exact matching, duplicate preservation
-and removal, case-only notices, empty-field removal, confirmation, invalid input, size guards,
+HTTP fixture, then covers singular/plural commands, previews, exact additions, duplicate preservation
+and removal, selectable case variants, empty-field removal, confirmation, invalid input, size guards,
 concurrent edits, and response/readback verification. A temporary disabled verifier made the three
 verification regression tests fail as intended; the verifier was restored. The full suite also
 checks the email commands using the shared single-field update path. Installed CLI help checks
@@ -419,7 +420,7 @@ unverified error. Six regressions failed before logging was implemented.
 
 ### Label sync without filter discovery
 
-`test_label_sync.py` checks that interactive label runs only ask for final write confirmation,
+`test_label_sync.py` checks that label runs have no filter-fetch prompt,
 `--apply` runs without prompts, and neither makes filter requests. It also verifies that
 `--label --exclude-other` fails before authorization and refresh-filters is absent from help.
 These five regressions failed before removing filter discovery. Existing Gmail label-choice,
