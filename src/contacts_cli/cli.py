@@ -24,7 +24,13 @@ from .email_edit import make_edit_plan
 from .email_edit_ui import finish_email_edit
 from .error_logs import COMMAND as ERROR_LOG_COMMAND
 from .error_logs import TRACE, RunDiagnostics
-from .errors import InsufficientScopes, MissingToken, SyncError, WriteUnverified
+from .errors import (
+    InsufficientScopes,
+    MissingToken,
+    ReauthorizationRequired,
+    SyncError,
+    WriteUnverified,
+)
 from .label_edit import run_label_edit, run_list_labels
 from .metrics import ACTIVE, RunMetrics, counts, outcome
 from .output import OperationalOutput, email_rows, emit, emit_list
@@ -665,14 +671,17 @@ def run_duplicate(args, api):
 def connect_with_authorization(token: Path, timeout_seconds: int = 300):
     try:
         return connect(token)
-    except (MissingToken, InsufficientScopes) as exc:
-        reauthorize = isinstance(exc, InsufficientScopes)
-        reason = (
-            f"{exc}\nGmail read-only permission allows reading message bodies; "
-            "this CLI reads message headers, labels, and sending addresses, not bodies."
-            if reauthorize
-            else "You're not authorized: no token file was found."
-        )
+    except (MissingToken, InsufficientScopes, ReauthorizationRequired) as exc:
+        reauthorize = not isinstance(exc, MissingToken)
+        if isinstance(exc, MissingToken):
+            reason = "You're not authorized: no token file was found."
+        elif isinstance(exc, InsufficientScopes):
+            reason = (
+                f"{exc}\nGmail read-only permission allows reading message bodies; "
+                "this CLI reads message headers, labels, and sending addresses, not bodies."
+            )
+        else:
+            reason = str(exc)
         token_option = f" --token {shlex.quote(str(token))}"
         command = f"./contacts-cli authorize{token_option}"
         if timeout_seconds != 300:

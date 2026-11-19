@@ -7,6 +7,7 @@ import ssl
 import sys
 
 import httplib2
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_httplib2 import AuthorizedHttp
@@ -73,7 +74,15 @@ def perform(payload):
 
 def error_reply(exc):
     kind = "read"
-    if isinstance(exc, (socket.gaierror, httplib2.ServerNotFoundError)):
+    # Use the structured OAuth response, not exception message text. Other refresh
+    # failures (client setup, transport, transient server errors) need different action.
+    if (
+        isinstance(exc, RefreshError)
+        and not exc.retryable
+        and any(isinstance(arg, dict) and arg.get("error") == "invalid_grant" for arg in exc.args)
+    ):
+        kind = "invalid_grant"
+    elif isinstance(exc, (socket.gaierror, httplib2.ServerNotFoundError)):
         kind = "dns"
     elif isinstance(exc, TimeoutError):
         kind = "timeout"

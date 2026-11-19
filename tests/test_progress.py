@@ -68,7 +68,7 @@ def test_progress_rate_limit_and_line_cleanup(terminal, interval):
         assert stream.getvalue() == first
         now[0] = interval
         progress("Searching senders", 2, 1)
-        assert "2 inspected, 1 new senders" in stream.getvalue()
+        assert "2 inspected, 1 new sender" in stream.getvalue()
         progress("Search finished", 3, 2)
     output = stream.getvalue()
     duration = " (took 10.0s)" if not terminal else ""
@@ -111,3 +111,27 @@ def test_empty_scan_reports_zero_counts(api, server):
     events = []
     api.scan("Example/Delivery", progress=lambda *event: events.append(event))
     assert events[-1] == ("Search finished", 0, 0, 0)
+
+
+@pytest.mark.parametrize("terminal", [True, False])
+@pytest.mark.parametrize("senders,word", [(0, "senders"), (1, "sender"), (2, "senders")])
+@pytest.mark.parametrize("completion", ["Search finished", "Search stopped"])
+def test_sender_count_grammar(terminal, senders, word, completion):
+    import io
+
+    from contacts_cli.progress import ScanProgress
+
+    class Stream(io.StringIO):
+        def isatty(self):
+            return terminal
+
+    stream = Stream()
+    details = f"2 inspected, {senders} new {word}"
+    with ScanProgress(stream, lambda: 0.0, background=False) as progress:
+        progress("Searching senders", 2, senders)
+        live = stream.getvalue()
+        assert details in live
+        if senders == 1:
+            assert "1 new senders" not in live
+        progress(completion, 2, senders)
+    assert stream.getvalue().endswith(f"{completion}: {details}.\n")

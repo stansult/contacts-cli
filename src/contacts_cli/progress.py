@@ -137,7 +137,8 @@ class ScanProgress(StageProgress):
         self.finish()
 
     def __call__(self, stage, processed=0, senders=0, problems=0, *, force=False):
-        details = f"{processed} inspected, {senders} new senders"
+        noun = "sender" if senders == 1 else "senders"
+        details = f"{processed} inspected, {senders} new {noun}"
         if problems:
             details += f", {problems} invalid headers"
         if stage in {"Search finished", "Search stopped"}:

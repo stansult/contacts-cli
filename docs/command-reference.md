@@ -800,6 +800,9 @@ needed. Inline fields, labels and `--apply` are not supported. See [local valida
 See [detailed Google setup instructions](google-setup.md). Existing `gmail.metadata` authorizations need upgrading to
 `gmail.readonly`; the CLI detects insufficient permissions and offers browser reauthorization.
 See [upgrading an existing authorization](google-setup.md#upgrading-an-existing-authorization).
+If Google rejects an expired or revoked refresh token during initial connection, the CLI also
+offers reauthorization. Connection and other refresh errors do not trigger that prompt.
+Noninteractive runs print authorization options and exit; see [token recovery](google-setup.md#permissions-tokens-and-repeat-authorization).
 The permission permits reading message bodies. This CLI reads message headers, labels, and sending
 addresses; it does not request message bodies.
 

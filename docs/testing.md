@@ -180,6 +180,21 @@ authorization when a token is missing or lacks required scopes. The default is 3
 It changes only the browser authorization wait, not API request timeouts or token expiration.
 If specified on both sides of the command, the value after the command takes precedence.
 
+## Expired or revoked authorization
+
+`test_expired_authorization.py` exercises a rejected refresh through the real worker process,
+credential loader, and CLI. The network-blocked worker fixture supplies a structured OAuth
+`invalid_grant` error; a separate protocol test verifies its exception type and reason.
+Seven prompt/recovery cases failed against the previous generic-error handling before the fix.
+Coverage includes acceptance and command resumption, decline, Enter, EOF, noninteractive options,
+failed authorization, and a second rejection without a prompt loop. Synthetic token bytes remain
+unchanged unless the authorization flow explicitly saves replacement credentials.
+
+Negative cases keep transient refresh failures, invalid clients, connection failures, DNS errors,
+and misleading message text out of the browser-recovery path. Existing authorization tests verify
+successful token replacement and preservation on denied or timed-out consent. No live tokens or
+Google calls are used.
+
 ## Regression coverage and evidence
 
 The following sections retain fixture contracts, regression sensitivity evidence, and the stated

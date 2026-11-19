@@ -9,6 +9,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import httplib2
+from google.auth.exceptions import RefreshError
 from google.oauth2.credentials import Credentials
 
 from contacts_cli import read_worker
@@ -74,6 +75,11 @@ def request(self, uri, method="GET", *args, **kwargs):
 
 
 def refresh(self, request):
+    if self.refresh_token == "revoked-refresh":
+        raise RefreshError(
+            "invalid_grant: Token has been expired or revoked.",
+            {"error": "invalid_grant", "error_description": "Token has been expired or revoked."},
+        )
     if self.refresh_token == "stall-refresh":
         stalled()
     assert self.token != "synthetic-refreshed", "Valid refreshed token should be reused"

@@ -12,7 +12,7 @@ import httplib2
 from google.oauth2.credentials import Credentials
 
 from .error_logs import TRACE
-from .errors import SyncError
+from .errors import ReauthorizationRequired, SyncError
 from .persistent_reader import PersistentReader
 
 READ_TIMEOUT_SECONDS = 15
@@ -106,6 +106,11 @@ def check_worker_result(result):
         if trace:
             trace.event("read_worker_error", exceptions=error["details"])
         kind = error["kind"]
+        if kind == "invalid_grant":
+            raise ReauthorizationRequired(
+                "Google rejected the saved authorization: the token has expired or been revoked "
+                "(invalid_grant). Reauthorization is required."
+            )
         if kind == "dns":
             raise SyncError(
                 "Could not resolve the Google server address. Check your connection and retry."

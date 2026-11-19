@@ -126,9 +126,15 @@ reaching end-of-input exits with code 1. Noninteractive runs show the options an
 prompting. A custom `--token` path is preserved through authorization and in the suggested commands.
 
 The default client file must already exist. For a different client file or manual browser opening,
-use the listed standalone `authorize` commands and rerun your original command. Invalid or revoked tokens
-still require explicit authorization; other errors do not trigger the missing-token prompt. Google
-documents that external apps in Testing mode generally receive refresh tokens valid for seven days
+use the listed standalone `authorize` commands and rerun your original command. If Google rejects
+the saved refresh token as expired or revoked (`invalid_grant`) during initial connection, the CLI
+explains the failure and offers `Reauthorize now in your browser? [y/N]`. Success resumes the
+original command, including `--apply` if supplied. Declining leaves the saved token unchanged;
+noninteractive runs print authorization options and exit. The CLI offers this recovery once per
+command; a second failure stops the run. Connection failures, client-configuration errors, and
+other refresh failures do not trigger browser authorization.
+
+Google documents that external apps in Testing mode generally receive refresh tokens valid for seven days
 with these scopes; see [token expiration](https://developers.google.com/identity/protocols/oauth2#expiration).
 
 ## Upgrading an existing authorization

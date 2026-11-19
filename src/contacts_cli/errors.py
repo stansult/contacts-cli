@@ -13,5 +13,9 @@ class InsufficientScopes(SyncError):
     """Saved credentials lack required permissions; reauthorization may be offered."""
 
 
+class ReauthorizationRequired(SyncError):
+    """Google rejected the saved refresh grant; browser authorization may be offered."""
+
+
 class WriteUnverified(SyncError):
     """A write may have occurred, but its result could not be verified."""

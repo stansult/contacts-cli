@@ -41,7 +41,7 @@ def test_patterns_and_files(search, apply, api, server, monkeypatch, tmp_path, c
     output = capsys.readouterr()
     assert "1. trash@example.com" in output.out
     assert "1. new@example.com" not in output.out
-    assert "Search finished: 2 inspected, 1 new senders" in output.err
+    assert "Search finished: 2 inspected, 1 new sender" in output.err
     searches = [c for c in server.calls if c[1].endswith("/messages")]
     assert len(searches) == 3
     assert all("*" not in c[2]["q"][0] for c in searches)
