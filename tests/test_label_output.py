@@ -24,19 +24,23 @@ def test_case_menu_membership_context(on_contact, remove, api, server, monkeypat
     assert cli.main([command, "--contact", "c123", "--label", "recruiter"]) == 0
     captured = capsys.readouterr()
     if remove and not on_contact:
-        assert "Not on this contact: 1 label" in captured.out
+        assert "Not on this contact" not in captured.out
         assert "Choose" not in captured.err
+    elif remove:
+        assert "Similar labels (case differs): 1 label" in captured.out
+        assert "Choose a label" not in captured.out
     else:
         expected = (
             "Remove 'Recruiter' from this contact"
             if remove
-            else "Keep 'Recruiter'; skip adding 'recruiter'"
+            else "Keep 'Recruiter' already on this contact; add nothing"
             if on_contact
-            else "Add 'Recruiter'"
+            else "Add existing 'Recruiter' to this contact"
         )
         assert expected in captured.out
+        assert "Create 'recruiter' and add it to this contact" in captured.out
         assert "Cancel command" in captured.out
-        assert f"Choose 1–{2 if remove else 3} (Enter = 1):" in captured.err
+        assert f"Choose 1–{2 if remove else 3} (Enter = 1, q = cancel):" in captured.err
     assert server.writes == baseline
 
 
@@ -154,9 +158,31 @@ def test_multiple_case_matches_show_only_applicable_actions(
     )
     output = capsys.readouterr().out
     if remove:
-        assert "Remove 'Recruiter' from this contact" in output
+        assert "Similar labels (case differs): 1 label" in output
         assert "Remove 'RECRUITER'" not in output
-        assert "Not on this contact: 1 label" in output
+        assert "Not on this contact" not in output
     else:
-        assert "Keep 'Recruiter'; skip adding 'recruiter'" in output
-        assert "Add 'RECRUITER'" in output
+        assert "Keep 'Recruiter' already on this contact; add nothing" in output
+        assert "Add existing 'RECRUITER' to this contact" in output
+
+        assert "Create 'recruiter' and add it to this contact" in output
+
+
+@pytest.mark.parametrize("mode", ["account", "contact", "create-contact"])
+@pytest.mark.parametrize("answer", ["q", "Q", "3"])
+def test_case_choice_cancel_alias(mode, answer, api, server, monkeypatch, capsys):
+    group(server, "Example")
+    baseline = server.writes
+    monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: api)
+    for stream in (cli.sys.stdin, cli.sys.stdout, cli.sys.stderr):
+        monkeypatch.setattr(stream, "isatty", lambda: True)
+    replies = iter([answer])
+    monkeypatch.setattr("builtins.input", lambda: next(replies))
+    args = ["add-label"] if mode != "create-contact" else ["add-contact", "--name", "Test"]
+    if mode == "contact":
+        args += ["--contact", "c123"]
+    assert cli.main(args + ["--label", "example", "--apply"]) == 0
+    captured = capsys.readouterr()
+    assert "Cancelled; no changes made." in captured.out
+    assert "Enter = 1, q = cancel" in captured.err
+    assert server.writes == baseline

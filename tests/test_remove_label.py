@@ -4,7 +4,7 @@ from copy import deepcopy
 
 import pytest
 
-from contacts_cli import cli, contact_create
+from contacts_cli import cli
 from contacts_cli.errors import SyncError, WriteUnverified
 from contacts_cli.label_edit import LABEL_FIELDS, edit_membership
 
@@ -57,8 +57,8 @@ def test_remove_preview_apply_noop(command, apply, api, server, monkeypatch, cap
     ]
     assert cli.main(args + (["--apply"] if apply else [])) == 0
     output = capsys.readouterr().out
-    assert "Labels not found: 1 label" in output
-    assert "Not on this contact: 1 label" in output
+    assert "Labels not found" not in output
+    assert "Not on this contact" not in output
     assert (
         "Removing labels: 1 label" in output
         if apply
@@ -93,20 +93,17 @@ def test_remove_confirmation(answer, api, server, monkeypatch):
     assert server.writes == baseline + int(answer)
 
 
-@pytest.mark.parametrize("cancel", [False, True])
-def test_removal_case_choice_has_no_create_option(cancel, api, server, monkeypatch, capsys):
+def test_removal_case_apply_has_no_resolution_prompt(api, server, monkeypatch, capsys):
     resource = group(server, "Recruiter")
     apply_group(server, resource)
     baseline = server.writes
     monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: api)
-    for stream in (contact_create.sys.stdin, contact_create.sys.stdout, contact_create.sys.stderr):
-        monkeypatch.setattr(stream, "isatty", lambda: True)
-    monkeypatch.setattr("builtins.input", lambda: "2" if cancel else "1")
+    monkeypatch.setattr("builtins.input", lambda: pytest.fail("unexpected prompt"))
     assert cli.main(["remove-label", "--contact", "c123", "--label", "recruiter", "--apply"]) == 0
     output = capsys.readouterr().out
-    assert "Create new" not in output
-    assert "Remove 'Recruiter' from this contact" in output and "2. Cancel" in output
-    assert server.writes == baseline + int(not cancel)
+    assert "Similar labels (case differs): 1 label" in output
+    assert "Choose a label" not in output
+    assert server.writes == baseline + 1
 
 
 @pytest.mark.parametrize("fault", ["still_present", "lost_existing"])

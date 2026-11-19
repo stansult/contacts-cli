@@ -27,7 +27,7 @@ Later commands reuse the saved authorization. Local file validation needs no Goo
   as `https://contacts.google.com/person/c123456789` or its bare ID, `c123456789`.
 - Commands that change contacts show a preview and ask for confirmation. Enter or `n` at the
   final confirmation makes no changes. `--apply` skips that final confirmation; conflict choices
-  follow each command's rules. For contact creation, sender-sync, email edits, and custom-field edits
+  follow each command's rules. For contact creation, sender-sync, email edits, custom-field edits, and label removal
   with multiple choices, Enter or `n` returns to selection; `q` cancels.
   Piped or redirected runs without `--apply` do not write.
 - `add-contact` and `duplicate` create new contacts each time; they do not merge with existing ones.
@@ -112,16 +112,24 @@ no labels; existing addresses and labels stay unchanged. `--apply` adds all new 
 See [webpage input](docs/command-reference.md#webpage-email-input) and
 [email conflict and apply rules](docs/command-reference.md#add-email-and-remove-email).
 
-## Add or remove labels
+## List, add, or remove labels
 
 ```sh
+./contacts-cli list-label
+./contacts-cli add-label --label Recruiter
+./contacts-cli list-label --contact c123456789
 ./contacts-cli add-label --contact c123456789 --label Recruiter
 ./contacts-cli remove-label --contact c123456789 --label Recruiter
 ```
 
-Repeat `--label` for multiple labels. Addition creates missing labels; removal takes labels off
-this contact without deleting the labels themselves. Case-only matches may require a choice,
-even with `--apply`. See [label choices](docs/command-reference.md#label-choices-and-output).
+`list-label` lists all account user labels with their contact counts. With `--contact`, it lists
+only that contact’s labels, without counts.
+`add-label` without `--contact` creates account labels without applying them to any contact.
+`remove-label` always requires a contact and shows only labels attached to it. Repeat `--label` for multiple labels when adding or removing. Addition creates missing
+labels; case-only matches may require a choice even with `--apply`. Removal accepts names or quoted `*` patterns such as
+`--label 'Recruit*'`, including case variants. Choose all or numbered labels before confirming;
+`--apply` removes all matches. Only memberships on this contact change; label definitions remain.
+See [label choices](docs/command-reference.md#label-choices-and-output).
 
 ## Add or remove custom fields
 

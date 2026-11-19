@@ -8,7 +8,7 @@
   [confirmation and conflicts](#previews-confirmation-and-conflicts), [output](#output-and-timestamps)
 - [Add-contact](#add-contact), [duplicate](#duplicate-a-contact), [sender-sync](#sender-sync-preview-and-apply)
 - [List-email](#list-email), [add-email and remove-email](#add-email-and-remove-email)
-- [Add-label](#add-label), [remove-label](#remove-label), [label choices](#label-choices-and-output)
+- [List-label](#list-label), [add-label](#add-label), [remove-label](#remove-label), [label choices](#label-choices-and-output)
 - [Custom fields](#add-custom-field-and-remove-custom-field), [validate-contact](#validate-contact),
   [authorization](#authorization)
 - [Global options](#global-options), [email validation](#email-input-validation),
@@ -44,7 +44,7 @@ The saved token selects the account; a URL's `/u/0/` or `/u/1/` segment does not
 
 Contact-changing commands show their intended changes before saving. Interactive confirmation requires
 terminal input, output, and error streams. Enter, `n`, or end-of-input at the final confirmation
-makes no changes. Contact creation, sender-sync, email edits, and custom-field edits return to
+makes no changes. Contact creation, sender-sync, email edits, custom-field edits, and label removal return to
 selection on Enter or `n` when multiple choices are available; with one item, they cancel.
 `q` always cancels.
 Piped or redirected runs without `--apply` do not write; unresolved label choices
@@ -533,13 +533,39 @@ Without `--apply`, change headings say Proposed additions, Proposed updates, or 
 With `--apply`, they say Adding, Updating, or Removing. These headings describe the requested action;
 only the final Saved and verified message confirms success.
 
+## List-label
+
+```sh
+./contacts-cli list-label
+./contacts-cli list-label --contact c123456789
+```
+
+Without `--contact`, lists all account user labels with their total contact counts, including
+`0 contacts` for empty labels. Counts come from the same paginated label request, without
+reading individual contacts. If a returned count is malformed, the row says `count unavailable`.
+With `--contact`, shows the contact and only labels applied to it, without counts. Both lists have a total and numbered rows,
+sorted alphabetically without regard to case. Original spellings remain visible.
+System groups and deleted labels are omitted. An empty list shows `Labels: 0 labels`.
+The command only reads data, never prompts for a write, and has no `--apply` option. The silent
+alias `list-labels` is accepted. Global options work before or after the command.
+
 ## Add-label
 
 ```sh
+./contacts-cli add-label --label Recruiter --label Follow-up
 ./contacts-cli add-label --contact c123456789 --label Recruiter --label Follow-up
 ```
 
-Adds one or more contact labels to an existing contact. `--contact` accepts a URL or bare ID;
+Without `--contact`, creates account labels without reading or editing any contact. Existing
+labels appear under `Already exists`; only missing labels are proposed for creation. If all
+requested labels exist, no changes are made. Confirmation asks only about creation; `--apply`
+creates all missing labels. Each creation is independently verified. On failure or interruption,
+creation stops, reports verified and unattempted counts, and leaves completed creations saved.
+List account labels before retrying. For case-only collisions, choices explicitly say
+`Keep 'test1'; skip creating 'TEST1'`, `Create 'TEST1' as a separate label`, or `Cancel command`.
+Keeping an existing label creates nothing; it is not applied to any contact.
+
+With `--contact`, adds one or more contact labels to that contact. `--contact` accepts a URL or bare ID;
 repeat `--label` for more labels. Names match exactly and case-sensitively. The shared
 [case-collision choices](contact-input.md#contact-labels) offer existing labels, create new,
 or cancel. `--apply` skips final confirmation but not label choices; unresolved noninteractive
@@ -571,16 +597,31 @@ API contract: [modify contact group members](https://developers.google.com/peopl
 ./contacts-cli remove-label --contact c123456789 --label Recruiter --label Follow-up
 ```
 
-Removes the specified labels from one existing contact. It does not delete label definitions or
-change other contacts. Names and case-collision choices follow `add-label`, except removal never
-offers Create new. The menu offers removal of matching labels on this contact and Cancel command. `--apply` skips final confirmation,
-not case choices; unresolved noninteractive case collisions stop. Case-only matches absent from
-the contact are reported and skipped without a choice.
+Removes selected labels from one existing contact without deleting label definitions or changing
+other contacts. Repeat `--label` with literal names or quoted `*` patterns:
 
-The numbered preview separates labels not found, labels not applied to this contact, and proposed
-removals. Repeated labels are deduplicated. Missing or unapplied labels are no-ops; if none are
-applied, the command exits without writes. Otherwise confirmation approves all listed removals.
-Noninteractive runs without `--apply` preview only.
+```sh
+./contacts-cli remove-label --contact c123456789 --label 'Recruit*' --label 'Follow-up'
+```
+
+`*` matches zero or more characters across the whole name, ignoring case. Other characters,
+including `/`, `.`, `+`, `?` and brackets, are literal. Quote patterns to prevent shell expansion.
+`--label '*'` offers every applied user label; Google system groups and deleted labels are excluded.
+A name containing `*` is interpreted as a pattern, with no separate literal-star escape syntax.
+
+Literal names offer both exact and case-different matches without a case-choice prompt. The
+preview groups Exact matches, Matching patterns, and Similar labels (case differs), omitting empty
+groups. Only labels on this contact can be selected. Overlapping requests count a label once;
+an exact literal match takes display priority over a pattern, then a case-only match. Numbering
+is continuous. Labels absent from this contact are omitted, whether requested by name or
+pattern. If none match, the command says `No matching labels on this contact; no changes made.`
+Use `list-label` without `--contact` to inspect account labels separately.
+
+Choose `all`, numbers/ranges such as `1,3-5`, or `q`. A subset preview keeps original numbers;
+final confirmation uses the selected count. `n` or Enter returns to selection; `q` or EOF cancels.
+One eligible label uses a simple `[y/N]` confirmation; no candidates means no write. `--apply`
+removes all candidates, including case variants, without selection or confirmation. Noninteractive
+runs without it preview only. Patterns expand once for the preview, never again during writes.
 
 Each request removes only this contact from one label. A fresh contact read checks identity and
 current memberships before the write; a label removed since preview is skipped. Independent
@@ -594,7 +635,7 @@ already removed. Shared [error logs](error-logs.md) capture failed HTTP response
 
 ## Label choices and output
 
-For `add-label` and `remove-label`, label lookup distinguishes existence anywhere in Google
+For `add-label --contact`, label lookup distinguishes existence anywhere in Google
 Contacts from membership on the selected contact. Choices reflect both spelling and membership.
 
 ### Adding labels
@@ -614,10 +655,10 @@ For a case-only match already on the contact:
 
 ```text
 This contact already has 'Recruiter', which differs only by case from 'recruiter'.
-  1. Keep 'Recruiter'; skip adding 'recruiter'
-  2. Create 'recruiter' and add it too
+  1. Keep 'Recruiter' already on this contact; add nothing
+  2. Create 'recruiter' and add it to this contact
   3. Cancel command
-Choose 1–3 (Enter = 1):
+Choose 1–3 (Enter = 1, q = cancel):
 ```
 
 For a case-only match not on the contact:
@@ -625,27 +666,23 @@ For a case-only match not on the contact:
 ```text
 Label 'Recruiter' exists in Google Contacts, but isn't on this contact.
 Its spelling differs only by case from 'recruiter'.
-  1. Add 'Recruiter'
-  2. Create 'recruiter' and add it instead
+  1. Add existing 'Recruiter' to this contact
+  2. Create 'recruiter' and add it to this contact
   3. Cancel command
-Choose 1–3 (Enter = 1):
+Choose 1–3 (Enter = 1, q = cancel):
 ```
 
-If several case-only alternatives exist, each choice states whether the label will be kept or
-added. The prompt shows the numbered range and the default selected by Enter.
+If several case-only alternatives exist, each choice identifies whether the label is already
+on this contact, exists elsewhere and can be added, or must be created and added. Existing labels
+on the contact are preserved by every choice. The prompt shows the numbered range and the default
+selected by Enter. In all label case-choice menus, `q` (also `Q`) and the numbered Cancel command option both cancel the entire command
+before writes.
 
 ### Removing labels
 
-Removal choices say “Remove 'Recruiter' from this contact.” Labels absent from the contact
-are reported and skipped. Removal never offers to create a label.
-Exact matches still take precedence over case-only alternatives.
-
-```text
-This contact has 'Recruiter', which differs only by case from 'recruiter'.
-  1. Remove 'Recruiter' from this contact
-  2. Cancel command
-Choose 1–2 (Enter = 1):
-```
+Exact and case-different labels on the contact are both selectable. Pattern matches join the
+same numbered removal plan. There is no preliminary case-resolution menu; labels absent from
+the contact are omitted. See [remove-label](#remove-label) for matching and selection.
 
 ### Preview, confirmation, and completion
 

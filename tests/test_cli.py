@@ -248,6 +248,7 @@ def test_help_command_order():
         "list-email",
         "add-email",
         "remove-email",
+        "list-label",
         "add-label",
         "remove-label",
         "add-custom-field",

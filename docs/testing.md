@@ -584,3 +584,54 @@ deduplication, skipped existing pairs, case-distinct additions, subsets, reselec
 noninteractive preview, and all-new-pair apply. Selected additions retain concurrency and readback
 verification. New syntax/selection cases failed on the previous implementation; existing single-pair
 coverage now uses `--field`. Removal selector syntax is unchanged.
+
+### Label removal patterns and selection
+
+`test_label_selection.py` checks whole-name zero-or-more star matching, case variants, literal
+punctuation and slashes, overlap deduplication, exact/case group display, system-group exclusion,
+partial selection/reselection, cancellation/EOF, noninteractive preview, and apply. It verifies
+that label definitions and unrelated fields stay intact. Membership changes after preview are
+skipped without expanding the preview again. Eleven initial cases failed on the old resolver;
+older removal case-menu assertions now require selectable case variants without a resolution prompt.
+Existing fixture contracts verify membership-only writes, pagination, last-group refusal, readback,
+and partial failure/interruption. Addition retains its existing case-choice behavior.
+
+### Listing contact labels
+
+`test_list_label.py` verifies singular/plural routing, global options, sorted numbered output,
+empty results, exclusion of system/deleted/unapplied labels, and absence of prompts or writes.
+The existing paginated fixture supplies the label catalog. All four tests failed before the
+command existed. Command-order coverage checks list, add, remove in top-level help.
+
+### Shared label data
+
+`label_data.py` owns paginated catalog reads, active-user-label filtering, and name/resource
+validation. Listing and removal share filtering; addition uses the same eligibility predicate
+and identity validator while retaining its system-label rejection and case-choice rules.
+`test_label_data.py` checks eligibility, malformed identities, spelling preservation, and pagination.
+A temporary fault bypassing filtering and resource validation caused three tests to fail; restoring
+the helper made them pass. Command-level listing, removal, and creation suites cover its callers.
+
+### Account labels
+
+Account label tests (`test_account_labels.py`) cover listing without a contact, paginated user
+label filtering, create-only preview/confirmation/apply and rerun no-ops, aliases, case choices,
+unresolved noninteractive collisions, and partial failure/interruption. Contact reads are forbidden
+in these tests, and the original contact remains unchanged after creation. Removal output tests
+check that unattached and nonexistent labels produce no informational lists, for both explicit
+names and patterns; membership-preservation and selection tests remain applicable.
+
+Controlled in-process faults bypassing account label creation and reintroducing the removed
+unattached-label report make the new tests fail. These faults do not edit source files and do
+not survive the test process. Existing fixture contracts independently cover label creation,
+lookup pagination, and verification reads.
+
+
+### Account label counts
+
+`test_label_counts.py` independently verifies the fixture's label field mask, then checks zero,
+one, and multiple contacts, omitted zero counts, malformed counts, alphabetical order, pagination,
+and no per-label or individual-contact reads for account listing. Contact-scoped listing neither
+requests nor displays counts. A read-only live probe of the expanded list field mask completed
+in 0.54 seconds; follow-up reads confirmed that labels with omitted counts were empty. The normal
+command uses only list responses, not those follow-up reads.

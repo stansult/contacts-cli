@@ -11,6 +11,7 @@ from .api import execute
 from .core import contact_source, validate_contact
 from .duplicate import READ_FIELDS, creation_marker
 from .errors import SyncError, WriteUnverified
+from .label_data import contact_groups, is_active_user_label, label_identity
 from .output import emit, emit_list
 from .selection import review_selection
 from .timing import read_input
@@ -20,7 +21,7 @@ class LabelChoiceCancelled(Exception):
     """The user declined label resolution before any writes."""
 
 
-def choose_label(name, similar, *, allow_create=True, on_contact=None):
+def choose_label(name, similar, *, allow_create=True, on_contact=None, create_only=False):
     if not all(stream.isatty() for stream in (sys.stdin, sys.stdout, sys.stderr)):
         spellings = ", ".join(repr(label) for label in similar)
         raise SyncError(
@@ -28,7 +29,14 @@ def choose_label(name, similar, *, allow_create=True, on_contact=None):
             "Use an exact existing spelling with --label, or run interactively to choose. "
             "--apply does not resolve label choices; no changes made."
         )
-    if on_contact is None:
+    if create_only:
+        if len(similar) == 1:
+            emit(f"Label {similar[0]!r} already exists; only its case differs from {name!r}.")
+        else:
+            emit(f"Labels differing only by case from {name!r} already exist.")
+        options = [f"Keep {label!r}; skip creating {name!r}" for label in similar]
+        options.append(f"Create {name!r} as a separate label")
+    elif on_contact is None:
         emit(f"Label {name!r} differs only by case from existing labels.")
         options = [f"Use existing {label!r}" for label in similar]
         if allow_create:
@@ -49,49 +57,42 @@ def choose_label(name, similar, *, allow_create=True, on_contact=None):
         options = [
             f"Remove {label!r} from this contact"
             if not allow_create
-            else f"Keep {label!r}; skip adding {name!r}"
+            else f"Keep {label!r} already on this contact; add nothing"
             if label in on_contact
-            else f"Add {label!r}"
+            else f"Add existing {label!r} to this contact"
             for label in similar
         ]
         if allow_create:
-            suffix = "too" if any(label in on_contact for label in similar) else "instead"
-            options.append(f"Create {name!r} and add it {suffix}")
+            options.append(f"Create {name!r} and add it to this contact")
     options.append("Cancel command")
     emit_list("Options", enumerate(options, 1), unit=("option", "options"))
     while True:
-        emit(f"Choose 1–{len(options)} (Enter = 1): ", file=sys.stderr, end="", flush=True)
+        emit(
+            f"Choose 1–{len(options)} (Enter = 1, q = cancel): ",
+            file=sys.stderr,
+            end="",
+            flush=True,
+        )
         try:
             answer = read_input().strip() or "1"
         except EOFError:
             raise LabelChoiceCancelled from None
+        if answer.casefold() == "q":
+            raise LabelChoiceCancelled
         if answer.isdecimal() and 1 <= int(answer) <= len(options):
             choice = int(answer)
             if choice == len(options):
                 raise LabelChoiceCancelled
             return similar[choice - 1] if choice <= len(similar) else name
-        emit(f"Enter a number from 1 to {len(options)}.", file=sys.stderr)
+        emit(f"Enter a number from 1 to {len(options)}, or q to cancel.", file=sys.stderr)
 
 
-def resolve_labels(api, names, *, allow_create=True, memberships=None):
+def resolve_labels(api, names, *, allow_create=True, memberships=None, create_only=False):
     names = list(dict.fromkeys(names))
     if not names:
         return {}, []
     emit("Checking contact labels…")
-    groups, seen, token = [], set(), None
-    while True:
-        result = execute(
-            api.people.contactGroups().list(
-                pageSize=1000, pageToken=token, groupFields="name,groupType,metadata"
-            )
-        )
-        groups.extend(result.get("contactGroups", []))
-        token = result.get("nextPageToken")
-        if not token:
-            break
-        if token in seen:
-            raise SyncError("Repeated contact-label page token; stopped before creation.")
-        seen.add(token)
+    groups = contact_groups(api)
     existing, missing = {}, []
     for name in names:
         matches = [
@@ -100,9 +101,7 @@ def resolve_labels(api, names, *, allow_create=True, memberships=None):
         if len(matches) > 1 or any(g.get("groupType") != "USER_CONTACT_GROUP" for g in matches):
             raise SyncError(f"Contact label {name!r} is ambiguous or a system label.")
         if matches:
-            resource = matches[0].get("resourceName")
-            if not isinstance(resource, str) or not resource.startswith("contactGroups/"):
-                raise SyncError("Invalid contact label resource returned by Google.")
+            _, resource = label_identity(matches[0])
             existing[name] = resource
         else:
             similar = list(
@@ -111,8 +110,7 @@ def resolve_labels(api, names, *, allow_create=True, memberships=None):
                     for g in groups
                     if isinstance(g.get("name"), str)
                     and g["name"].casefold() == name.casefold()
-                    and g.get("groupType") == "USER_CONTACT_GROUP"
-                    and not g.get("metadata", {}).get("deleted")
+                    and is_active_user_label(g)
                 )
             )
             if similar:
@@ -131,7 +129,9 @@ def resolve_labels(api, names, *, allow_create=True, memberships=None):
                         name, similar, allow_create=allow_create, on_contact=on_contact
                     )
                 else:
-                    selected = choose_label(name, similar, allow_create=allow_create)
+                    selected = choose_label(
+                        name, similar, allow_create=allow_create, create_only=create_only
+                    )
                 if selected != name:
                     candidates = [
                         g
@@ -140,9 +140,7 @@ def resolve_labels(api, names, *, allow_create=True, memberships=None):
                     ]
                     if len(candidates) != 1:
                         raise SyncError(f"Contact label {selected!r} is ambiguous.")
-                    resource = candidates[0].get("resourceName")
-                    if not isinstance(resource, str) or not resource.startswith("contactGroups/"):
-                        raise SyncError("Invalid contact label resource returned by Google.")
+                    _, resource = label_identity(candidates[0])
                     existing[selected] = resource
                     continue
             missing.append(name)

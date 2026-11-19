@@ -178,7 +178,11 @@ class FakeGoogle:
         if url.path == "/v1/contactGroups":
             if method == "GET":
                 offset = int(query.get("pageToken", ["0"])[0])
-                groups = list(self.groups.values())
+                fields = set(
+                    query.get("groupFields", ["name,groupType,metadata,memberCount"])[0].split(",")
+                )
+                fields.add("resourceName")
+                groups = [{k: v for k, v in g.items() if k in fields} for g in self.groups.values()]
                 result = {"contactGroups": groups[offset : offset + 1]}
                 if offset + 1 < len(groups):
                     result["nextPageToken"] = str(offset + 1)

@@ -14,6 +14,8 @@ synchronized with the implementation.
 - `core.py`, `address_inputs.py`, and `contact_inputs.py` provide shared parsing and validation.
 - `api.py` handles Google requests, conflict protection, and shared update verification;
   `auth.py` handles OAuth setup and token storage.
+- `label_data.py` shares paginated label reads, active-user filtering, and identity validation
+  across listing, creation, and removal. Command modules own matching and presentation.
 - `email_edit_ui.py` groups and selects approved email changes, including duplicate removals.
 - `web_emails.py` reads static webpages; `url_email_add.py` handles their email-addition flow.
   `selection.py` provides number/range parsing, direct all/number/cancel choices, and reusable review

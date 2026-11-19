@@ -25,7 +25,7 @@ from .email_edit_ui import finish_email_edit
 from .error_logs import COMMAND as ERROR_LOG_COMMAND
 from .error_logs import TRACE, RunDiagnostics
 from .errors import InsufficientScopes, MissingToken, SyncError, WriteUnverified
-from .label_edit import run_label_edit
+from .label_edit import run_label_edit, run_list_labels
 from .metrics import ACTIVE, RunMetrics, counts, outcome
 from .output import OperationalOutput, email_rows, emit, emit_list
 from .progress import ScanProgress, StageProgress
@@ -217,22 +217,56 @@ def parser() -> argparse.ArgumentParser:
                 help="Approve label changes/removals and consolidate matching duplicate entries",
             )
         editing.append(command)
-    label_commands = []
+    label_listing = commands.add_parser(
+        "list-label", help="List account labels with contact counts, or labels on one contact"
+    )
+    label_listing.add_argument(
+        "--contact",
+        help="Google Contacts URL or bare ID; omit for all account labels with contact counts",
+    )
+    label_commands = [label_listing]
     for action in ("add", "remove"):
         labeling = commands.add_parser(
-            f"{action}-label", help=f"{action.title()} labels on an existing contact"
+            f"{action}-label",
+            help=(
+                "Create labels or add them to a contact"
+                if action == "add"
+                else "Remove labels from a contact"
+            ),
+            description=(
+                "Choose all or numbers/ranges from matching labels, then confirm removal."
+                if action == "remove"
+                else None
+            ),
         )
-        labeling.add_argument("--contact", required=True, help="Google Contacts URL or bare ID")
+        labeling.add_argument(
+            "--contact",
+            required=action == "remove",
+            help=(
+                "Google Contacts URL or bare ID; omit to create account labels"
+                if action == "add"
+                else "Google Contacts URL or bare ID"
+            ),
+        )
         labeling.add_argument(
             "--label",
             required=True,
             action="append",
-            help="Exact, case-sensitive contact label (repeatable)",
+            help=(
+                "Label name or quoted * pattern; * matches zero or more characters, "
+                "ignoring case across the whole name (repeatable)"
+                if action == "remove"
+                else "Exact, case-sensitive contact label (repeatable)"
+            ),
         )
         labeling.add_argument(
             "--apply",
             action="store_true",
-            help="Skip final confirmation; label choices still prompt",
+            help=(
+                "Remove all matching user labels on this contact without selection or confirmation"
+                if action == "remove"
+                else "Skip final confirmation; label choices still prompt"
+            ),
         )
         label_commands.append(labeling)
     custom_commands = []
@@ -671,6 +705,7 @@ def main(argv=None) -> int:
         {f"{action}-custom-fields": f"{action}-custom-field" for action in ("add", "remove")}
     )
     aliases["add-contacts"] = "add-contact"
+    aliases["list-labels"] = "list-label"
     aliases["add-labels"] = "add-label"
     aliases["remove-labels"] = "remove-label"
     aliases["validate-contacts"] = "validate-contact"
@@ -758,7 +793,8 @@ def run_command(args):
             emit("Authorization saved. Future sync runs use the saved token without a browser.")
             return 0
         # Reject bad input before touching credentials or the network.
-        contact_resource(args.contact)
+        if args.contact is not None:
+            contact_resource(args.contact)
         if args.command == "add-custom-field":
             for number, (key, value) in enumerate(args.field, 1):
                 text_value(key, f"--field #{number} key")
@@ -820,6 +856,8 @@ def run_command(args):
         api.write_started = False
         if args.command in {"add-custom-field", "remove-custom-field"}:
             return run_custom_field(args, api, confirm_apply, contact_heading)
+        if args.command == "list-label":
+            return run_list_labels(args, api, contact_heading)
         if args.command in {"add-label", "remove-label"}:
             return run_label_edit(args, api, confirm_apply, contact_heading)
         if args.command == "list-email":
