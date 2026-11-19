@@ -3,9 +3,8 @@
 from collections import Counter
 from copy import deepcopy
 from dataclasses import dataclass
-from fnmatch import fnmatchcase
 
-from .address_inputs import normalized_entries
+from .address_inputs import matches_address_pattern, normalized_entries
 from .core import (
     CONTACT_FIELDS,
     _email_signature,
@@ -48,7 +47,7 @@ def expand_removals(person, entries):
         matches = [
             e["value"]
             for e in person.get("emailAddresses", [])
-            if fnmatchcase(address_key(e["value"]), address_key(address))
+            if matches_address_pattern(e["value"], address)
         ]
         for value in matches or [address]:
             yield value, "", origin

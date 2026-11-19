@@ -49,7 +49,7 @@ def test_files_and_addresses_combine_and_are_reread(api, server, monkeypatch, tm
         "not-an-email",
         "@example.com",
         "person@",
-        "*@example.com",
+        "*?@example.com",
         "one@example.com, two@example.com",
         "Name <one@example.com>",
     ],

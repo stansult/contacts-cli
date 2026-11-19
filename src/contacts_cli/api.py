@@ -9,6 +9,7 @@ from google.auth.exceptions import GoogleAuthError
 from googleapiclient.errors import HttpError
 from httplib2 import HttpLib2Error
 
+from .address_inputs import matches_address_pattern
 from .core import (
     CONTACT_FIELDS,
     Plan,
@@ -150,7 +151,9 @@ class GoogleAPI:
             if progress is not None:
                 progress(stage, processed, senders, problems)
 
-        excluded = {address_key(address) for address in (*existing_emails, *excluded_emails)}
+        patterns = {address_key(value) for value in excluded_emails if "*" in value}
+        exact = [value for value in excluded_emails if "*" not in value]
+        excluded = {address_key(address) for address in (*existing_emails, *exact)}
         query = exclusion_query(excluded, search=search)
         report("Reading sending addresses")
         excluded.update(self.sending_addresses())
@@ -262,22 +265,27 @@ class GoogleAPI:
                     (f"Message {message_id}: {exc}",),
                     tuple(sorted(labels.items())),
                 )
-            new = {
+            discovered = {
                 address_key(address): address
                 for address, label in reversed(addresses)
                 if address_key(address) not in excluded
             }
-            if not new:
+            if not discovered:
                 report("Search stopped", processed, len(senders))
                 raise SyncError(
                     "Gmail search returned no new sender despite exclusions; no changes made."
                 )
+            new = {
+                key: address
+                for key, address in discovered.items()
+                if not any(matches_address_pattern(address, pattern) for pattern in patterns)
+            }
             for address, label in addresses:
                 key = address_key(address)
                 if key in new:
                     labels.setdefault(key, label)
             senders.update(new)
-            excluded.update(new)
+            excluded.update(discovered)
             report("Searching senders", processed, len(senders))
             query = exclusion_query(excluded, search=search)
         report("Search finished", processed, len(senders))

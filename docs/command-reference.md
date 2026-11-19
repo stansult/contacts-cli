@@ -180,26 +180,44 @@ Search mode skips label lookup and label-membership checks. Raw queries are not 
 Output identifies the contact and label or search,
 shows inspected-message and new-sender counts in progress, then existing email entries and additions.
 
-Use repeatable `--exclude ADDRESS` options to skip additional individual senders for that run.
-Addresses are compared case-insensitively after trimming surrounding whitespace; duplicates are
-combined. Domains, wildcards, display names, and address lists are not accepted. Invalid or
-unsupported values are rejected before authorization or network access. Manual exclusions are
-combined with automatic exclusions in Gmail queries and in parsed candidate filtering. They
-are not saved for later runs and do not remove addresses already stored in the contact. The same
-query-size limit applies to the search expression plus all exclusions. Gmail matching limitations
-below still apply.
+Use repeatable `--exclude ADDRESS_OR_PATTERN` options to skip senders for this run. Matching
+ignores case and surrounding whitespace; duplicate inputs are combined. An exact address or a
+pattern containing `*` is accepted. `*` matches zero or more characters across the entire address.
+Quote patterns in the shell:
 
-Use `--exclude-file PATH` to read a UTF-8 list, one address per line. Repeat the option for
-multiple files and combine it with `--exclude`. Blank lines, surrounding whitespace, and lines
-starting with `#` are ignored. A line copied from the preview may include ` — Display Name` after
-the address; only the address is used. Inline comments and comma-separated lists are not supported.
-All file addresses use the same validation and deduplication as `--exclude`. Missing, unreadable,
-non-UTF-8 files and invalid entries stop before authorization; invalid entries report the file
-and line number. Relative paths use the current working directory. Files are read fresh each run.
+```sh
+./contacts-cli sender-sync --label 'Example/Delivery' --contact c123456789 --exclude '*@example.com'
+```
+
+`*@example.com` matches that exact domain; `*@*.example.com` matches its subdomains.
+`*example.com` also matches addresses ending in `notexample.com`. Bare domains, display names,
+address lists, and other wildcard syntax (`?`, brackets) are not accepted. Invalid or unsupported
+values are rejected before authorization or network access. Exclusions are not saved for later
+runs and do not remove addresses already stored in the contact.
+
+Exact exclusions join existing-contact and sending-address exclusions in Gmail queries. Star
+patterns are matched locally, never sent as Gmail search expressions. After inspecting a matching
+sender, the CLI excludes its concrete address from subsequent searches, so its other messages
+are not inspected. This means wildcard exclusions still require a header read for each newly
+discovered excluded sender; exact exclusions can avoid those reads. `--exclude '*'` accepts no
+new senders but still scans. Inspected counts include these reads; new-sender counts omit excluded
+addresses. The query-size limit still applies as concrete exclusions accumulate. Repeated results,
+malformed headers, and unsafe query values still stop the scan. Gmail matching limitations below
+still apply.
+
+Use `--exclude-file PATH` to read a UTF-8 list, one address or pattern per line. Repeat the option
+for multiple files and combine it with `--exclude`. Do not put shell quotes around file patterns.
+Blank lines, surrounding whitespace, and lines starting with `#` are ignored. A line copied from
+the preview may include ` — Display Name` after the address or pattern; that label is ignored.
+Inline comments and comma-separated lists are not supported. Files use the same validation and
+deduplication as `--exclude`. Missing, unreadable, non-UTF-8 files and invalid entries stop before
+authorization; invalid entries report the file and line number. Relative paths use the current
+working directory. Files are read fresh each run.
 
 ```text
 # Excluded senders
 ignore@example.com
+*@notifications.example.com
 another@example.com — Notifications
 ```
 

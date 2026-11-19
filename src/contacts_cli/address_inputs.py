@@ -1,10 +1,12 @@
 """Shared address and UTF-8 list parsing for exclusion and email editing."""
 
+from fnmatch import fnmatchcase
+
 from .core import address_key, parse_from_details
 from .errors import SyncError
 
 
-def removal_input(value):
+def address_pattern_input(value):
     if "*" not in value:
         return bare_address(value)
     if len(value) > 1024 or any(
@@ -14,6 +16,11 @@ def removal_input(value):
             "expected an email address or * pattern; no names, quotes, spaces, or other wildcards"
         )
     return value
+
+
+def matches_address_pattern(address, pattern):
+    """Match a validated whole-address star pattern, ignoring case."""
+    return fnmatchcase(address_key(address), address_key(pattern))
 
 
 def bare_address(value):
@@ -53,7 +60,9 @@ def edit_inputs(values, paths, option):
     for line, origin in lines:
         address, label = split_entry(line)
         try:
-            address = removal_input(address) if option == "--remove" else bare_address(address)
+            address = (
+                address_pattern_input(address) if option == "--remove" else bare_address(address)
+            )
             if any(ord(c) < 32 or ord(c) == 127 for c in label):
                 raise SyncError("invalid control character in label")
         except SyncError as exc:

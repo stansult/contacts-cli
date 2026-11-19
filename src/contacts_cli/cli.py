@@ -6,7 +6,7 @@ import sys
 from dataclasses import replace
 from pathlib import Path
 
-from .address_inputs import bare_address, edit_inputs, file_lines, split_entry
+from .address_inputs import address_pattern_input, edit_inputs, file_lines, split_entry
 from .api import exclusion_query
 from .auth import authorize, connect, default_credentials_path, default_token_path
 from .contact_create import LabelChoiceCancelled, run_create
@@ -49,11 +49,13 @@ def positive_seconds(value: str) -> int:
 def excluded_address(value):
     address = address_key(value)
     try:
-        bare_address(address)
-        exclusion_query({address})
+        address_pattern_input(address)
+        if "*" not in address:
+            exclusion_query({address})
     except SyncError as exc:
         raise argparse.ArgumentTypeError(
-            "--exclude requires one supported email address, without a name or wildcard"
+            "--exclude requires one supported email address or * pattern, "
+            "without a name or other wildcards"
         ) from exc
     return address
 
@@ -66,7 +68,7 @@ def file_exclusions(paths):
             addresses.add(excluded_address(address))
         except argparse.ArgumentTypeError as exc:
             raise SyncError(
-                f"{origin}: expected one supported email address "
+                f"{origin}: expected one supported email address or * pattern "
                 "(optionally followed by ' — Display Name')."
             ) from exc
     return addresses
@@ -146,8 +148,11 @@ def parser() -> argparse.ArgumentParser:
         action="append",
         default=[],
         type=excluded_address,
-        metavar="ADDRESS",
-        help="Exclude one sender address for this run (repeat for multiple addresses)",
+        metavar="ADDRESS_OR_PATTERN",
+        help=(
+            "Exclude a sender or quoted * pattern; * matches zero or more characters "
+            "across the whole address, ignoring case (repeatable)"
+        ),
     )
     sync.add_argument(
         "--exclude-file",
@@ -155,7 +160,10 @@ def parser() -> argparse.ArgumentParser:
         default=[],
         type=Path,
         metavar="PATH",
-        help="Read excluded senders from a UTF-8 file (repeat for multiple files)",
+        help=(
+            "Read excluded addresses or * patterns, one per UTF-8 line; "
+            "no shell quotes (repeatable)"
+        ),
     )
     listing = commands.add_parser("list-email", help="List a contact's existing email entries")
     listing.add_argument(
@@ -818,7 +826,9 @@ def run_command(args):
             args.exclude = sorted(set(args.exclude) | file_exclusions(args.exclude_file))
             if args.search is not None:
                 args.search = args.search.strip()
-            exclusion_query(set(args.exclude), search=args.search)
+            exclusion_query(
+                {value for value in args.exclude if "*" not in value}, search=args.search
+            )
             if (
                 args.exclude_other
                 and args.search is not None

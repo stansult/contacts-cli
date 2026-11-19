@@ -76,8 +76,10 @@ them automatically. You can then choose all remaining addresses or some by numbe
 `--apply` alone includes both groups without selection. See [address selection rules](docs/command-reference.md#grouping-additions-by-address-criteria).
 
 Adds missing sender addresses from a Gmail label or search, excluding addresses already on the
-contact and your Gmail sending addresses. Sender names become email labels when useful. Use `--exclude ADDRESS`
-or `--exclude-file PATH` to skip other senders. See [search and exclusion details](docs/command-reference.md#sender-sync-preview-and-apply).
+contact and your Gmail sending addresses. Sender names become email labels when useful.
+Use `--exclude ADDRESS` or a quoted pattern such as `--exclude '*@example.com'` to skip senders.
+`*` matches zero or more characters, ignoring case. `--exclude-file PATH` accepts one address or
+pattern per line, without shell quotes. Wildcards filter discovered senders locally. See [search and exclusion details](docs/command-reference.md#sender-sync-preview-and-apply).
 
 ## List email addresses
 

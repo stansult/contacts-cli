@@ -50,7 +50,7 @@ def test_repeatable_exclusions_in_query_preview_and_write(api, server, monkeypat
     [
         "",
         "example.com",
-        "*@example.com",
+        "*?@example.com",
         "a@example.com,b@example.com",
         "Name <a@example.com>",
         "a@example.com OR from:b@example.com",

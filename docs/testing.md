@@ -635,3 +635,14 @@ and no per-label or individual-contact reads for account listing. Contact-scoped
 requests nor displays counts. A read-only live probe of the expanded list field mask completed
 in 0.54 seconds; follow-up reads confirmed that labels with omitted counts were empty. The normal
 command uses only list responses, not those follow-up reads.
+
+
+### Wildcard sender exclusions
+
+`test_exclude_patterns.py` covers inline/file combinations, deduplication, case-insensitive
+whole-address stars, exact-domain versus subdomain patterns, all/no matches, repeated messages
+from an excluded sender, label/search modes, preview/apply, invalid inputs before authorization,
+progress totals, and the query-length guard on discovered exclusions. Assertions inspect Gmail
+queries to verify that patterns never reach Gmail and concrete addresses do, while writes preserve
+existing contact entries. Existing fixture contracts validate exact sender exclusions and explicit
+search result sets independently. Shared matching also retains the email-removal regression suite.
