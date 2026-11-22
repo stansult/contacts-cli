@@ -9,6 +9,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import requests
 
+from .contact_inputs import inline_name, names_match, text_value, validate_entry
 from .core import contact_source, validate_contact
 from .errors import SyncError
 
@@ -44,10 +45,41 @@ def duplicate_marker(now=None):
     return creation_marker("Duplicate", now)
 
 
-def replacement_name(value):
-    if value is not None and (not value.strip() or any(ord(c) < 32 for c in value)):
-        raise SyncError("Replacement name must be nonblank and contain no control characters.")
-    return value
+def replacement_fields(
+    name=None,
+    *,
+    first_name=None,
+    last_name=None,
+    email=None,
+    phone=None,
+    clear_name=False,
+    clear_email=False,
+    clear_phone=False,
+):
+    """Validate overrides locally; omitted fields are preserved, empty lists clear them."""
+    names = inline_name(name, first_name, last_name)
+    fields = {}
+    for option, field, values, clear in (
+        ("name", "names", names, clear_name),
+        ("email", "emailAddresses", email, clear_email),
+        ("phone", "phoneNumbers", phone, clear_phone),
+    ):
+        if clear and values is not None:
+            raise SyncError(f"--{option} cannot be combined with --clear-{option}.")
+        if clear:
+            fields[field] = []
+        elif option == "name" and values is not None:
+            fields[field] = values
+        elif values is not None:
+            entries = []
+            for number, value in enumerate(values, 1):
+                path = f"--{option} #{number}"
+                text_value(value, path)
+                entry = {"value": value.strip()}
+                validate_entry(field, entry, path)
+                entries.append(entry)
+            fields[field] = entries
+    return fields
 
 
 def clean(value, schema, schemas):
@@ -110,27 +142,59 @@ class DuplicatePlan:
     person: dict
     body: dict
     photo_url: str | None
+    no_photo: bool = False
 
 
-def make_duplicate_plan(person, schemas, name=None):
+def make_duplicate_plan(
+    person,
+    schemas,
+    name=None,
+    *,
+    first_name=None,
+    last_name=None,
+    email=None,
+    phone=None,
+    clear_name=False,
+    clear_email=False,
+    clear_phone=False,
+    no_photo=False,
+):
     validate_contact(person)
-    replacement_name(name)
+    replacements = replacement_fields(
+        name,
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        phone=phone,
+        clear_name=clear_name,
+        clear_email=clear_email,
+        clear_phone=clear_phone,
+    )
     body = copy_body(person, schemas)
-    body.setdefault("userDefined", []).append(duplicate_marker())
-    if name is not None:
-        body["names"] = [{"givenName": name}]
+    body["userDefined"] = [
+        field for field in body.get("userDefined", []) if field.get("key") != "Duplicate"
+    ] + [duplicate_marker()]
+    for field, entries in replacements.items():
+        if entries:
+            body[field] = entries
+        else:
+            body.pop(field, None)
     for field in ("names", "birthdays", "biographies", "genders"):
         if len(body.get(field, [])) > 1:
             raise SyncError(f"Google allows only one {field} entry in a new contact.")
     if sum(len(items) for items in body.values()) > 500 or len(json.dumps(body).encode()) > 131072:
         raise SyncError("Copy exceeds the local safety limit (500 entries or 128 KiB).")
-    photos = [photo for photo in person.get("photos", []) if not photo.get("default", False)]
+    photos = (
+        []
+        if no_photo
+        else [photo for photo in person.get("photos", []) if not photo.get("default", False)]
+    )
     if len(photos) > 1:
         raise SyncError("Multiple contact photos found; cannot select a complete copy safely.")
     photo_url = photos[0].get("url") if photos else None
     if photos and not photo_url:
         raise SyncError("Contact photo has no download URL; copy aborted.")
-    return DuplicatePlan(deepcopy(person), body, photo_url)
+    return DuplicatePlan(deepcopy(person), body, photo_url, no_photo)
 
 
 def verify_duplicate(plan, person, schemas):
@@ -145,7 +209,11 @@ def verify_duplicate(plan, person, schemas):
             for field, entries in body.items()
         }
 
-    if stable(without_metadata(saved)) != stable(without_metadata(plan.body)):
+    if not names_match(plan.body.get("names", []), person.get("names", [])):
+        raise SyncError("The saved name does not match the name in the preview.")
+    expected_fields = {k: v for k, v in plan.body.items() if k != "names"}
+    saved_fields = {k: v for k, v in saved.items() if k != "names"}
+    if stable(without_metadata(saved_fields)) != stable(without_metadata(expected_fields)):
         raise SyncError("The saved contact does not match the editable fields in the preview.")
     for field, entries in plan.body.items():
         requested = [entry for entry in entries if entry.get("metadata", {}).get("sourcePrimary")]
@@ -153,8 +221,19 @@ def verify_duplicate(plan, person, schemas):
             actual = [
                 entry for entry in saved[field] if entry.get("metadata", {}).get("sourcePrimary")
             ]
-            if stable(actual) != stable(requested):
+            if field == "names":
+                actual = [
+                    entry
+                    for entry in person.get("names", [])
+                    if entry.get("metadata", {}).get("sourcePrimary")
+                ]
+                matches = names_match(requested, actual)
+            else:
+                matches = stable(actual) == stable(requested)
+            if not matches:
                 raise SyncError(f"The saved {field} primary choice differs from the preview.")
+    if plan.no_photo and any(not p.get("default", False) for p in person.get("photos", [])):
+        raise SyncError("The saved contact unexpectedly has a custom photo.")
     if plan.photo_url and not any(not p.get("default", False) for p in person.get("photos", [])):
         raise SyncError("The saved contact photo is missing.")
 

@@ -204,7 +204,54 @@ def unique_keys(pairs):
     return result
 
 
-def load_contact_inputs(*, name=None, emails=(), file=None, labels=()):
+def inline_name(name=None, first_name=None, last_name=None):
+    """Build one full or explicit name; never infer components locally."""
+    if name is not None and (first_name is not None or last_name is not None):
+        raise SyncError("--name cannot be combined with --first-name or --last-name.")
+    entry = {}
+    for option, field, value in (
+        ("--name", "unstructuredName", name),
+        ("--first-name", "givenName", first_name),
+        ("--last-name", "familyName", last_name),
+    ):
+        if value is not None:
+            text_value(value, option)
+            entry[field] = value
+    return [entry] if entry else None
+
+
+def names_match(expected, actual):
+    """Allow Google-generated name components only for full-name input."""
+    if not isinstance(actual, list) or len(expected) != len(actual):
+        return False
+    ignored = {"metadata", "displayName", "displayNameLastFirst"}
+    components = {"givenName", "middleName", "familyName", "honorificPrefix", "honorificSuffix"}
+    remaining = list(actual)
+    for entry in expected:
+        wanted = {k: v for k, v in entry.items() if k not in ignored}
+        for index, candidate in enumerate(remaining):
+            if not isinstance(candidate, dict):
+                continue
+            saved = {k: v for k, v in candidate.items() if k not in ignored}
+            if "unstructuredName" in wanted:
+                # Some responses expose only the generated display name.
+                if "unstructuredName" not in saved and "displayName" in candidate:
+                    saved["unstructuredName"] = candidate["displayName"]
+                saved = {k: v for k, v in saved.items() if k not in components or k in wanted}
+            else:
+                # Google can add this equivalent full-name representation to structured input.
+                saved.pop("unstructuredName", None)
+            if wanted == saved:
+                remaining.pop(index)
+                break
+        else:
+            return False
+    return True
+
+
+def load_contact_inputs(
+    *, name=None, first_name=None, last_name=None, emails=(), file=None, labels=()
+):
     for i, label in enumerate(labels, 1):
         text_value(label, f"--label #{i}")
     if file is not None:
@@ -218,8 +265,9 @@ def load_contact_inputs(*, name=None, emails=(), file=None, labels=()):
             raise SyncError(f"{file}: could not read valid UTF-8 JSON: {exc}") from exc
     else:
         data = {}
-        if name is not None:
-            data["names"] = [{"unstructuredName": name}]
+        names = inline_name(name, first_name, last_name)
+        if names is not None:
+            data["names"] = names
         if emails:
             data["emailAddresses"] = [{"value": email} for email in emails]
     return validate_contacts(data)

@@ -19,7 +19,7 @@ from .core import (
     update_body,
 )
 from .custom_fields import run_custom_field
-from .duplicate import READ_FIELDS, make_duplicate_plan, replacement_name
+from .duplicate import READ_FIELDS, make_duplicate_plan, replacement_fields
 from .email_edit import make_edit_plan
 from .email_edit_ui import finish_email_edit
 from .error_logs import COMMAND as ERROR_LOG_COMMAND
@@ -88,7 +88,11 @@ def parser() -> argparse.ArgumentParser:
         help="Preview or create new contacts",
         description="Preview contacts; interactively select all or numbers/ranges before creation.",
     )
-    creation.add_argument("--name", help="Full name for one contact")
+    creation.add_argument(
+        "--name", help="Full name for Google to parse; excludes explicit name parts"
+    )
+    creation.add_argument("--first-name", help="Explicit first name; may be used with --last-name")
+    creation.add_argument("--last-name", help="Explicit last name; may be used with --first-name")
     creation.add_argument(
         "--email", action="append", default=[], help="Email for that contact (repeatable)"
     )
@@ -119,7 +123,36 @@ def parser() -> argparse.ArgumentParser:
     duplicate.add_argument(
         "--contact", required=True, help="Google Contacts URL or bare ID such as c123456789"
     )
-    duplicate.add_argument("--name", help="Optional replacement name (stored as the given name)")
+    for option, label in (
+        ("name", "name"),
+        ("email", "email addresses"),
+        ("phone", "phone numbers"),
+    ):
+        overrides = duplicate.add_mutually_exclusive_group()
+        if option == "name":
+            overrides.add_argument(
+                "--name", help="Replace the whole name with a full name for Google to parse"
+            )
+        else:
+            overrides.add_argument(
+                f"--{option}",
+                action="append",
+                help=f"Replace all {label} with these unlabeled values (repeatable)",
+            )
+        overrides.add_argument(
+            f"--clear-{option}", action="store_true", help=f"Leave the duplicate's {label} empty"
+        )
+    duplicate.add_argument(
+        "--first-name",
+        help="Replace the whole name using explicit parts; omit last name to leave it empty",
+    )
+    duplicate.add_argument(
+        "--last-name",
+        help="Replace the whole name using explicit parts; omit first name to leave it empty",
+    )
+    duplicate.add_argument(
+        "--no-photo", action="store_true", help="Skip the source photo; use a default avatar"
+    )
     duplicate.add_argument(
         "--apply", action="store_true", help="Create and verify a new contact without asking"
     )
@@ -651,14 +684,37 @@ def run_email_edit(args, api):
 
 def run_duplicate(args, api):
     person = api.get_contact(contact_resource(args.contact), READ_FIELDS)
-    plan = make_duplicate_plan(person, api.people._rootDesc["schemas"], args.name)
+    plan = make_duplicate_plan(
+        person, api.people._rootDesc["schemas"], **args.duplicate_options, no_photo=args.no_photo
+    )
     emit(contact_heading(person))
-    if args.name is not None:
-        emit(f"Replacement name: {args.name!r}", primary=False)
+    for field, entries in replacement_fields(**args.duplicate_options).items():
+        label = {"names": "Name", "emailAddresses": "Emails", "phoneNumbers": "Phones"}[field]
+        if entries:
+            if field == "names":
+                parts = {
+                    "unstructuredName": "Full name",
+                    "givenName": "First name",
+                    "familyName": "Last name",
+                }
+                values = [f"{parts[key]}: {value}" for key, value in entries[0].items()]
+            else:
+                values = [item["value"] for item in entries]
+            emit(f"{label}: replace with " + "; ".join(values), primary=False)
+        else:
+            emit(f"{label}: clear", primary=False)
     for field, values in plan.body.items():
         emit(f"  {field}: {len(values)}", primary=False)
     emit(
-        "Photo: " + ("copy custom photo" if plan.photo_url else "use default avatar"), primary=False
+        "Photo: "
+        + (
+            "use default avatar (--no-photo)"
+            if args.no_photo
+            else "copy custom photo"
+            if plan.photo_url
+            else "use default avatar"
+        ),
+        primary=False,
     )
     if args.apply or confirm_apply("Create this duplicate?"):
         location = api.duplicate(plan)
@@ -747,11 +803,19 @@ def main(argv=None) -> int:
         if not url and not getattr(args, action) and not getattr(args, action + "_file"):
             alternatives = " or --from-url" if action == "add" else ""
             arguments.error(f"{args.command} requires --{action} or --{action}-file{alternatives}")
-    if args.command == "add-contact":
-        if args.file is not None and (args.name is not None or args.email):
-            arguments.error("--file cannot be combined with --name or --email")
-        if args.file is None and args.name is None and not args.email:
-            arguments.error("add-contact requires --name, --email, or --file")
+    if args.command in {"add-contact", "duplicate"}:
+        explicit_name = args.first_name is not None or args.last_name is not None
+        if args.name is not None and explicit_name:
+            arguments.error("--name cannot be combined with --first-name or --last-name")
+        if args.command == "duplicate" and args.clear_name and explicit_name:
+            arguments.error("--clear-name cannot be combined with --first-name or --last-name")
+        if args.command == "add-contact":
+            if args.file is not None and (args.name is not None or explicit_name or args.email):
+                arguments.error("--file cannot be combined with inline name or email options")
+            if args.file is None and args.name is None and not explicit_name and not args.email:
+                arguments.error(
+                    "add-contact requires --name, --first-name, --last-name, --email, or --file"
+                )
     token = ERROR_LOG_COMMAND.set(args.command)
     try:
         with OperationalOutput(), CommandTimer():
@@ -793,7 +857,12 @@ def run_command(args):
             return 0
         if args.command == "add-contact":
             contacts = load_contact_inputs(
-                name=args.name, emails=args.email, file=args.file, labels=args.label
+                name=args.name,
+                first_name=args.first_name,
+                last_name=args.last_name,
+                emails=args.email,
+                file=args.file,
+                labels=args.label,
             )
             api = connect_with_authorization(args.token, args.auth_timeout)
             if api is None:
@@ -824,7 +893,20 @@ def run_command(args):
             for number, label in enumerate(args.label, 1):
                 text_value(label, f"--label #{number}")
         elif args.command == "duplicate":
-            replacement_name(args.name)
+            args.duplicate_options = {
+                key: getattr(args, key)
+                for key in (
+                    "name",
+                    "first_name",
+                    "last_name",
+                    "email",
+                    "phone",
+                    "clear_name",
+                    "clear_email",
+                    "clear_phone",
+                )
+            }
+            replacement_fields(**args.duplicate_options)
         elif args.command == "sender-sync":
             if args.exclude_other and args.label is not None:
                 raise SyncError(

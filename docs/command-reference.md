@@ -83,7 +83,8 @@ counter updates, without animation or control codes. These thresholds require no
 
 ## Add-contact
 
-`add-contact` accepts inline `--name` and repeatable `--email`, or `--file` with one Person object
+`add-contact` accepts inline `--name` (or `--first-name` / `--last-name`) and repeatable `--email`,
+or `--file` with one Person object
 or an array. Repeatable `--label` reuses existing labels or previews missing labels for creation.
 Case-only label collisions require choosing an existing label, creating new, or cancelling;
 noninteractive collisions stop. `--apply` does not resolve this choice.
@@ -117,16 +118,42 @@ Add `--apply` to create it without the confirmation prompt:
   --apply
 ```
 
-Omit `--name` to keep the original name. A replacement replaces all name components and is stored
-as the given name without guessing how to split it. Preview lists entry counts for each copied
-field and whether a custom photo will be copied. Success prints the new contact's link, using
-the person identifier returned by Google.
+Omit a field option to keep the source value. Overrides affect only the new contact:
+
+| Field | Replace | Leave empty |
+| --- | --- | --- |
+| Name | `--name 'Jane Doe'` or `--first-name Jane --last-name Doe` | `--clear-name` |
+| Emails | `--email jane@example.com` (repeatable) | `--clear-email` |
+| Phones | `--phone '+1 202 555 0142'` (repeatable) | `--clear-phone` |
+| Photo | Copied by default | `--no-photo` |
+
+`--name` replaces all name components with a full name (`unstructuredName`) for Google to parse,
+just as in `add-contact`. Use `--first-name` and `--last-name` together or individually for explicit
+components. Those options also replace the whole original name, so omitted components are empty.
+Do not combine `--name` with either explicit component, or `--clear-name` with any name input.
+Without any name option, existing editable name components are copied.
+
+Replacement emails and phones replace the entire original list, including its
+labels and primary choices. New entries have no labels; Google assigns the primary choice.
+Repeat `--email` or `--phone` to supply multiple entries. Surrounding whitespace is stripped from
+email/phone values. Names, companies, memberships, and other fields not overridden stay unchanged.
+
+Replacement values must be nonblank; use the clear options instead of an empty string.
+Emails use the same dotted-domain validation as contact creation; names and wildcard patterns are
+not accepted as email values. Phones use the same format validation as contact creation and may
+include an extension. Quote values containing spaces. Replacement and clearing options for the
+same field are mutually exclusive. Invalid inputs are rejected before authorization.
+
+Preview shows replacement values, explicitly marks cleared fields, lists resulting entry counts,
+and states whether a photo will be copied. A cleared field has no entries in the new contact.
+Success prints the new contact's link, using the person identifier returned by Google.
 
 Each copy adds a **Duplicate** custom field, for example:
 `Created by contacts-cli on November 11, 2026 at 2:30 PM (UTC−08:00)`.
 The timestamp uses the computer's local time when that run prepares the copy, including its UTC
-offset. Existing custom fields, including earlier Duplicate entries, are preserved. A separate
-preview run does not fix the timestamp for a later `--apply` run.
+offset. Existing fields labeled exactly **Duplicate** are replaced with this one fresh marker;
+other custom fields are preserved. A separate preview run does not fix the timestamp for a later
+`--apply` run.
 
 The copy includes editable contact fields exposed by the People API: names, emails and custom
 labels, phones, addresses, notes, dates, organizations, relationships, URLs, custom fields, and
@@ -134,8 +161,11 @@ other editable details, including file-as and skills. User contact groups, My Co
 memberships are retained. Unsupported system groups stop creation. Profile-only data, generated
 IDs, timestamps, verification flags, and read-only domain memberships are not copied.
 
-Custom photos are downloaded before creation and uploaded in a separate request afterward. Only
-HTTPS Googleusercontent photo URLs are accepted, without redirects, with a 10 MiB local limit.
+With `--no-photo`, photo download and upload are skipped, even if the source photo URL is missing
+or unsupported. The new contact uses Google's default avatar; its source photo is untouched.
+Otherwise, custom photos are downloaded before creation and uploaded in a separate request
+afterward. Only HTTPS Googleusercontent photo URLs are accepted, without redirects, with a
+10 MiB local limit.
 Recognized `/s100/` or `=s100` URL size settings are changed to `s0` to request the full-size
 image; other URL options are retained and a conflicting `sz` query parameter is removed.
 Unrecognized size formats or failed downloads stop creation, with no thumbnail fallback. This
@@ -149,9 +179,13 @@ Creation and photo writes are never automatically retried. If the result is unce
 write fails, inspect Google Contacts before retrying. The error includes the new contact's link
 when available; no automatic deletion or rollback is attempted.
 
-An independent read verifies editable fields and primary choices after saving. Server
-normalization can cause a conservative verification failure. The same local 500-entry and 128 KiB
-limits apply. Existing authorization is reused; this command does not read Gmail messages.
+An independent read verifies the resulting editable fields, including replacements and cleared
+fields, and retained primary choices after saving. Full names allow Google's generated components;
+explicit name parts must be preserved, allowing generated display/full-name representations.
+With `--no-photo`, it also checks that no custom
+photo is present. Server normalization can cause a conservative verification failure. The same
+local 500-entry and 128 KiB limits apply. Existing authorization is reused; this command does not
+read Gmail messages.
 
 Sources: [contact creation](https://developers.google.com/people/api/rest/v1/people/createContact), [editable Person fields](https://developers.google.com/people/api/rest/v1/people#Person), and [photo updates](https://developers.google.com/people/api/rest/v1/people/updateContactPhoto).
 
@@ -849,8 +883,9 @@ If supplied both before and after the command, the value after the command takes
 
 ## Email input validation
 
-Email addresses supplied inline or through files for add-contact, add-email, remove-email, and
-sender-sync exclusions must have a dotted domain, such as `name@example.com`. Single-component
+Email addresses supplied inline or through files for add-contact, duplicate, add-email,
+remove-email, and sender-sync exclusions must have a dotted domain, such as `name@example.com`.
+Single-component
 domains such as `name@localhost` or `name@1` are rejected. Validation does not check whether a
 domain or mailbox exists. Removal and sender-exclusion patterns containing `*` are an exception:
 they match whole addresses and need not themselves be complete email addresses.

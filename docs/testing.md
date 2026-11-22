@@ -111,6 +111,43 @@ output must link to `/person/c456`, not `/person/c1c8`. The success assertion fa
 original link construction before the fix. This automated test does not establish live browser
 navigation behavior.
 
+Duplicate-marker coverage checks that copying a copy replaces all earlier `Duplicate` fields
+with one fresh marker, preserves other custom fields and the source, and verifies the saved marker.
+
+### Duplicate field overrides
+
+`test_duplicate_options.py` covers name/email/phone replacement, repeated email/phone options,
+clearing, mixed overrides, unrelated-field preservation, preview/apply/confirmation, and unchanged
+source data. Invalid values and conflicting options stop before authorization. Photo omission
+skips downloads/uploads, including unusable source-photo data, and verifies the new contact has
+no custom photo. Separate checks detect lost replacements and unexpectedly retained cleared fields.
+The fixture contract independently verifies creation/readback with omitted fields. New option and
+verification tests failed against the original implementation before the feature was added.
+Temporary faults disabling replacement or saved-field comparison also failed the new preservation
+and lost-replacement checks; both faults were restored. Existing duplication tests retain full-copy,
+concurrency, photo-copy, and partial-failure coverage.
+
+### Shared name input and verification
+
+`test_name_options.py` covers full names and explicit first/last names in creation and duplication,
+including individual components, input conflicts, blank/control-character values, previews, and
+apply. It replays the synthetic readbacks in `fixtures/name-parsing.json` from the live probe below.
+The fake transport's configurable name response is independently checked for response/readback
+agreement and deep copying. Verification tests reject changed, lost, or unexpected explicit name
+components while accepting generated full names. Sixteen cases failed against the previous code;
+existing duplicate expectations now require `unstructuredName` for `--name`.
+
+### Live full-name parsing probe
+
+On 2026-11-21, an authorized isolated People API probe created four synthetic contacts using only
+`unstructuredName` for their names, read each back, then deleted each returned contact ID and
+verified a 404 on readback. `Test Tester` became given name `Test` and family name `Tester`;
+`Test Middle Tester` also had middle name `Middle`; `Test` had only given name `Test`;
+`Test Tester-Smith` retained `Tester-Smith` as the family name. All four retained the full
+`unstructuredName`. These observations establish those examples for the tested account, not a
+universal parsing rule for all cultures or compound surnames. Requests were sequential, used
+15-second operation bounds and no retries, and reused the CLI's credentials and transport.
+
 ## GitHub Actions
 
 [Tests workflow](../.github/workflows/ci.yml) runs on pushes, pull requests, and manual dispatch.

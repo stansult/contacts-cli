@@ -22,13 +22,22 @@ guarantee Google will accept the contacts. `add-contact` validates again before 
 
 ```sh
 ./contacts-cli add-contact --name 'Jane Doe' --email 'jane@example.com'
+./contacts-cli add-contact --first-name Jane --last-name Doe
 ./contacts-cli add-contact --file contacts.json --label Recruiter
 ```
 
 Inline input requires a name or an email. Repeat `--email` to attach more addresses to the same
 contact. `--name` is stored as Google's `unstructuredName`; the CLI does not guess how to split it.
-Use a file for structured names or additional fields. Do not combine `--file` with either inline
-option.
+Google parses that full name into components. To supply them explicitly, use `--first-name` and
+`--last-name`, together or individually. An omitted component is left empty. Do not combine
+`--name` with either explicit component. Name values must be nonblank; an empty string is not a
+way to omit a component. Use a file for middle names, other name components, or additional fields.
+Do not combine `--file` with any inline name or email option.
+
+Verification checks the full name when one was supplied, allowing Google to add parsed components.
+For explicit structured names, it checks the supplied components and rejects unexpected additional
+editable components. Generated display/full-name representations are allowed. These same name
+rules apply to duplication.
 
 The UTF-8 JSON file contains one Google Person object or a nonempty array of Person objects.
 There is no wrapper object and no custom version field. For example:

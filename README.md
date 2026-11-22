@@ -42,8 +42,9 @@ Later commands reuse the saved authorization. Local file validation needs no Goo
 ./contacts-cli add-contact --file contacts.json --label Recruiter
 ```
 
-Use inline options for a name and emails, or a JSON file for one or more contacts with additional
-fields. For multiple contacts, choose `all` or numbers/ranges such as `2,4-6`, then confirm.
+Use `--name` for a full name that Google parses, or `--first-name` and `--last-name` for explicit
+components (together or individually). Combine either form with emails, or use a JSON file for
+one or more contacts with additional fields. For multiple contacts, choose `all` or numbers/ranges such as `2,4-6`, then confirm.
 `--apply` creates every input contact without selection. Each new contact gets a **Created**
 custom field with its creation time.
 See [contact input and creation](docs/contact-input.md).
@@ -55,7 +56,19 @@ See [contact input and creation](docs/contact-input.md).
 ```
 
 Copies editable fields and the custom photo, and adds a **Duplicate** custom field with the
-creation time. Omit `--name` to keep the original name. See [duplication details](docs/command-reference.md#duplicate-a-contact).
+creation time. Omitted options keep the original fields. Use `--name`, repeatable `--email`, or
+repeatable `--phone` to replace a field, or `--clear-name`, `--clear-email`, and `--clear-phone`
+to leave it empty. `--no-photo` skips the photo. The source contact stays unchanged.
+
+```sh
+./contacts-cli duplicate --contact c123456789 --name 'Jane Doe' \
+  --email jane@example.com --clear-phone --no-photo
+```
+
+`--name` supplies a full name for Google to parse. Use `--first-name` and/or `--last-name` instead
+for explicit components. Either form replaces the entire original name; omitted components are
+empty. Replacement emails and phones replace the entire original list and have no labels.
+See [duplication details](docs/command-reference.md#duplicate-a-contact).
 
 ## Sender-sync
 

@@ -30,6 +30,7 @@ class FakeGoogle:
         self.create_status = 200
         self.photo_status = 200
         self.drop_copy_field = None
+        self.created_names = None
         self.calls = []
         self.close_calls = 0
         self.writes = 0
@@ -218,6 +219,8 @@ class FakeGoogle:
             identity = str(456 + len(self.created))
             resource = "people/c" + identity
             person = deepcopy(data)
+            if self.created_names is not None:
+                person["names"] = deepcopy(self.created_names)
             if self.drop_copy_field:
                 person.pop(self.drop_copy_field, None)
             person.update(

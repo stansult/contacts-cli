@@ -8,6 +8,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 
 from .api import execute
+from .contact_inputs import names_match
 from .core import contact_source, validate_contact
 from .duplicate import READ_FIELDS, creation_marker
 from .errors import SyncError, WriteUnverified
@@ -206,12 +207,8 @@ def verify_created(body, saved):
             for entry in actual:
                 # Google may omit the generic nickname type in readback.
                 entry.setdefault("type", "DEFAULT")
-        if field == "names":
-            for entry in actual:
-                # Google may parse an unstructured name into components.
-                if "unstructuredName" not in entry and "displayName" in entry:
-                    entry["unstructuredName"] = entry["displayName"]
-        if not contains(entries, actual):
+        matches = names_match(entries, actual) if field == "names" else contains(entries, actual)
+        if not matches:
             raise SyncError(
                 f"{FIELD_NAMES.get(field, human_key(field))} differs from the input.\n"
                 f"  Requested: {format_entries(field, entries)}\n"

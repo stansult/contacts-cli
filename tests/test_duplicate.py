@@ -56,7 +56,7 @@ def test_preview_and_apply_via_cli(server, api, monkeypatch, capsys):
     assert "Preview only" in capsys.readouterr().out
     assert cli.main(argv + ["--apply"]) == 0
     assert "https://contacts.google.com/person/c456" in capsys.readouterr().out
-    assert server.created["people/c456"]["names"] == [{"givenName": "Delivery backup"}]
+    assert server.created["people/c456"]["names"] == [{"unstructuredName": "Delivery backup"}]
     assert server.person == original
     assert not any("/gmail/" in call[1] for call in server.calls)
 
@@ -240,16 +240,23 @@ def test_default_photo_needs_no_download(server, api, monkeypatch):
 
 def test_duplicate_marker_preserves_existing_fields_and_is_verified(server, api):
     original = deepcopy(server.person)
-    server.person["userDefined"].append({"key": "Duplicate", "value": "Earlier copy"})
+    server.person["userDefined"].extend(
+        [
+            {"key": "Duplicate", "value": "Earlier copy"},
+            {"key": "Duplicate", "value": "Another copy"},
+            {"key": "duplicate", "value": "Unrelated custom field"},
+        ]
+    )
     existing = deepcopy(server.person["userDefined"])
     plan = plan_for(api)
-    assert plan.body["userDefined"][:-1] == existing
+    preserved = [field for field in existing if field["key"] != "Duplicate"]
+    assert plan.body["userDefined"][:-1] == preserved
     marker = plan.body["userDefined"][-1]
     assert marker["key"] == "Duplicate"
     assert marker["value"].startswith("Created by contacts-cli on ")
     assert " at " in marker["value"] and "(UTC" in marker["value"]
     api.duplicate(plan)
-    assert server.created["people/c456"]["userDefined"] == existing + [marker]
+    assert server.created["people/c456"]["userDefined"] == preserved + [marker]
     assert server.person["userDefined"] == existing
     from contacts_cli.duplicate import verify_duplicate
 
