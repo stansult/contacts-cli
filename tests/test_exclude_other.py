@@ -152,12 +152,12 @@ def test_excluding_does_not_bypass_verification(api, server, monkeypatch):
     assert server.writes == 1
 
 
-def test_bad_header_blocks_selection_and_write(api, server, monkeypatch, capsys):
+def test_bad_header_skipped_with_exclude_other(api, server, monkeypatch, capsys):
     configure(api, server, monkeypatch, tty=True)
     server.mailbox["messages"][3]["payload"]["headers"] = []
-    assert cli.main(ARGS + ["--exclude-other", "--apply"]) == 1
-    assert "Preview is incomplete" in capsys.readouterr().err
-    assert server.writes == 0
+    assert cli.main(ARGS + ["--exclude-other", "--apply"]) == 0
+    assert "Skipped message m4" in capsys.readouterr().err
+    assert server.writes == 1
 
 
 def test_empty_results_skip_both_questions(api, server, monkeypatch, capsys):

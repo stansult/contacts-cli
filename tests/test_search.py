@@ -236,16 +236,16 @@ def test_http_query_error_after_discovery_does_not_apply_partial_results(api, se
     assert server.writes == 0
 
 
-def test_stops_at_invalid_header_and_marks_metrics_incomplete(api, server, monkeypatch):
+def test_skips_invalid_header_and_marks_metrics_complete(api, server, monkeypatch):
     import json
 
     from contacts_cli.metrics import default_path
 
     server.mailbox["messages"][1]["payload"]["headers"] = []
     monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: api)
-    assert cli.main(ARGS + ["--apply"]) == 1
+    assert cli.main(ARGS + ["--apply"]) == 0
     row = json.loads(default_path().read_text())
-    assert not row["scan_complete"]
-    assert row["counts"]["messages"] == 1 and row["counts"]["invalid_headers"] == 1
-    assert row["outcome"] == "failed"
-    assert server.writes == 0
+    assert row["scan_complete"]
+    assert row["counts"]["messages"] == 4 and row["counts"]["invalid_headers"] == 1
+    assert row["outcome"] == "applied"
+    assert server.writes == 1

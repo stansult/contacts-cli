@@ -159,7 +159,10 @@ def parser() -> argparse.ArgumentParser:
     sync = commands.add_parser(
         "sender-sync",
         help="Preview or append Gmail senders to an existing contact",
-        description="Preview missing From addresses from a Gmail label or search for one contact.",
+        description=(
+            "Preview missing From addresses from a Gmail label or search for one contact. "
+            "Malformed From headers are skipped and logged locally; Reply-To is not collected."
+        ),
     )
     sync.add_argument(
         "--diagnostics", action="store_true", help="Save detailed local API run diagnostics"
@@ -556,7 +559,10 @@ def run(args, api) -> int:
     for problem in scan.problems:
         emit(f"Warning: {problem}", file=sys.stderr)
     if scan.problems:
-        raise SyncError("Preview is incomplete because of invalid From headers; no changes made.")
+        emit(
+            "Skipped messages contributed no addresses; valid senders can still be added.",
+            file=sys.stderr,
+        )
     if grouped:
         if other and interactive and not args.apply and not exclude_other:
             exclude_other = confirm_exclude_other()

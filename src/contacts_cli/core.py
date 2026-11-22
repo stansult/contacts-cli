@@ -53,8 +53,10 @@ def parse_from_details(values: list[str]) -> tuple[tuple[str, str], ...]:
         raise SyncError("invalid control character in From header")
     try:
         header = HeaderParser(policy=policy.default).parsestr(f"From: {value}\n\n")["From"]
-        if header.defects or not header.addresses:
-            raise ValueError
+        if header.defects:
+            raise ValueError("; ".join(f"{type(d).__name__}: {d}" for d in header.defects))
+        if not header.addresses:
+            raise ValueError("No mailbox addresses found")
         addresses = []
         for address in header.addresses:
             if not address.username or not address.domain:
@@ -155,8 +157,6 @@ def addition_entry(plan: Plan, value: str) -> dict:
 
 def update_body(plan: Plan) -> dict:
     """Only replace emailAddresses; retain every existing entry verbatim."""
-    if plan.scan.problems:
-        raise SyncError("Unparseable messages make this preview incomplete; no update is allowed.")
     emails = deepcopy(plan.person.get("emailAddresses", []))
     emails.extend(addition_entry(plan, value) for value in plan.additions)
     return email_update_body(plan.person, emails)

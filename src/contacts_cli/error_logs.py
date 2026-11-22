@@ -226,3 +226,41 @@ class RunDiagnostics:
                 return
             self.stream = None
             emit(f"Run finished (exit code {code}). Diagnostics: {self.path}", file=sys.stderr)
+
+
+def save_malformed_message(message, error):
+    """Save available metadata immediately, without fetching bodies or extra headers."""
+    now = datetime.now().astimezone()
+    metadata = {
+        key: message[key]
+        for key in ("id", "threadId", "labelIds", "historyId", "internalDate", "sizeEstimate")
+        if key in message
+    }
+    payload = message.get("payload")
+    metadata["headers"] = payload.get("headers") if isinstance(payload, dict) else None
+    record = {
+        "timestamp": now.isoformat(),
+        "command": COMMAND.get(),
+        "reason": str(error),
+        "cause": str(error.__cause__) if error.__cause__ is not None else None,
+        "message": metadata,
+    }
+    path = None
+    try:
+        folder = log_directory()
+        folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+        fd, filename = tempfile.mkstemp(
+            prefix=now.strftime("malformed-%Y-%m-%d-%H%M%S-"), suffix=".json", dir=folder
+        )
+        path = Path(filename)
+        with os.fdopen(fd, "w", encoding="utf-8") as stream:
+            json.dump(record, stream, ensure_ascii=True, indent=2)
+            stream.write("\n")
+        return path
+    except (OSError, TypeError, ValueError):
+        if path is not None:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                pass
+        return None

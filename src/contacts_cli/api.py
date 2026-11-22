@@ -23,7 +23,7 @@ from .core import (
 )
 from .deadline import DeadlineHTTP, read_budget
 from .duplicate import READ_FIELDS, download_photo, verify_duplicate
-from .error_logs import save_http_error, save_verification_error
+from .error_logs import save_http_error, save_malformed_message, save_verification_error
 from .errors import SyncError, WriteUnverified
 from .metrics import ACTIVE, counts, execute_measured
 
@@ -199,6 +199,8 @@ class GoogleAPI:
         seen_ids, senders = set(), {}
         labels = {}
         processed = 0
+        skipped, problems = set(), []
+        page_token, page_tokens, page_ids = None, set(), set()
         report("Searching senders")
         while True:
             page = execute(
@@ -207,6 +209,7 @@ class GoogleAPI:
                     includeSpamTrash=True,
                     maxResults=1,
                     q=query,
+                    **({"pageToken": page_token} if page_token is not None else {}),
                     **({"labelIds": [label_id]} if label_id is not None else {}),
                 )
             )
@@ -219,10 +222,23 @@ class GoogleAPI:
                 if page.get("nextPageToken"):
                     raise SyncError("Empty Gmail search page has more results; no changes made.")
                 break
+            next_token = page.get("nextPageToken")
+            if next_token is not None:
+                if not isinstance(next_token, str) or not next_token or next_token in page_tokens:
+                    raise SyncError("Invalid or repeated Gmail page token; no changes made.")
+                page_tokens.add(next_token)
             item = items[0]
             message_id = item.get("id") if isinstance(item, dict) else None
             if not isinstance(message_id, str) or not message_id:
                 raise SyncError("Gmail returned a message without an ID; search aborted.")
+            if message_id in page_ids:
+                raise SyncError("Gmail repeated a message within pagination; no changes made.")
+            page_ids.add(message_id)
+            if message_id in skipped:
+                if next_token is None:
+                    break
+                page_token = next_token
+                continue
             if message_id in seen_ids:
                 raise SyncError(
                     "Gmail repeated a message despite sender exclusions; no changes made."
@@ -258,20 +274,26 @@ class GoogleAPI:
                 ]
                 addresses = parse_from_details(values)
             except SyncError as exc:
-                report("Search stopped", processed, len(senders), 1)
-                return Scan(
-                    processed,
-                    tuple(senders[key] for key in sorted(senders)),
-                    (f"Message {message_id}: {exc}",),
-                    tuple(sorted(labels.items())),
+                path = save_malformed_message(message, exc)
+                detail = (
+                    f"Details saved to: {path.resolve()}"
+                    if path is not None
+                    else "Details could not be saved locally."
                 )
+                problems.append(f"Skipped message {message_id}: {exc}. {detail}")
+                skipped.add(message_id)
+                report("Searching senders", processed, len(senders), len(skipped))
+                if next_token is None:
+                    break
+                page_token = next_token
+                continue
             discovered = {
                 address_key(address): address
                 for address, label in reversed(addresses)
                 if address_key(address) not in excluded
             }
             if not discovered:
-                report("Search stopped", processed, len(senders))
+                report("Search stopped", processed, len(senders), len(skipped))
                 raise SyncError(
                     "Gmail search returned no new sender despite exclusions; no changes made."
                 )
@@ -286,12 +308,14 @@ class GoogleAPI:
                     labels.setdefault(key, label)
             senders.update(new)
             excluded.update(discovered)
-            report("Searching senders", processed, len(senders))
+            report("Searching senders", processed, len(senders), len(skipped))
             query = exclusion_query(excluded, search=search)
-        report("Search finished", processed, len(senders))
+            page_token, page_tokens, page_ids = None, set(), set()
+        report("Search finished", processed, len(senders), len(skipped))
         return Scan(
             processed,
             tuple(senders[key] for key in sorted(senders)),
+            problems=tuple(problems),
             labels=tuple(sorted(labels.items())),
         )
 
@@ -320,8 +344,6 @@ class GoogleAPI:
         return person
 
     def apply(self, plan: Plan) -> bool:
-        if plan.scan.problems:
-            raise SyncError("Incomplete scan; no update is allowed.")
         if not plan.additions:
             return False
         body = update_body(plan)

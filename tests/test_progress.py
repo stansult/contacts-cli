@@ -100,8 +100,8 @@ def test_scan_callback_counts_processed_messages_and_invalid_headers(api, server
     events = []
     scan = api.scan("Example/Delivery", progress=lambda *event: events.append(event))
     counts = [event[1] for event in events if event[0] == "Searching senders"]
-    assert counts == [0]
-    assert events[-1] == ("Search stopped", 1, 0, 1)
+    assert counts == [0, 1, 2, 3, 4]
+    assert events[-1] == ("Search finished", 4, 3, 1)
     assert len(scan.problems) == 1
     assert server.writes == 0
 

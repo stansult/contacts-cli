@@ -699,3 +699,14 @@ progress totals, and the query-length guard on discovered exclusions. Assertions
 queries to verify that patterns never reach Gmail and concrete addresses do, while writes preserve
 existing contact entries. Existing fixture contracts validate exact sender exclusions and explicit
 search result sets independently. Shared matching also retains the email-removal regression suite.
+
+
+### Malformed sender headers
+
+`test_malformed_skip.py` checks label/search scans with interleaved valid and malformed messages,
+all-malformed results, last-result skips, preview-only and apply behavior, repeated page tokens,
+and failures after a skip. Pagination is independently exercised through the fake transport.
+The initial regression run passed that fixture check and failed five product cases before the
+implementation. Existing search/progress tests now assert completion with skipped counts.
+Log tests check available metadata, parser reasons, owner-only permissions, body/snippet omission,
+and continued scanning when logs cannot be saved. Tests use synthetic headers only.

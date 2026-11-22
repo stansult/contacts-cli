@@ -1,6 +1,7 @@
 # Diagnostic logs
 
-The CLI records HTTP errors, email-verification failures, and sender-sync run traces separately.
+The CLI records HTTP errors, malformed message headers, email-verification failures, and
+sender-sync run traces separately.
 The sections below describe when each is written and how long it is kept.
 
 ## Google API HTTP errors
@@ -100,3 +101,22 @@ logging failure. These logs cannot explain text entered or printed by the shell 
 The current file and 19 newest previous `run-*.jsonl` files are retained; other log types are
 untouched. Storage/cleanup failures report a warning without changing the command result. There
 is no per-file size cap; file size grows with the number of API attempts in that run.
+
+
+## Malformed message headers
+
+Sender-sync automatically saves `malformed-<timestamp>-<unique>.json` when it skips a message
+whose `From` header is missing, duplicated, malformed, or unsupported. No diagnostic flag is
+needed. The warning identifies the message and log path. Valid senders can still be added.
+
+Each file contains the local timestamp, command, failure reason and underlying parser reason
+when available, plus returned message metadata: ID, thread ID, label IDs, history ID, internal
+date, size estimate, and header data. Only fields already returned are recorded. The request asks
+for `From` only; no extra message read is made. Message bodies, snippets, credentials, and search
+queries are not saved. `Reply-To` collection remains deferred.
+
+Files use the same private log directory and owner-only permissions as HTTP error logs. They
+remain until manually removed. One file is written per skipped message per run, even if a later
+API failure stops that run; rerunning can create another file for the same message. A failed save
+is reported in the skip warning and does not block otherwise valid additions. Raw headers can
+contain personal data; review these local files before sharing them.

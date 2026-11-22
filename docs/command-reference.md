@@ -237,9 +237,9 @@ sender, the CLI excludes its concrete address from subsequent searches, so its o
 are not inspected. This means wildcard exclusions still require a header read for each newly
 discovered excluded sender; exact exclusions can avoid those reads. `--exclude '*'` accepts no
 new senders but still scans. Inspected counts include these reads; new-sender counts omit excluded
-addresses. The query-size limit still applies as concrete exclusions accumulate. Repeated results,
-malformed headers, and unsafe query values still stop the scan. Gmail matching limitations below
-still apply.
+addresses. The query-size limit still applies as concrete exclusions accumulate. Repeated valid
+results and unsafe query values still stop the scan. Malformed headers are skipped. Gmail matching
+limitations below still apply.
 
 Use `--exclude-file PATH` to read a UTF-8 list, one address or pattern per line. Repeat the option
 for multiple files and combine it with `--exclude`. Do not put shell quotes around file patterns.
@@ -393,8 +393,10 @@ so the shell argument is passed as the search value.
   same conversation are excluded.
 - `From` is the source, not `Reply-To`, `Sender`, or the envelope sender. Display names, comments,
   folded headers, and multiple valid mailboxes are parsed. Encountered missing, duplicate,
-  malformed, or unsupported headers are reported by message ID and block all writes. Raw headers
-  are not printed.
+  malformed, or unsupported headers are skipped and reported by message ID. Other valid senders
+  remain eligible for selection and saving, including with `--apply`. Raw headers are saved in
+  local diagnostic files, not printed. See [malformed-message logs](error-logs.md#malformed-message-headers).
+  The completion line includes the skipped-message count; skipped messages contribute no addresses.
   Internationalized local parts that the Python parser reports as defective are unsupported.
 - Comparison ignores case and surrounding whitespace. Gmail dot variants and `+tags` remain
   distinct. New entries retain the first observed spelling. The display name from the inspected
@@ -418,7 +420,11 @@ so the shell argument is passed as the search value.
   can still be processed as no-ops.
 - Gmail search is not an atomic mailbox snapshot. Messages arriving or being relabeled during a
   search may require another run. A deleted message or observed loss of the selected label aborts
-  the search. Repeated message IDs or results with no new sender also stop it before any write.
+  the search. Repeated valid message IDs or results with no new sender also stop it before any write.
+  For malformed messages, the CLI follows the next result page with the same query, remembering
+  skipped IDs to avoid repeated header reads/logs. After finding a valid sender, it restarts with
+  updated sender exclusions. Page tokens are never reused with a changed query; repeated or invalid
+  tokens stop the run. Skipped results can require additional searches after each restart.
 - Exclusions use quoted full addresses. Unsupported address syntax stops the run instead of being
   inserted into the search query. A local guard limits the entire URL-encoded query, including the
   base search, to 6,000 bytes. This is a conservative CLI limit, not a documented Google maximum.

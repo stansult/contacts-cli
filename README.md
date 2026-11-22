@@ -96,6 +96,9 @@ Use `--exclude ADDRESS` or a quoted pattern such as `--exclude '*@example.com'` 
 `*` matches zero or more characters, ignoring case. `--exclude-file PATH` accepts one address or
 pattern per line, without shell quotes. Wildcards filter discovered senders locally. See [search and exclusion details](docs/command-reference.md#sender-sync-preview-and-apply).
 
+Malformed `From` headers are skipped with a warning and local diagnostic log; valid senders
+can still be added. `Reply-To` addresses are not collected.
+
 ## List email addresses
 
 ```sh

@@ -140,7 +140,8 @@ class ScanProgress(StageProgress):
         noun = "sender" if senders == 1 else "senders"
         details = f"{processed} inspected, {senders} new {noun}"
         if problems:
-            details += f", {problems} invalid headers"
+            noun = "message" if problems == 1 else "messages"
+            details += f", {problems} skipped {noun}"
         if stage in {"Search finished", "Search stopped"}:
             self.details = details
             self.finish(stage)

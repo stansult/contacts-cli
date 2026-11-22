@@ -59,3 +59,6 @@ checked after reading a header. Exact exclusions, existing addresses, and Gmail 
 are excluded in the search query, normally avoiding those header reads.
 Keep analysis code and metric definitions in Git. Only publish synthetic benchmarks or findings
 that have been reviewed for privacy. Raw logs stay local.
+
+Skipped malformed messages count toward inspected messages and `invalid_headers`. A completed
+search with skips has `scan_complete: true`; an API or pagination failure still leaves it false.

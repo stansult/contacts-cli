@@ -59,12 +59,12 @@ def test_more_than_100_contact_emails_are_compared(api, server):
     assert server.person["emailAddresses"][149]["type"] == "Custom"
 
 
-def test_invalid_header_prevents_any_apply(api, server, monkeypatch, capsys):
+def test_invalid_header_skipped_before_apply(api, server, monkeypatch, capsys):
     server.mailbox["messages"][0]["payload"]["headers"] = [{"name": "From", "value": "broken"}]
     monkeypatch.setattr(cli, "connect", lambda _: api)
-    assert cli.main(ARGS + ["--apply"]) == 1
-    assert "Message m1" in capsys.readouterr().err
-    assert server.writes == 0
+    assert cli.main(ARGS + ["--apply"]) == 0
+    assert "Skipped message m1" in capsys.readouterr().err
+    assert server.writes == 1
 
 
 @pytest.mark.parametrize("fault", ["missing_message", "batch_status", "concurrent_edit"])
