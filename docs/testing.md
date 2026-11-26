@@ -359,6 +359,139 @@ Local validation command tests exercise one object, arrays, missing files, inval
 file-only options and the silent plural alias. Authorization, connection and input functions are
 replaced with failing sentinels to verify validation remains offline and noninteractive.
 
+### Possible duplicates before contact creation
+
+`test_contact_matches.py` covers normalized names, restricted company matching, email case and
+plus/dot distinctions, phone formatting with country/extension preservation, multiple matching
+contacts/reasons, and paginated reads. Its independent fixture contract checks the requested
+contact-only source, field mask, page size, and page traversal. Invalid identities, malformed
+matching fields, and repeated identities/tokens stop creation.
+
+Command tests cover incoming duplicates, skip/create-separately/cancel, invalid answers and EOF,
+partial selection, skipped inputs, cancellation after earlier choices, and noninteractive preview
+versus apply. Every interactive test asserts no writes before each answer. Nine command cases
+failed before integration. Temporarily disabling index lookup produced eight expected failures,
+including unsafe noninteractive creation; restoring lookup passed all 36 focused cases.
+Older partial-failure tests now use distinct synthetic contacts so they still reach their intended
+write/verification failure, rather than stopping at duplicate review.
+
+An authorized read-only probe on 2026-11-25 tested `people.connections.list` before integration,
+using the normal credentials/transport, contact-only sources, `pageSize=1000`, and
+`personFields=metadata,names,organizations,emailAddresses,phoneNumbers`. Two pages returned
+1,000 records each in 0.93s and 0.71s, with a continuation token and valid resource names.
+The probe used one attempt per page and a 15-second deadline; it saved no contact details.
+The integrated read uses the existing bounded-read/retry policy, with progress across all pages.
+This validates list access and request shape, not a live creation or duplicate-choice workflow.
+
+`test_duplicate_presentation.py` checks original input numbers with sparse matching inputs,
+inline matches with dash markers, retained match identities/reasons, and the separate numbered
+merge-target list. It also checks the import prompt and omission of redundant full names while
+preserving structured and phonetic names. The three updated presentation regressions failed
+against the previous output before implementation; the command case also verifies cancellation
+makes no writes. Existing independent contact-list fixture checks continue to cover the source
+matching data.
+
+### Contact merge review
+
+`test_contact_merge.py` covers additive property fills, conflict retention, repeated custom keys,
+Created preservation, no-op reruns, target choice/cancellation, input-to-input consolidation,
+multiple inputs sharing one target, label preservation, concurrency, partial failures, interrupts,
+primary choices, and readback loss. The independent fixture check exercises multi-field replacement
+on a second contact, proving that only the selected target and fields change and that its etag
+advances. Existing single-field update suites exercise the same fixture. A separate contract
+check reproduces the list API's 100-email/phone cap and verifies the complete individual read fallback;
+that regression failed before the fallback was added.
+
+Six command regressions failed before integration. Controlled faults that overwrite conflicting
+values without approval, bypass the pre-write reread, and skip verification caused one, one, and five intended test
+failures respectively. All faults were removed before the passing checks.
+
+Authorized isolated probes on 2026-11-25 used one synthetic contact each, updating names, emails,
+phones, organizations, addresses, websites, custom fields, Notes, birthdays, events, nicknames,
+and memberships together. The first update succeeded in 0.52s but exact verification rejected
+Google's standard URL label normalization from `Profile` to `profile`. After correcting that
+expectation, the second update took 0.52s and independent readback 0.09s; verification passed.
+Both synthetic contacts were deleted and their absence verified. Existing contacts were untouched.
+Each operation had a 15-second deadline and no retries. This establishes the [multi-field request shape](https://developers.google.com/people/api/rest/v1/people/updateContact); final CLI review and mixed-batch behavior
+are covered offline and await user live testing. Generated address properties and unexpected extra
+entries have a separate regression: it failed before permitting generated properties in changed
+fields while retaining expected values and entry counts.
+
+Merge outcome regressions also cover unchanged inputs and skipped/kept conflicts without final approval,
+existing/new/already-applied labels, mixed creation and unchanged targets, and repeated inputs
+that must retain earlier planned changes. Changes plus conflicts remain visible together.
+Eleven cases failed against the earlier behavior before implementation. Prompt assertions inspect
+stderr as well as stdout; exhausted scripted answers detect unwanted extra prompts. Existing
+fixture contract tests independently verify target-specific updates and label membership writes.
+
+`test_merge_preview.py` checks outcomes before the first choice, one full detail read per matched
+saved contact, no detail reads for unmatched contacts or input-only matches, snapshot reuse,
+per-target results, labels, read failures, local merge validation, and fresh concurrency checks.
+Seven regressions failed before integration. The existing matching-list fixture verifies its
+limited field mask. An independently failing fixture contract test was added before enabling
+individual full reads for explicit list records; it checks identity and requested-field filtering.
+The fixture now supplies source metadata for those records, as real saved contacts do.
+
+`test_import_failures.py` verifies default continuation for rejected creations, merge/content
+verification failures and stale targets; stopping for authorization, rate/quota, server/network
+errors and interruption; retained partial results, no write replay, and nonzero final status.
+Four continuation regressions failed against the previous stop-first behavior before implementation.
+The failure-injection fixture is independently checked through direct HTTP calls, including a
+readback mismatch that preserves the stored contact. Shared-label failures and pre-write checks
+retain their existing coverage. Unknown failures stop conservatively; verification mismatches use
+an explicit contact-specific exception distinct from failed network reads after submission.
+A controlled regression also verifies that an unverified merge followed by a batch-wide failure
+never reports “No changes made.”
+
+`test_merge_choices.py` checks comparison results at the individual decision prompt, omitted
+Merge choices for unchanged inputs, label-only eligibility, filtered target choices,
+and rejection of a hidden Merge action. Two choice regressions failed before implementation; disabling review summaries then failed all
+five prompt-summary cases, confirming they inspect the individual review rather than the preview.
+Existing tests also cover accumulated merge decisions, identical inputs, cached reads, and final
+approval after skipping unchanged inputs.
+
+`test_bulk_skip.py` covers default/explicit Yes, No, cancellation and end-of-input, invalid replies,
+selected-only counts, unchanged-only eligibility across all targets, label/conflict/input-match
+exclusions, retained final approval, interactive apply and noninteractive behavior. Seven tests
+failed before integration. Existing individual-review tests explicitly decline bulk skipping
+when they need to exercise the later choices.
+
+`test_merge_conflicts.py` covers saved/incoming details before the decision, conflict-only Merge,
+Keep/Replace/Keep both outcomes, complete-entry preservation, atomic singleton replacement,
+duplicate-entry target selection, primary metadata, final approval/decline, cancellation and EOF,
+interactive apply, combined inputs, and rejection of incomplete verification. Seven regressions
+failed before implementation. The existing fixture round-trips replacements and duplicate entries;
+its update behavior is independently exercised by the fixture contract tests.
+Email-case regressions verify that capitalization alone needs no resolution and replacing a label
+retains saved address spelling, display name, and primary metadata. Both casing directions and
+the saved result/final preview are covered; three regressions failed before the preservation fix.
+Additional regressions cover Ctrl+C after earlier conflict choices, Keep both exceeding the
+500-entry limit before writes, and mixed Keep/Replace/Keep both decisions with a complete saved
+contact comparison. Controlled faults in interruption status, the size guard, and replacement
+handling each failed the intended test; all faults were restored before final checks.
+
+`test_conflict_display.py` covers property-focused Saved/Incoming details, omitted email casing
+and unchanged/unsupplied properties, label-specific choices, multiple differing properties,
+ambiguous saved-entry numbering, nested dates, and properties removed by atomic replacement.
+Three display regressions failed before implementation; data-resolution tests remain unchanged
+except for assertions on the approved wording.
+
+`test_grouped_email_labels.py` covers grouped Replace/Keep/cancel, default individual review,
+direct original-number/range subsets, repeated subset decisions on remaining groups, explicit
+individual review and singleton fallback, rejection of already decided numbers, cancellation after
+partial planning, return to selection, single blank-line menu separation, available/reviewing/selected
+wording, cumulative replacement counts excluding Keep, transitions to individual review, saving reminders
+with and without `--apply`, mixed grouped/individual/new-contact imports, final decline, EOF,
+invalid input, interactive apply, noninteractive safety, stale targets, and cached read counts.
+Eligibility tests exclude other property changes, additions, multiple matches/entries/conflicts,
+input matches, shared targets, and missing contact labels; incoming label spelling remains exact.
+Different saved labels share a group; row labels stay visible during subset review. Empty saved
+labels remain additions rather than replacements. Keep-name summaries omit storage details;
+missing email labels use human-readable descriptions in both available and selected plans.
+Four regressions failed before integration. Disabling the structural label-only check caused the
+display-name exclusion test to fail. The multi-contact fixture has an independent direct-HTTP
+read/update contract confirming distinct targets and preservation of the untouched contact.
+
 ### API error logging
 
 `test_error_logs.py` verifies full JSON, non-JSON and binary error bodies, HTTP status and method,
@@ -710,3 +843,37 @@ The initial regression run passed that fixture check and failed five product cas
 implementation. Existing search/progress tests now assert completion with skipped counts.
 Log tests check available metadata, parser reasons, owner-only permissions, body/snippet omission,
 and continued scanning when logs cannot be saved. Tests use synthetic headers only.
+
+### Shared selection ranges
+
+`test_selection_ranges.py` covers sparse rows, bounds outside the displayed list, empty ranges,
+combined selections, explicit unavailable numbers, reversed ranges, overlaps, display order,
+and enormous bounds without expanding the numeric span. CLI regressions exercise broad ranges
+in contact creation, sender-sync, and grouped review after earlier entries have been handled.
+No hidden or already reviewed entries are selected. Top-level help documents the shared rule.
+
+### Individual merge review and anchored names
+
+`test_name_merge_review.py` checks Andrew → Drew against an existing surname, compound surnames,
+Keep/Replace preservation, ambiguous-name fallback, meaningful previews, additions visible before
+Merge, numbered name/email decisions, and verified writes through the existing fake Google server.
+Five regressions failed before implementation. Existing atomic-name tests retain ambiguous inputs
+so whole-entry replacement remains covered. No new Google API operation is introduced.
+
+### Grouped conflict-free merges
+
+`test_grouped_additions.py` exercises Merge/Skip/cancel, direct subset selection, remaining groups,
+individual and singleton fallback, final decline, interactive apply, noninteractive behavior,
+shared/ambiguous/input targets, cached reads, stale-contact protection, requested contact labels,
+and mixed batches of replacements, additions, conflicts, and new contacts. Fixtures assert distinct
+matches and reuse the independently verified multi-contact fake-server contract. Disabling candidate
+grouping made the bulk-action regressions fail; restoring it passed them. Writes use the existing
+merge path and its verification tests; no live Google access is part of these checks.
+
+### People API pacing and rate recovery
+
+`test_people_quota.py` uses independently checked scripted HTTP responses and a virtual clock.
+It covers the 80-request rolling window, shared read/write accounting, Gmail isolation, explicit
+rate rejections, bounded retries, Retry-After, daily/unknown quota failures, uncertain writes,
+and cancellation before another request. No Google calls or real quota waits are needed.
+Display-name tests verify both redundant and meaningful names and unchanged underlying data.

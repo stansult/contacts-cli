@@ -13,6 +13,7 @@ from .test_exclude_other import ARGS, configure
     "answers,expected",
     [
         (["n", "2", "y"], ["trash@example.com"]),
+        (["n", "2-100", "y"], ["trash@example.com"]),
         (["n", "1-2", "n", "2", "y"], ["trash@example.com"]),
         (["n", "all", "y"], ["new@example.com", "trash@example.com"]),
         (["n", "q"], []),

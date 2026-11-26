@@ -17,18 +17,23 @@ def parse_selection(answer, numbers):
         match = re.fullmatch(r"\s*([0-9]+)(?:\s*-\s*([0-9]+))?\s*", part)
         if not match:
             raise ValueError("Enter all, numbers or ranges such as 3-5,8, or q to cancel.")
-        first, last = int(match[1]), int(match[2] or match[1])
-        # Bound ranges before expanding, including sparse displayed numbering.
-        if first > last or last - first + 1 > len(available):
-            raise ValueError("Use displayed numbers and ranges in ascending order.")
-        chosen = set(range(first, last + 1))
-        if not chosen <= available:
-            raise ValueError("Use only displayed item numbers.")
-        selected.update(chosen)
+        first = int(match[1])
+        if match[2] is None:
+            if first not in available:
+                raise ValueError("Use only displayed item numbers.")
+            selected.add(first)
+            continue
+        last = int(match[2])
+        if first > last:
+            raise ValueError("Use ranges in ascending order.")
+        # Filter existing rows; never allocate a potentially enormous numeric span.
+        selected.update(number for number in available if first <= number <= last)
+    if not selected:
+        raise ValueError("No displayed items fall within this selection.")
     return [number for number in numbers if number in selected]
 
 
-def select_numbers(numbers, *, noun="items"):
+def select_numbers(numbers, *, noun="items", separate_response=False):
     """Prompt for a subset; return None for q/EOF. Caller owns preview and confirmation."""
     numbers = list(numbers)
     emit(f"Choose {noun}:")
@@ -42,6 +47,9 @@ def select_numbers(numbers, *, noun="items"):
             answer = read_input().strip()
         except EOFError:
             return None
+        finally:
+            if separate_response:
+                emit("", primary=False)
         if answer.casefold() == "q":
             return None
         if not answer:

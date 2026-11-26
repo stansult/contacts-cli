@@ -27,11 +27,13 @@ Later commands reuse the saved authorization. Local file validation needs no Goo
   as `https://contacts.google.com/person/c123456789` or its bare ID, `c123456789`.
 - Commands that change contacts or labels show a preview and ask for confirmation. With multiple
   choices, contact creation, sender-sync, email edits, custom-field edits, and label removal offer
-  selection by number/range. Enter or `n` at the subsequent confirmation returns to selection;
-  `q` cancels. A simple `[y/N]` prompt writes only after `y` or `yes`.
+  selection by number/range. Ranges include displayed items within their bounds, skipping gaps;
+  endpoints need not be displayed. Explicit numbers must be available. Enter or `n` at the subsequent
+  confirmation returns to selection; `q` cancels. A simple `[y/N]` prompt writes only after `y` or `yes`.
 - `--apply` selects all eligible items and skips final confirmation; conflict choices follow each
   command's rules. Piped or redirected runs without `--apply` do not write.
-- `add-contact` and `duplicate` create new contacts each time; they do not merge with existing ones.
+- `add-contact` checks for possible duplicates before creation; `duplicate` intentionally creates
+  a copy. During `add-contact` duplicate review, merge can add information to a chosen match.
 - Use `./contacts-cli <command> --help` for command options. Global options, including `--token`,
   appear in `./contacts-cli --help` and work before or after the command.
 
@@ -45,8 +47,15 @@ Later commands reuse the saved authorization. Local file validation needs no Goo
 Use `--name` for a full name that Google parses, or `--first-name` and `--last-name` for explicit
 components (together or individually). Combine either form with emails, or use a JSON file for
 one or more contacts with additional fields. For multiple contacts, choose `all` or numbers/ranges such as `2,4-6`, then confirm.
-`--apply` creates every input contact without selection. Each new contact gets a **Created**
+Possible duplicates require interactive skip/merge/create-separately/cancel review, including with
+`--apply`. A default-Yes prompt can skip selected inputs whose saved matches all contain the
+supplied information and labels. Merge can add information or labels and resolve conflicts with Keep, Replace, or Keep both where supported. See [matching rules](docs/contact-input.md#possible-duplicates). Each new contact gets a **Created**
 custom field with its creation time.
+Similar email-label-only changes can be reviewed together, with bulk Replace/Keep or selection
+by number. Conflict-free matches also offer grouped Merge/Skip with each target and its additions
+shown. Other differences retain individual review.
+Batch imports continue after contact-specific failures and report them at the end; account or
+connection problems stop the batch. Any failure returns a nonzero exit status.
 See [contact input and creation](docs/contact-input.md).
 
 ## Duplicate a contact

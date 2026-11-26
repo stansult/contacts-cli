@@ -21,9 +21,7 @@ def test_selection_display_order_and_overlap(answer, expected):
     assert parse_selection(answer, [7, 3, 4, 5, 8]) == expected
 
 
-@pytest.mark.parametrize(
-    "answer", ["", "0", "1", "3-7", "8-3", "3,", "-1", "3.5", "1-999999999999999999999999999999"]
-)
+@pytest.mark.parametrize("answer", ["", "0", "1", "8-3", "3,", "-1", "3.5"])
 def test_selection_rejects_unavailable_and_invalid(answer):
     with pytest.raises(ValueError):
         parse_selection(answer, [3, 4, 5, 8])

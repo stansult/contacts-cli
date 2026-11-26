@@ -9,12 +9,24 @@ from dataclasses import dataclass
 
 from .api import execute
 from .contact_inputs import names_match
+from .contact_matches import duplicate_matches, match_rows, read_match_contacts
+from .contact_merge import (
+    assess_match,
+    read_matched_details,
+    review_import,
+    run_merged_import,
+    skip_unchanged_inputs,
+)
 from .core import contact_source, validate_contact
 from .duplicate import READ_FIELDS, creation_marker
-from .errors import SyncError, WriteUnverified
+from .errors import ContactVerificationFailure, SyncError, WriteUnverified
+from .grouped_additions import review_additions
+from .grouped_email_labels import review_label_groups
+from .import_failures import ImportFailures, contact_specific
 from .label_data import contact_groups, is_active_user_label, label_identity
 from .output import emit, emit_list
-from .selection import review_selection
+from .progress import StageProgress
+from .selection import review_selection, select_numbers
 from .timing import read_input
 
 
@@ -228,18 +240,22 @@ def create_contact(api, body, state=None):
         operation="creation",
     )
     state.phase = "returned"
+    reading = False
     try:
         validate_contact(result)
         resource = result["resourceName"]
         state.location = "https://contacts.google.com/person/" + resource.removeprefix("people/")
         state.phase = "created"
         emit(f"Created contact: {state.location}")
+        reading = True
         saved = api.get_contact(resource, READ_FIELDS)
+        reading = False
         if contact_source(saved)["id"] != contact_source(result)["id"]:
             raise SyncError("Created contact identity changed during verification.")
         verify_created(body, saved)
     except (SyncError, KeyError, TypeError, ValueError) as exc:
-        raise WriteUnverified(str(exc)) from exc
+        error = WriteUnverified if reading else ContactVerificationFailure
+        raise error(str(exc)) from exc
     state.phase = "verified"
     return state.location
 
@@ -300,6 +316,11 @@ def format_entry(field, entry):
     }
     main_key = {"organizations": "name", "userDefined": "key"}.get(field, "value")
     main = remaining.pop(main_key, "")
+    if (
+        field == "emailAddresses"
+        and str(remaining.get("displayName", "")).casefold() == str(main).casefold()
+    ):
+        remaining.pop("displayName", None)
     label = remaining.pop("type", "")
     if field == "userDefined":
         main = f"{main}: {remaining.pop('value', '')}"
@@ -324,7 +345,7 @@ def format_entries(field, entries):
     )
 
 
-def contact_preview(person):
+def contact_preview(person, matches=(), summaries=None):
     names = person.get("names", [])
     name = (
         " ".join(
@@ -340,12 +361,23 @@ def contact_preview(person):
     rows = [title]
     for field, entries in person.items():
         for entry in entries:
+            if field == "names" and entry == {"unstructuredName": title}:
+                continue
             value = format_entry(field, entry).replace("\n", "\n       ")
             rows.append(f"     {FIELD_NAMES[field]}: {value}")
+    if matches:
+        rows.append("\n     Possible match" + ("es:" if len(matches) != 1 else ":"))
+        for (identifier, _, _), row in zip(matches, match_rows(matches), strict=True):
+            rows.append(f"       - {row}")
+            if summaries and identifier in summaries:
+                rows.extend("         " + line for line in summaries[identifier].splitlines())
     return "\n".join(rows)
 
 
 def run_create(args, api, contacts, confirm):
+    with StageProgress() as progress:
+        progress.start("Reading contacts for duplicate checking")
+        existing_contacts = read_match_contacts(api)
     try:
         labels, missing = resolve_labels(api, args.label)
     except LabelChoiceCancelled:
@@ -355,9 +387,36 @@ def run_create(args, api, contacts, confirm):
         emit_list("Existing labels", enumerate(labels, 1), unit=("label", "labels"))
     if missing:
         emit_list("Labels to create", enumerate(missing, 1), unit=("label", "labels"))
+    matches = duplicate_matches(contacts, existing_contacts)
+    details = read_matched_details(matches, api)
+    existing_contacts = [details.get(p["resourceName"], p) for p in existing_contacts]
+    matches = duplicate_matches(contacts, existing_contacts)
+    assessments = {
+        number: {
+            identifier: assess_match(
+                contacts[number - 1],
+                target,
+                api,
+                labels,
+                missing,
+                saved=not identifier.startswith("input #"),
+            )
+            for identifier, target, _ in found
+        }
+        for number, found in matches.items()
+    }
+    summaries = {
+        n: {key: value[0] for key, value in found.items()} for n, found in assessments.items()
+    }
+    has_matches = any(matches.values())
     emit_list(
-        "Creating contacts" if args.apply else "Proposed contacts",
-        ((i, contact_preview(p)) for i, p in enumerate(contacts, 1)),
+        "Contacts to review"
+        if has_matches
+        else ("Creating contacts" if args.apply else "Proposed contacts"),
+        (
+            (i, contact_preview(p, matches[i], summaries[i]) + "\n")
+            for i, p in enumerate(contacts, 1)
+        ),
         unit=("contact", "contacts"),
     )
     if args.label:
@@ -366,7 +425,75 @@ def run_create(args, api, contacts, confirm):
         "Create these contacts" + (f" and {len(missing)} new label(s)" if missing else "") + "?"
     )
     selected = list(range(1, len(contacts) + 1))
-    if not args.apply:
+    interactive = all(s.isatty() for s in (sys.stdin, sys.stdout, sys.stderr))
+    if has_matches:
+        if not interactive:
+            if args.apply:
+                raise SyncError(
+                    "Possible duplicates require interactive review; --apply does not resolve "
+                    "them. No changes made."
+                )
+            emit("Preview only; possible duplicates require interactive review. No changes made.")
+            return 0
+        if len(contacts) > 1 and not args.apply:
+            emit(
+                "For possible matches, you’ll choose whether to skip, merge, or create separately.",
+                primary=False,
+            )
+            selected = select_numbers(selected, noun="contacts to import", separate_response=True)
+            if selected is None:
+                emit("Cancelled; no changes made.")
+                return 0
+        selected = skip_unchanged_inputs(selected, matches, assessments)
+        if selected is None:
+            emit("Cancelled; no changes made.")
+            return 0
+        if not selected:
+            emit("All selected inputs skipped; no changes made.")
+            return 0
+        grouped = review_label_groups(
+            selected, contacts, matches, details, api, labels, missing, apply=args.apply
+        )
+        if grouped is None:
+            emit("Cancelled; no changes made.")
+            return 0
+        selected, planned = grouped
+        additive = review_additions(
+            selected, contacts, matches, details, api, labels, missing, planned, apply=args.apply
+        )
+        if additive is None:
+            emit("Cancelled; no changes made.")
+            return 0
+        selected, planned = additive
+        if planned.grouped_review and any(matches[n] for n in selected):
+            emit("\nContinuing with individual contact review.\n", primary=False)
+        reviewed = review_import(
+            selected, contacts, existing_contacts, api, details, labels, missing, planned
+        )
+        if reviewed is None:
+            emit("Cancelled; no changes made.")
+            return 0
+        if reviewed.merges or reviewed.combined_inputs:
+            return run_merged_import(args, api, reviewed, labels, missing, confirm)
+        selected = list(reviewed.creates)
+        if not selected:
+            emit("All selected inputs skipped; no changes made.")
+            return 0
+        if selected != list(range(1, len(contacts) + 1)):
+            emit_list(
+                "Selected contacts",
+                ((i, contact_preview(contacts[i - 1])) for i in selected),
+                unit=("contact", "contacts"),
+            )
+        question = (
+            f"Create {len(selected)} contact{'s' if len(selected) != 1 else ''}"
+            + (f" and {len(missing)} new label(s)" if missing else "")
+            + "?"
+        )
+        if not args.apply and not confirm(question):
+            emit("Cancelled; no changes made.")
+            return 0
+    elif not args.apply:
         if len(contacts) > 1 and all(s.isatty() for s in (sys.stdin, sys.stdout, sys.stderr)):
             selected = review_selection(
                 [(i, contact_preview(p)) for i, p in enumerate(contacts, 1)],
@@ -389,7 +516,8 @@ def run_create(args, api, contacts, confirm):
     subset = len(selected) != len(contacts)
     selected_contacts = [(number, contacts[number - 1]) for number in selected]
     contacts = [person for _, person in selected_contacts]
-    completed, created_labels, attempted = 0, 0, 0
+    completed, created_labels, attempted, created_total = 0, 0, 0, 0
+    failures = ImportFailures()
     state, subject, kind = CreationState(), "", "label"
     try:
         for name in missing:
@@ -409,7 +537,20 @@ def run_create(args, api, contacts, confirm):
                 ]
             origin = f" (input #{number})" if subset else ""
             emit(f"Creating contact {i} of {len(contacts)}{origin}…")
-            create_contact(api, body, state)
+            try:
+                create_contact(api, body, state)
+            except SyncError as exc:
+                if len(contacts) == 1 or not contact_specific(exc):
+                    raise
+                created_total += int(state.phase in {"created", "verified"})
+                failures.record(
+                    f"Contact #{number} — {contact_preview(person).splitlines()[0]}",
+                    exc,
+                    location=state.location,
+                    remaining=len(contacts) - attempted,
+                )
+                continue
+            created_total += 1
             completed += 1
             if len(contacts) > 1:
                 emit(f"Verified contact {i} of {len(contacts)}{origin}.")
@@ -429,9 +570,9 @@ def run_create(args, api, contacts, confirm):
         else:
             message = f"{subject} was not created." + (" Interrupted." if interrupted else "")
         emit(("\n" if interrupted else "") + message)
-        if not interrupted and not unknown:
+        if not interrupted:
             emit(str(exc), primary=False)
-        contact_count = completed + int(kind == "contact" and created and attempted > completed)
+        contact_count = created_total + int(kind == "contact" and created)
         label_count = created_labels + int(kind == "label" and created)
         remaining = len(contacts) - attempted
         if len(contacts) > 1 or kind == "label":
@@ -451,13 +592,26 @@ def run_create(args, api, contacts, confirm):
             emit(
                 (
                     "The contact remains saved. Check it before retrying; "
-                    "rerunning creates another contact."
+                    "rerunning can create another contact."
                     if len(contacts) == 1
                     else "Created contacts remain saved. Do not rerun the full input; "
-                    "it would create duplicates."
+                    "it can create duplicates."
                 ),
                 primary=False,
             )
-        return 130 if interrupted else (3 if created or unknown else 1)
+        if kind == "contact" and len(contacts) > 1:
+            failures.record(
+                subject, exc, location=state.location, unverified=created or unknown, announce=False
+            )
+        failures.summary(remaining)
+        return 130 if interrupted else max(failures.exit_code, 3 if created or unknown else 1)
+    if failures.rows:
+        emit(f"Contacts: {created_total} created; {completed} verified.")
+        failures.summary()
+        emit(
+            "Review failed/unverified contacts before retrying. "
+            "Rerunning the full input can create duplicates."
+        )
+        return failures.exit_code
     emit(f"Created and verified {completed} contact{'s' if completed != 1 else ''}.")
     return 0

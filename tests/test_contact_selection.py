@@ -32,6 +32,7 @@ def setup(api, server, monkeypatch, tmp_path, answers):
     "answers,expected",
     [
         (["2,4", "y"], [2, 4]),
+        (["3-100", "y"], [3, 4]),
         (["4,2-3,2", "y"], [2, 3, 4]),
         (["all", "n", "3", "y"], [3]),
         (["9", "2", "y"], [2]),
@@ -89,7 +90,13 @@ def test_subset_failure_uses_input_number_and_selected_counts(
     assert cli.main(args) == (130 if interrupted else 1)
     output = capsys.readouterr().out
     assert "Contact #3" in output
-    assert "1 created; 1 verified; 1 not attempted" in output
+    if interrupted:
+        assert "1 created; 1 verified; 1 not attempted" in output
+    else:
+        assert "1 created; 1 verified" in output
+        assert "2 failed before saving; 0 unverified; 0 not attempted" in output
+        assert "Contact #4" in output
+        assert "Contact #1:" not in output
     assert len(server.created) == 1
 
 

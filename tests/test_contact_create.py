@@ -102,12 +102,14 @@ def test_confirmation_controls_all_writes(answer, api, server, monkeypatch):
 
 
 @pytest.mark.parametrize("status,code", [(400, 1), (503, 3)])
-def test_failed_create_stops_without_retry(
+def test_failed_create_continuation_depends_on_failure_scope(
     status, code, api, server, monkeypatch, capsys, tmp_path
 ):
     monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: api)
     file = tmp_path / "contacts.json"
-    file.write_text(json.dumps([{"emailAddresses": [{"value": "a@example.com"}]}] * 3))
+    file.write_text(
+        json.dumps([{"emailAddresses": [{"value": f"{i}@example.com"}]} for i in range(3)])
+    )
     original = server.request
 
     def fail_second(uri, *args, **kwargs):
@@ -118,15 +120,18 @@ def test_failed_create_stops_without_retry(
     monkeypatch.setattr(server, "request", fail_second)
     assert cli.main(["add-contact", "--file", str(file), "--apply"]) == code
     output = capsys.readouterr()
-    assert "1 created; 1 verified; 1 not attempted" in output.out
-    assert (
-        "Contact #2 was not created."
-        if status == 400
-        else "Contact #2: creation outcome is unknown."
-    ) in output.out
+    if status == 400:
+        assert "1 created; 1 verified" in output.out
+        assert "2 failed before saving; 0 unverified; 0 not attempted" in output.out
+        assert "Contact #2" in output.out and "Contact #3" in output.out
+    else:
+        assert "1 created; 1 verified; 1 not attempted" in output.out
+        assert "Contact #2: creation outcome is unknown." in output.out
     assert "Created contact: https://contacts.google.com/person/c457" not in output.out
     assert len(server.created) == 1
-    assert sum(call[1].endswith(":createContact") for call in server.calls) == 2
+    assert sum(call[1].endswith(":createContact") for call in server.calls) == (
+        3 if status == 400 else 2
+    )
 
 
 def test_readback_loss_is_unverified(api, server, monkeypatch, capsys):
@@ -189,7 +194,9 @@ def test_interrupt_reports_completed_and_remaining(api, server, monkeypatch, cap
 
     monkeypatch.setattr(api, "write", interrupt)
     file = tmp_path / "contacts.json"
-    file.write_text(json.dumps([{"emailAddresses": [{"value": "a@example.com"}]}] * 3))
+    file.write_text(
+        json.dumps([{"emailAddresses": [{"value": f"{i}@example.com"}]} for i in range(3)])
+    )
     assert cli.main(["add-contact", "--file", str(file), "--apply"]) == 130
     output = capsys.readouterr()
     assert "1 created; 1 verified; 1 not attempted" in output.out
@@ -216,7 +223,9 @@ def test_single_created_mismatch_is_clear(field, api, server, monkeypatch, capsy
     assert "Contact #1 was created, but verification failed." in output.out
     assert "Requested:" in output.out and "Saved: Not present" in output.out
     assert "Stopped:" not in output.out and "0 not attempted" not in output.out
-    assert re.fullmatch(r"\[\d{2}:\d{2}:\d{2}\] Active time: \d+\.\ds\n", output.err)
+    assert "Reading contacts for duplicate checking: finished." in output.err
+    assert "Error:" not in output.err
+    assert re.search(r"\[\d{2}:\d{2}:\d{2}\] Active time: \d+\.\ds\n$", output.err)
 
 
 def test_readable_preview_preserves_values():
@@ -250,7 +259,9 @@ def test_single_interrupt_distinguishes_creation(stage, api, server, monkeypatch
     else:
         assert "was created, but verification was interrupted" in output.out
         assert "Created contact:" in output.out
-    assert re.fullmatch(r"\[\d{2}:\d{2}:\d{2}\] Active time: \d+\.\ds\n", output.err)
+    assert "Reading contacts for duplicate checking: finished." in output.err
+    assert "Error:" not in output.err
+    assert re.search(r"\[\d{2}:\d{2}:\d{2}\] Active time: \d+\.\ds\n$", output.err)
 
 
 def test_label_readback_failure_reports_saved_label(api, server, monkeypatch, capsys):

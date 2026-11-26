@@ -30,9 +30,10 @@ owner-only permissions. A storage failure prints a warning and does not change t
 - Per-operation API calls, HTTP attempts, retries, and cumulative seconds: sending-address lookup,
   label lookup, message listing, header retrieval, contact reads, and contact writes.
   Attempts count calls to the Google client's HTTP transport, not lower-level redirects or token
-  refresh requests. Reads can retry up to three times within one 15-second deadline; DNS failures
-  do not retry.
-  Writes are never retried. API timings include read-worker startup and cleanup.
+  refresh requests. Gmail reads can retry up to three times within one 15-second deadline; DNS
+  failures do not retry. People API rate-limit retries count as separate API calls; pacing and
+  quota waits are included in total elapsed time but excluded from API seconds. Uncertain writes
+  are never retried. API timings include read-worker startup and cleanup.
 - Processed messages, unique senders, invalid headers, existing email entries, and proposed additions.
   The additions count reflects the selected groups once selection is complete.
   Unavailable counts are omitted. Interrupted scans retain the last completed message counts;

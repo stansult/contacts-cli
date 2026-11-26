@@ -52,12 +52,12 @@ Piped or redirected runs without `--apply` do not write; unresolved label choice
 may stop the run before a complete preview.
 
 `--apply` selects all eligible items and skips final write confirmation, not every decision.
-Label case choices still prompt in interactive runs and stop noninteractive runs. With `--apply`,
+Label case choices and possible contact duplicates still require interactive review. With `--apply`,
 email conflicts are kept unless explicitly approved with `--replace-existing`. Each command's
 section describes its matching and conflict rules.
 
 Each invocation reads current data: `--apply` does not approve a frozen preview from an earlier run.
-Creation commands create new contacts each time. Updates preserve unrelated contact data and
+`add-contact` can merge into a chosen match; `duplicate` creates a new copy. Updates preserve unrelated contact data and
 verify the saved result. After an uncertain write or failed verification, inspect the contact
 before retrying; a failed batch can leave earlier changes saved.
 
@@ -88,13 +88,88 @@ or `--file` with one Person object
 or an array. Repeatable `--label` reuses existing labels or previews missing labels for creation.
 Case-only label collisions require choosing an existing label, creating new, or cancelling;
 noninteractive collisions stop. `--apply` does not resolve this choice.
-For multiple contacts, choose `all` or original preview numbers/ranges, such as `2,4-6`, then
-confirm creation. A subset preview retains original numbers; `n` or Enter returns to selection,
+Without duplicate conflicts, multiple contacts offer `all` or original preview numbers/ranges,
+such as `2,4-6`, then confirm creation. A subset preview retains original numbers; `n` or Enter returns to selection,
 and `q` cancels. One input contact uses a simple `[y/N]` confirmation. Labels apply to all selected
-contacts and are created only after confirmation. `--apply` creates all input contacts without
-selection or final confirmation. Noninteractive runs without `--apply` only preview.
+contacts and are created only after confirmation. `--apply` processes all input contacts without
+selection or final confirmation, subject to duplicate review. Noninteractive runs without `--apply`
+only preview.
+
+Before creation, saved contacts and input records are checked for matching names, emails, phones,
+or company-only identities. Possible duplicates offer Skip (default), Merge, Create separately,
+or Cancel.
+Merge adds missing information to a chosen saved contact or earlier retained input. Conflicts
+offer Keep (default), Replace, or Keep both where the field supports multiple entries. Keep both
+preserves complete entries and explicitly identifies duplicate email addresses or phone numbers.
+Email addresses match ignoring case; Replace preserves the saved address spelling when changing
+its label or other properties. Capitalization alone never requires conflict resolution.
+Names, birthdays, and Notes offer only Keep or Replace. Multiple matching saved entries require
+choosing which entry to replace; other entries stay intact. Cancel discards the entire plan.
+Each conflict identifies the entry once and lists only differing properties, with Saved/Incoming
+values. Unchanged properties and equivalent email capitalization are omitted. Label-only choices
+refer to labels; multiple differences use values/entries. Single-entry replacements also identify
+omitted properties that Replace would remove.
+Final approval shows resulting values; `--apply` still requires conflict decisions. Before the
+first preview, full details are read once per
+matched saved contact, not for the whole account. Each match shows whether it has new information,
+conflicts, or requested label changes. These details are reused during merge review; updates still
+require fresh concurrency checks. Comparisons with other input records are conditional on your
+later selections and merge choices.
+Unchanged targets are omitted from final approval; label-only updates still require approval.
+If nothing needs creating, updating, or labeling, no final prompt appears. Otherwise, final
+yes/no confirmation applies the reviewed plan; No cancels. `--apply` still requires duplicate choices; noninteractive `--apply` stops on a match
+before any writes. See [matching rules](contact-input.md#possible-duplicates) for normalization,
+company restrictions, input-order handling, and snapshot limitations.
+Contact-specific rejections and verification mismatches are reported while independent contacts
+continue. Authorization, unrecovered quota/rate limits, connectivity/server errors, unknown errors, shared-label
+failures, and interruption stop the batch. Failed or unverified contacts produce a nonzero exit
+status, even if later contacts succeed. Only explicit transient rate-limit rejections are retried automatically; uncertain writes are never replayed.
+See [merge behavior](contact-input.md#merging-information) for field rules and failure handling.
 See [contact creation](contact-input.md) for supported fields, validation, progress, verification,
 and partial-failure behavior.
+
+Before individual duplicate review, a default-Yes **Skip these inputs? [Y/n]** prompt offers to
+skip all selected inputs where every possible match is a saved contact with nothing new and no
+requested labels to add. The count includes only selected inputs. No keeps individual review;
+`q` or end-of-input cancels the command without writes. Conflicts, useful merges, invalid merge
+comparisons, and matches to other input records remain in individual review. If nothing remains,
+the command finishes without writes; otherwise, normal review and final approval still apply.
+Interactive `--apply` still asks this question. Noninteractive preview and duplicate rejection
+with `--apply` remain unchanged; there is no automatic skip in noninteractive mode.
+
+Grouped previews distinguish available changes, the subset being reviewed, and selected replacements.
+A cumulative total identifies selected replacements as unsaved; a transition announces individual
+contact review when needed.
+
+Similar email-label-only changes offer grouped Replace, Keep, direct selection by original input
+number/range, or individual review (default). Unselected entries stay grouped for further subset decisions,
+keeping their original numbers. Only choosing individual review or leaving one entry switches
+them to individual review. Group choices still prompt with `--apply`. Groups require at least two
+inputs with one unambiguous saved target each,
+no other changes and identical incoming labels; differing saved labels appear on each row. Final approval
+and verification apply normally. See [grouped email-label changes](contact-input.md#grouped-email-label-changes) for eligibility and cancellation.
+
+Independent saved-contact matches with additions and no conflicts offer a second grouped review:
+Merge all, Skip all, direct numbers/ranges, individual review (default), or Cancel. Each row shows
+the saved target and its additions. Remaining entries stay grouped until one remains or you choose
+individual review. Choices build the unsaved plan; final approval and verification still apply.
+See [grouped conflict-free merges](contact-input.md#grouped-merges-without-conflicts) for eligibility.
+
+Individual duplicate review shows available additions before the choice. After decisions,
+Selected merge changes reports the unsaved plan. Conflicts identify their field and decision
+number; separate contact reviews are separated by blank lines. A full-name input with one given-name
+token and the same known saved surname can be reviewed as a first-name change, preserving the
+surname; ambiguous cases retain whole-name review. Kept names use a concise first-name summary.
+Missing email labels are described as Add email label, with the label and “currently none”,
+in both available and selected changes. See the [merge rules](contact-input.md#merging-information).
+
+Individual duplicate review repeats each matching contact’s comparison result before the choice.
+Merge is offered when at least one target has additions, conflicts, or requested labels;
+only those targets can be selected for merging. Conflicting entries show Saved and Incoming
+values before the choice. Unchanged targets remain visible, with Skip, Create separately, and
+Cancel available. Labels alone can make a merge useful.
+Comparisons include earlier merge decisions in this run, so a later input with no additions
+or unresolved conflicts no longer offers Merge. No extra Google read is needed for these comparisons.
 
 ## Duplicate a contact
 
@@ -175,7 +250,7 @@ compare image bytes or guarantee the original upload resolution.
 
 The source contact is never updated. A fresh source read catches changes before creation, but the
 read and creation are not atomic. Each `--apply` creates another contact, even with identical flags.
-Creation and photo writes are never automatically retried. If the result is uncertain or a photo
+Creation and photo writes retry only explicit transient rate-limit rejections. If the result is uncertain or a photo
 write fails, inspect Google Contacts before retrying. The error includes the new contact's link
 when available; no automatic deletion or rollback is attempted.
 
@@ -341,9 +416,17 @@ Choose addresses:
 Selection:
 ```
 
-Enter `all`, displayed numbers, or ascending ranges directly; overlaps count
-once and displayed order is preserved. Excluded numbers cannot be selected. Invalid or blank
-input asks again; `q` or end-of-input cancels without writes.
+Enter `all`, displayed numbers, or ascending ranges directly; overlaps count once and displayed
+order is preserved. Ranges select only displayed items within their bounds, skipping gaps and
+excluded rows; endpoints need not be displayed. For rows #18, #19, #37, #59, and #63, `1-19`
+selects #18 and #19, and `37-100` selects #37, #59, and #63. Explicit unavailable numbers still
+error: `64` or `18,64` is invalid. An empty range contributes no items to a combined selection;
+if the entire selection matches nothing, the prompt asks again. Reversed ranges, invalid syntax,
+and blank input also ask again; `q` or end-of-input cancels without writes.
+
+These rules apply to all shared number/range selections: contacts, email addresses, labels,
+custom fields, and grouped email-label review. Ranges never include hidden, excluded, or already
+reviewed entries.
 
 A subset preview keeps original numbers and shows its total. Selecting all does not repeat the
 list. Final confirmation offers Yes to add, No or Enter to return to selection, and `q` to cancel.
@@ -436,8 +519,8 @@ so the shell argument is passed as the search value.
 - Requests are sequential: normally one header read and one search per new sender, plus a final
   empty search and contact/label requests. When most messages have different senders, this can use
   more requests than the old full scan. Local metrics allow comparisons with the previous baseline.
-- Read requests allow up to three retries. Updates are never automatically retried by the
-  application. After an uncertain write or failed verification, inspect the contact and run a new
+- Gmail reads allow up to three retries. People API reads and writes retry only explicit
+  transient rate-limit rejections. After an uncertain write or failed verification, inspect the contact and run a new
   preview before deciding whether another apply is needed. No rollback write is attempted.
 
 Sources: [Gmail listing contract](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/list), [message metadata](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/get), [People email fields](https://developers.google.com/people/api/rest/v1/people#Person),
@@ -644,7 +727,8 @@ the contact before each addition, skips memberships applied since preview, and i
 back afterward to check the added label and prior memberships. It stops if the contact identity
 changes or verification fails.
 
-Operations run sequentially without automatic mutation retries. On failure or interruption, the
+Operations run sequentially; only explicit transient rate-limit rejections retry automatically.
+On failure or interruption, the
 command reports verified additions and newly created labels; completed changes remain saved.
 A newly created label may remain empty if adding the contact fails. Inspect the contact before
 retrying; a new preview skips labels already applied. HTTP errors use the shared local error logs.
@@ -691,7 +775,7 @@ are never sent for replacement. Labels themselves remain, even if empty. Google 
 of a contact's last contact-group membership; that refusal is reported and processing stops.
 
 On errors or interruption, verified removals remain saved and later removals stop. Mutation requests
-are not retried automatically. Inspect the contact before retrying; a fresh preview skips labels
+retry only explicit transient rate-limit rejections. Inspect the contact before retrying; a fresh preview skips labels
 already removed. Shared [error logs](error-logs.md) capture failed HTTP responses.
 
 ## Label choices and output
@@ -856,7 +940,7 @@ Sender-sync's stored metrics retain their existing wall-duration meaning, includ
 
 ## Network timeouts
 
-Each Google API read has a 15-second overall deadline, including connection setup, DNS lookup,
+Each Google API read attempt has a 15-second overall deadline, including connection setup, DNS lookup,
 response download, and retry delays. An expired-token refresh before the command has its own
 15-second deadline. These are per-operation limits, not a limit on the entire command.
 A timed-out read stops the command and names the operation, for example:
@@ -870,7 +954,8 @@ same deadline. Reads reuse a worker and HTTP connections within the command to r
 startup and connection overhead. The worker is closed when the command ends, and discarded on
 failure or Ctrl+C. Brief process cleanup can add a fraction of a second. Use `--diagnostics` with sender-sync to record details.
 
-Writes are not retried and retain their existing transport behavior. A timeout while verifying
+Writes retain their existing transport behavior. Only explicit transient rate-limit rejections
+are retried; uncertain writes are never replayed. A timeout while verifying
 an already-submitted write still reports an unverified result; it does not imply the write failed.
 Photo downloads retain their separate limits. Browser authorization keeps its separate five-minute
 waiting period; `--auth-timeout` only controls that authorization wait.
@@ -923,3 +1008,27 @@ including successful requests and transport failures. Normal runs omit these tra
 
 Use the command's outcome message and any partial-result summary to determine what was saved.
 An exit code alone does not identify which contacts or labels changed.
+
+## Google Contacts request pacing
+
+The CLI shares a conservative budget of 80 People API requests per rolling 60 seconds across
+reads and writes within one command. Creation and updates also consume Google's read quota.
+This is a local guard, not a complete model of Google's quota buckets: other running commands,
+applications, and earlier runs are not counted. Gmail requests are unaffected. Current contact
+batch reads request one contact at a time.
+
+Before exceeding this budget, the CLI reports how long it will wait. An explicit HTTP 429 with
+Google's structured `RATE_LIMIT_EXCEEDED` reason can retry the same request up to three times,
+waiting approximately 30, 60, then 120 seconds with a small random delay. `Retry-After` is honored;
+if it requests more than 121 seconds, the command stops rather than retrying early. Daily quota
+exhaustion, unclassified 429 errors, authorization errors, and uncertain writes are not retried.
+Completed work and reviewed decisions remain in place during these waits. Ctrl+C cancels.
+Quota waits are outside each read attempt's 15-second network deadline and count as active time.
+People API requests use these explicit retries rather than hidden client-library retries;
+other People API failures stop normally. Gmail's bounded read retry behavior is unchanged.
+
+See Google's [contact quota accounting](https://developers.google.com/people/v1/contacts)
+and [quota retry guidance](https://docs.cloud.google.com/service-usage/docs/troubleshooting).
+
+Email previews omit a display name that equals the email address, ignoring case. A different
+display name remains visible. This affects presentation only; saved contact data is preserved.

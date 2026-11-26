@@ -81,12 +81,45 @@ def file_exclusions(paths):
 
 
 def parser() -> argparse.ArgumentParser:
-    result = argparse.ArgumentParser(description="Work with Google contacts.")
+    result = argparse.ArgumentParser(
+        description="Work with Google contacts.",
+        epilog="Numbered selections: Ranges select displayed items within their bounds, "
+        "including gaps or endpoints not displayed (e.g. 1-100). Explicit numbers must "
+        "be displayed. Overlaps count once; an empty selection asks again.",
+    )
     commands = result.add_subparsers(dest="command", required=True)
     creation = commands.add_parser(
         "add-contact",
         help="Preview or create new contacts",
-        description="Preview contacts; interactively select all or numbers/ranges before creation.",
+        description=(
+            "Preview contacts and select all or numbers/ranges before creation. "
+            "Possible duplicates by name, email, phone, or company-only identity require "
+            "interactive skip/merge/create-separately/cancel review. "
+            "The preview compares full details only for matching contacts and shows "
+            "new information, conflicts, and label changes. Review conflicts with Keep (default), "
+            "Replace, or Keep both where multiple entries are supported. "
+            "Merge is available for additions or conflicts. "
+            "Available additions appear before Merge; "
+            "numbered conflict decisions lead to Selected merge changes before saving. "
+            "A single first-name change can preserve a known matching surname. "
+            "Independent conflict-free matches offer grouped Merge, Skip, numbers/ranges, "
+            "or individual review, showing each saved target and its additions. "
+            "Grouped email-label review offers Replace, Keep, direct numbers/ranges, "
+            "or individual review. Groups share an incoming label; differing saved labels "
+            "are shown per contact. "
+            "Remaining entries stay grouped until individual review is chosen or one remains. "
+            "Available changes and selected replacements are shown separately; nothing is saved "
+            "during review. "
+            "Group choices still prompt with --apply. "
+            "Before individual review, skip all selected inputs whose saved matches have "
+            "nothing new and no labels to add (default Yes); No keeps individual review. "
+            "No final approval is needed when nothing would change. "
+            "Contact-specific failures are reported and remaining contacts continue. "
+            "Explicit transient rate-limit rejections wait and retry automatically; "
+            "authorization, unrecovered quota, connection, or shared-label failures "
+            "stop the batch. "
+            "Any failure returns a nonzero exit status."
+        ),
     )
     creation.add_argument(
         "--name", help="Full name for Google to parse; excludes explicit name parts"
@@ -116,7 +149,8 @@ def parser() -> argparse.ArgumentParser:
         "--apply",
         action="store_true",
         help=(
-            "Create all inputs without selection or final confirmation; label choices still prompt"
+            "Process all inputs without final confirmation; "
+            "duplicate and label choices still prompt"
         ),
     )
     duplicate = commands.add_parser("duplicate", help="Preview or create a copy of a contact")

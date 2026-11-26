@@ -27,6 +27,7 @@ class FakeGoogle:
         self.send_as_status = 200
         self.groups = {}
         self.created = {}
+        self.connections = None
         self.create_status = 200
         self.photo_status = 200
         self.drop_copy_field = None
@@ -61,6 +62,31 @@ class FakeGoogle:
         def reply(payload, status=200):
             return httplib2.Response({"status": str(status)}), json.dumps(payload).encode()
 
+        if method == "GET" and url.path == "/v1/people/me/connections":
+            assert query["sources"] == ["READ_SOURCE_TYPE_CONTACT"]
+            assert query["personFields"] == [
+                "metadata,names,organizations,emailAddresses,phoneNumbers"
+            ]
+            assert query["pageSize"] == ["1000"]
+            people = (
+                self.connections
+                if self.connections is not None
+                else [self.person, *self.created.values()]
+            )
+            fields = set(query["personFields"][0].split(",")) | {"resourceName"}
+            offset = int(query.get("pageToken", ["0"])[0])
+            result = {
+                "connections": [
+                    {k: v for k, v in p.items() if k in fields} for p in people[offset : offset + 2]
+                ]
+            }
+            for person in result["connections"]:
+                for field in ("emailAddresses", "phoneNumbers"):
+                    if field in person:
+                        person[field] = person[field][:100]
+            if offset + 2 < len(people):
+                result["nextPageToken"] = str(offset + 2)
+            return reply(result)
         if method == "GET" and url.path == "/gmail/v1/users/me/settings/sendAs":
             return reply(self.send_as, self.send_as_status)
         if method == "GET" and url.path == "/gmail/v1/users/me/labels":
@@ -132,6 +158,10 @@ class FakeGoogle:
                 if resource == self.person["resourceName"]
                 else self.created.get(resource)
             )
+            if person is None and self.connections is not None:
+                person = next(
+                    (p for p in self.connections if p.get("resourceName") == resource), None
+                )
             if person is None:
                 return reply(
                     {"responses": [{"requestedResourceName": resource, "status": {"code": 5}}]}
@@ -245,15 +275,23 @@ class FakeGoogle:
             ]
             return reply({"person": self.created[resource]})
         if method == "PATCH" and url.path.endswith(":updateContact"):
+            resource = url.path.removeprefix("/v1/").removesuffix(":updateContact")
+            person = (
+                self.person
+                if resource == self.person["resourceName"]
+                else self.created.get(resource)
+            )
+            if person is None:
+                return reply({"error": {"message": "Missing contact"}}, 404)
             incoming = data.get("metadata", {}).get("sources", [{}])[0].get("etag")
-            current = self.person["metadata"]["sources"][0]["etag"]
+            current = person["metadata"]["sources"][0]["etag"]
             if self.reject_write or incoming != current:
                 return reply({"error": {"message": "Synthetic failedPrecondition"}}, 400)
             self.writes += 1
             # Replacement, not append: the fixture exposes destructive request bodies.
             for field in query["updatePersonFields"][0].split(","):
                 if not self.lose_additions:
-                    self.person[field] = deepcopy(data.get(field, []))
-            self.person["metadata"]["sources"][0]["etag"] = f"written-{self.writes}"
-            return reply(self.person)
+                    person[field] = deepcopy(data.get(field, []))
+            person["metadata"]["sources"][0]["etag"] = f"written-{self.writes}"
+            return reply(person)
         raise AssertionError(f"Unexpected offline request: {method} {url.path}")

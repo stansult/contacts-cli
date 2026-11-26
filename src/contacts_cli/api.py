@@ -24,8 +24,9 @@ from .core import (
 from .deadline import DeadlineHTTP, read_budget
 from .duplicate import READ_FIELDS, download_photo, verify_duplicate
 from .error_logs import save_http_error, save_malformed_message, save_verification_error
-from .errors import SyncError, WriteUnverified
+from .errors import ContactFailure, SyncError, WriteUnverified
 from .metrics import ACTIVE, counts, execute_measured
+from .quota import PeopleQuota, with_quota
 
 # Conservative application guard, not a claimed Gmail server limit.
 MAX_QUERY_BYTES = 6000
@@ -51,12 +52,15 @@ def exclusion_query(addresses, *, search=None):
 
 
 def execute(request, *, write: bool = False, operation: str = "update"):
-    try:
+    method = getattr(request, "methodId", "")
+    people_request = isinstance(method, str) and method.startswith("people.")
+
+    def attempt():
         # Never retry a mutation whose outcome may be unknown.
         if write:
             return execute_measured(request, num_retries=0)
         if not isinstance(getattr(request, "http", None), DeadlineHTTP):
-            return execute_measured(request, num_retries=3)
+            return execute_measured(request, num_retries=0 if people_request else 3)
         method = getattr(request, "methodId", None)
         operation_name = {
             "people.people.getBatchGet": "Reading contact",
@@ -69,7 +73,10 @@ def execute(request, *, write: bool = False, operation: str = "update"):
             "gmail.users.messages.get": "Reading message headers",
         }.get(method if isinstance(method, str) else "", "Google API read")
         with read_budget(operation_name, request):
-            return execute_measured(request, num_retries=3)
+            return execute_measured(request, num_retries=0 if people_request else 3)
+
+    try:
+        return with_quota(request, attempt) if people_request else attempt()
     except HttpError as exc:
         save_http_error(exc, request, write=write, operation=operation)
         status = exc.resp.status
@@ -77,8 +84,17 @@ def execute(request, *, write: bool = False, operation: str = "update"):
             raise WriteUnverified(
                 "Update outcome is unknown; inspect a new preview before retrying."
             ) from exc
-        if write and status in {400, 409, 412}:
-            raise SyncError(
+        # Quota/rate failures can also arrive as 400; do not continue an affected batch.
+        try:
+            error_text = json.dumps(json.loads(exc.content).get("error", {})).casefold()
+        except (ValueError, TypeError, AttributeError):
+            error_text = ""
+        quota = any(
+            word in error_text
+            for word in ("quota", "ratelimit", "rate_limit", "resource_exhausted")
+        )
+        if write and status in {400, 404, 409, 412} and not quota:
+            raise ContactFailure(
                 f"Contact {operation} rejected (possible conflict, limit, or bad data); "
                 "rerun preview."
             ) from exc
@@ -97,6 +113,8 @@ class GoogleAPI:
     def __init__(self, gmail, people):
         self.gmail = gmail
         self.people = people
+        if self.people is not None:
+            self.people._http.contacts_quota = PeopleQuota()
         self.write_started = False
 
     def close(self):
@@ -336,7 +354,15 @@ class GoogleAPI:
             or response.get("status", {}).get("code", 0) != 0
             or response.get("httpStatusCode", 200) != 200
         ):
-            raise SyncError(
+            error = (
+                ContactFailure
+                if (
+                    response.get("status", {}).get("code") == 5
+                    or response.get("httpStatusCode") == 404
+                )
+                else SyncError
+            )
+            raise error(
                 "Contact could not be read completely; check its URL and authorized account."
             )
         person = response.get("person")

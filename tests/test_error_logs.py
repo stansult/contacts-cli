@@ -73,7 +73,7 @@ def test_read_error_is_logged_without_changing_exception():
         execute(request)
     record = json.loads(next(error_logs.log_directory().glob("*.json")).read_text())
     assert record["write"] is False
-    request.execute.assert_called_once_with(num_retries=3)
+    request.execute.assert_called_once_with(num_retries=0)
 
 
 def test_log_failure_does_not_hide_original_error(monkeypatch, tmp_path, capsys):

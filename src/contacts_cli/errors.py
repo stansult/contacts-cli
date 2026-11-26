@@ -19,3 +19,11 @@ class ReauthorizationRequired(SyncError):
 
 class WriteUnverified(SyncError):
     """A write may have occurred, but its result could not be verified."""
+
+
+class ContactFailure(SyncError):
+    """A rejected or stale individual contact; independent contacts may continue."""
+
+
+class ContactVerificationFailure(WriteUnverified):
+    """A contact-specific content mismatch after submission, not a transport failure."""
