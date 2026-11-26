@@ -83,13 +83,36 @@ def add_membership(api, person, group):
 
 
 def run_label_edit(args, api, confirm, heading):
+    if args.command == "add-label" and hasattr(args, "contact_identifiers"):
+        from .contact_resolution import resolve_contacts
+
+        resources = resolve_contacts(api, args.contact_identifiers)
+        if resources is None:
+            emit("Cancelled; no changes made.")
+            return 0
+        if not resources:
+            emit("No contacts selected; no changes made.")
+            return 0
+        if len(resources) > 1:
+            from .bulk_labels import run_bulk_labels
+
+            return run_bulk_labels(args, api, resources, confirm)
+        args.contact = next(iter(resources))
     if args.contact is None:
         return run_create_labels(args, api, confirm)
     remove = args.command == "remove-label"
     verb, participle = ("Remove", "Removed") if remove else ("Add", "Added")
     operation = "removals" if remove else "additions"
     emit("Reading contact…")
-    person = api.get_contact(contact_resource(args.contact), LABEL_FIELDS)
+    if args.command == "add-label":
+        from .contact_resolution import read_resolved_contact
+
+        person = read_resolved_contact(api, contact_resource(args.contact), LABEL_FIELDS)
+        if person is None:
+            emit("No contacts selected; no changes made.")
+            return 0
+    else:
+        person = api.get_contact(contact_resource(args.contact), LABEL_FIELDS)
     emit(heading(person), primary=False)
     emit("", primary=False)
     current = memberships(person)

@@ -320,18 +320,41 @@ def parser() -> argparse.ArgumentParser:
             description=(
                 "Choose all or numbers/ranges from matching labels, then confirm removal."
                 if action == "remove"
-                else None
+                else (
+                    "Identify saved contacts by URL, ID, full name, email, or phone. "
+                    "Names and emails match completely, ignoring case; "
+                    "name whitespace is normalized. "
+                    "Phone formatting and a leading + are ignored; "
+                    "all base-number digits, including country codes, must match. "
+                    "Without an extension, match any extension; "
+                    "a supplied extension must match exactly. "
+                    "Multiple matches require selection; "
+                    "s skips that identifier, q cancels the command. "
+                    "Unmatched identifiers are reported and skipped. "
+                    "Compact numbered matches precede an input summary. "
+                    "Contact numbers stay the same across review lists. "
+                    "Files resolve before writes; "
+                    "choose contacts "
+                    "by number/range, then confirm. "
+                    "With neither contact option, create account labels."
+                )
             ),
         )
-        labeling.add_argument(
+        targets = labeling.add_mutually_exclusive_group() if action == "add" else labeling
+        targets.add_argument(
             "--contact",
             required=action == "remove",
             help=(
-                "Google Contacts URL or bare ID; omit to create account labels"
+                "Contact URL, ID, full name, email, or phone; omit to create account labels"
                 if action == "add"
                 else "Google Contacts URL or bare ID"
             ),
         )
+        if action == "add":
+            targets.add_argument(
+                "--contact-file",
+                help="UTF-8 file: one contact identifier per line; blanks and # comments ignored",
+            )
         labeling.add_argument(
             "--label",
             required=True,
@@ -349,7 +372,8 @@ def parser() -> argparse.ArgumentParser:
             help=(
                 "Remove all matching user labels on this contact without selection or confirmation"
                 if action == "remove"
-                else "Skip final confirmation; label choices still prompt"
+                else "Apply to all resolved contacts; "
+                "ambiguous contacts and label choices still require resolution"
             ),
         )
         label_commands.append(labeling)
@@ -919,7 +943,7 @@ def run_command(args):
             emit("Authorization saved. Future sync runs use the saved token without a browser.")
             return 0
         # Reject bad input before touching credentials or the network.
-        if args.contact is not None:
+        if args.contact is not None and args.command != "add-label":
             contact_resource(args.contact)
         if args.command == "add-custom-field":
             for number, (key, value) in enumerate(args.field, 1):
@@ -930,6 +954,14 @@ def run_command(args):
             if args.value is not None:
                 text_value(args.value, "--value")
         elif args.command in {"add-label", "remove-label"}:
+            if args.command == "add-label" and (
+                args.contact is not None or args.contact_file is not None
+            ):
+                from .contact_resolution import identifier_kind, load_identifiers
+
+                args.contact_identifiers = load_identifiers(args.contact, args.contact_file)
+                for identifier in args.contact_identifiers:
+                    identifier_kind(identifier)
             for number, label in enumerate(args.label, 1):
                 text_value(label, f"--label #{number}")
         elif args.command == "duplicate":

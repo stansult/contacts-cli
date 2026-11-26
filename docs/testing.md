@@ -877,3 +877,31 @@ It covers the 80-request rolling window, shared read/write accounting, Gmail iso
 rate rejections, bounded retries, Retry-After, daily/unknown quota failures, uncertain writes,
 and cancellation before another request. No Google calls or real quota waits are needed.
 Display-name tests verify both redundant and meaningful names and unchanged underlying data.
+
+## Add-label contact resolution
+
+`test_contact_resolution.py` covers ID/URL routing, full-name and email case matching, phone
+formatting and optional leading `+`, preserved country-code digits, optional-extension lookup,
+explicit-extension matching, contact files,
+overlapping targets, multiple-match selection, batch partial selection, skipping unmatched
+identifiers and missing IDs, all-unmatched no-ops, fatal read errors, noninteractive safety,
+shared label creation, reruns, and partial failures. Fixture contracts independently check multi-contact
+membership writes and contact-list matching fields. Existing label-edit tests continue covering
+fresh identity checks, membership preservation, case choices, and readback verification.
+The resolver reuses the import command's existing contact-list request shape and phone parser,
+then ignores a leading `+` only for lookup. Tests cover both directions, file deduplication, and
+new ambiguity from that normalization. Base-number searches cover choosing one or several
+contacts with different extensions, noninteractive ambiguity, and overlapping file identifiers.
+Import matching is unchanged; no live Google calls are made.
+
+Contact-resolution numbering tests retain original numbers through unchanged/proposed lists,
+subsets, and repeated identifiers; sparse selection rejects unchanged rows and writes only to
+the chosen contact. These regressions fail when lists are independently renumbered.
+
+Matching-choice skip tests cover continuing through files, preserving earlier selections,
+matching a skipped contact through a later identifier, all-skipped no-ops, and cancellation of
+the whole command. Other shared selectors keep their existing choices unless skip is enabled.
+
+`test_contact_resolution_output.py` covers compact match rows, matched-input visibility without
+unrelated fields, grouped headings, input versus distinct-contact totals, shared label headings,
+per-contact differences, explicit label confirmation, and later matches after a skipped input.

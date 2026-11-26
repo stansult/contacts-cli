@@ -700,7 +700,7 @@ alias `list-labels` is accepted. Global options work before or after the command
 ./contacts-cli add-label --contact c123456789 --label Recruiter --label Follow-up
 ```
 
-Without `--contact`, creates account labels without reading or editing any contact. Existing
+Without either contact option, creates account labels without reading or editing any contact. Existing
 labels appear under `Already exists`; only missing labels are proposed for creation. If all
 requested labels exist, no changes are made. Confirmation asks only about creation; `--apply`
 creates all missing labels. Each creation is independently verified. On failure or interruption,
@@ -709,8 +709,66 @@ List account labels before retrying. For case-only collisions, choices explicitl
 `Keep 'test1'; skip creating 'TEST1'`, `Create 'TEST1' as a separate label`, or `Cancel command`.
 Keeping an existing label creates nothing; it is not applied to any contact.
 
-With `--contact`, adds one or more contact labels to that contact. `--contact` accepts a URL or bare ID;
-repeat `--label` for more labels. Names match exactly and case-sensitively. The shared
+With `--contact`, identify a saved contact by Google Contacts URL, bare ID, full name, email,
+or phone. Alternatively, use `--contact-file contacts.txt` for several identifiers. These options
+are mutually exclusive. Files are UTF-8 plain text, one identifier per line; blanks and lines
+starting with `#` are ignored. This is an identifier list, not the Person JSON used by `add-contact`:
+
+```text
+# Contacts to label
+c123456789
+Jane Example
+jane@example.com
++1 (202) 555-0142 ext. 42
+```
+
+Names match the complete saved name, ignoring case and extra whitespace. Emails match the complete
+address, ignoring case; no substring or wildcard matching. Phone punctuation and an optional
+leading `+` are ignored. All base-number digits, including country codes, must match.
+Without an extension, the input matches every saved extension of that base number, including
+numbers without an extension. Multiple matching contacts require selection. Supply an extension
+to require that exact extension: `12025550142 x42` matches the example above, while
+`12025550142 x43` does not. `12025550142` also matches it; `2025550142` does not.
+No country is inferred; `00` is not converted to `+`.
+This lookup rule applies to `add-label`; import duplicate matching is unchanged.
+Names, emails, and phones use one paginated read of saved contacts; IDs avoid that account-wide read.
+Company-only lookup is not supported; use an ID, email, or phone for an unnamed company contact.
+
+Single matches appear in numbered groups with name, ID, company when present, and the matching
+email or phone once on the same line. Unrelated addresses and phones are omitted. Name matches
+omit the input when it repeats the displayed name. Each group has one timestamped heading.
+Multiple matches show the input once in the heading and name, ID, and company in each row,
+then allow one, several, or all
+through the shared number/range selector. At this matching prompt, `s` skips just the current
+identifier and continues through the file; `q` or end-of-input cancels the entire command before
+changes. Skipping does not remove earlier selections or prevent the same contact from matching
+a later, different identifier; a message explains when that happens. If nothing remains selected,
+no labels are created or applied. A completed resolution prints reviewed-input, matched,
+unmatched, and skipped-by-choice counts, plus the distinct contact count. Repeated file entries
+are deduplicated before review. Supplied IDs are counted separately until the following contact
+read validates them. Unmatched inputs are grouped separately from contact choices.
+Repeated identifiers and overlapping selections resolve
+to each contact only once. Unmatched identifiers and IDs explicitly reported as not found are
+reported and skipped; resolved contacts continue to preview and confirmation. If none remain,
+the command exits successfully without creating labels or changing contacts. Connection,
+authorization, and incomplete-read errors still stop before changes. No contacts are created.
+Noninteractive ambiguity stops even with `--apply`;
+use explicit IDs or rerun interactively.
+
+For multiple resolved contacts, identical label additions appear once in the heading rather
+than on every row. When additions differ, each row retains its own label details. The selection
+prompt says “Choose contacts to label,” and final confirmation names the labels.
+The numbered preview shows labels to add; unchanged contacts
+are reported separately. Contacts keep their original numbers across matching, unchanged,
+proposed, and selected lists, including across file identifiers. Numbers are assigned when a
+contact is first encountered; repeated matches reuse that number. Filtering leaves gaps rather
+than renumbering, and only numbers in the current selectable list can be selected.
+Choose all or a subset and confirm once. `--apply` uses all resolved
+contacts. Label spelling is resolved once for the batch, and missing labels are created once.
+Cancelling at any selection stage makes no changes. Noninteractive runs without `--apply` preview
+only. Single-contact output retains its existing label preview.
+
+Repeat `--label` for more labels. Label names match exactly and case-sensitively. The shared
 [case-collision choices](contact-input.md#contact-labels) offer existing labels, create new,
 or cancel. `--apply` skips final confirmation but not label choices; unresolved noninteractive
 collisions stop. See [label choices and output](#label-choices-and-output) for membership-aware wording.

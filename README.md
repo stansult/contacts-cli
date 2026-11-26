@@ -147,15 +147,23 @@ See [webpage input](docs/command-reference.md#webpage-email-input) and
 ./contacts-cli list-label
 ./contacts-cli add-label --label Recruiter
 ./contacts-cli list-label --contact c123456789
-./contacts-cli add-label --contact c123456789 --label Recruiter
+./contacts-cli add-label --contact jane@example.com --label Recruiter
+./contacts-cli add-label --contact-file contacts.txt --label Recruiter
 ./contacts-cli remove-label --contact c123456789 --label Recruiter
 ```
 
 `list-label` lists all account user labels with their contact counts. With `--contact`, it lists
 only that contact’s labels, without counts.
 
-`add-label` without `--contact` creates account labels. With `--contact`, it adds labels to that
-contact, creating missing labels first. Case-only matches may require a choice even with `--apply`.
+`add-label` accepts a contact URL, ID, full name, email, or phone with `--contact`, or a
+`--contact-file` containing one identifier per line. Multiple matches offer a choice (`s` skips
+that identifier; `q` cancels the command); batches
+support selection by number or range before confirmation. Unmatched identifiers are reported and
+skipped. Phone lookup ignores formatting and a leading `+`, but requires all base-number digits.
+Omit the extension to find all contacts with that base number; supply one to match it exactly.
+Missing labels are created as needed.
+With neither contact option, it creates account labels. Case-only matches may require a choice
+even with `--apply`.
 Repeat `--label` for multiple labels when adding or removing.
 
 `remove-label` requires a contact and offers only labels attached to it. It accepts names or

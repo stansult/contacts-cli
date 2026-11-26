@@ -33,12 +33,16 @@ def parse_selection(answer, numbers):
     return [number for number in numbers if number in selected]
 
 
-def select_numbers(numbers, *, noun="items", separate_response=False):
-    """Prompt for a subset; return None for q/EOF. Caller owns preview and confirmation."""
+def select_numbers(
+    numbers, *, noun="items", separate_response=False, skip_label=None, cancel_label="Cancel"
+):
+    """Return a subset, [] for enabled skip, or None for q/EOF; never confirm or write."""
     numbers = list(numbers)
     emit(f"Choose {noun}:")
     emit(
-        "  all     Select all\n  3-5,8   Select by number or range\n  q       Cancel",
+        "  all     Select all\n  3-5,8   Select by number or range\n"
+        + (f"  s       {skip_label}\n" if skip_label else "")
+        + f"  q       {cancel_label}",
         primary=False,
     )
     while True:
@@ -52,6 +56,8 @@ def select_numbers(numbers, *, noun="items", separate_response=False):
                 emit("", primary=False)
         if answer.casefold() == "q":
             return None
+        if skip_label and answer.casefold() == "s":
+            return []
         if not answer:
             continue
         try:
