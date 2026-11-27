@@ -5,7 +5,8 @@
 ## Contents
 
 - [Running the CLI](#running-the-cli), [contact identifiers](#contact-identifiers),
-  [confirmation and conflicts](#previews-confirmation-and-conflicts), [output](#output-and-timestamps)
+  [confirmation and conflicts](#previews-confirmation-and-conflicts),
+  [numbered selections](#numbered-selections), [output](#output-and-timestamps)
 - [List-contact](#list-contact), [Add-contact](#add-contact), [duplicate](#duplicate-a-contact), [sender-sync](#sender-sync-preview-and-apply)
 - [List-email](#list-email), [add-email and remove-email](#add-email-and-remove-email)
 - [List-label](#list-label), [add-label](#add-label), [remove-label](#remove-label), [label choices](#label-choices-and-output)
@@ -13,7 +14,7 @@
   [authorization](#authorization)
 - [Active timing](#active-timing), [network timeouts](#network-timeouts)
 - [Global options](#global-options), [email validation](#email-input-validation),
-  [error details](#api-error-details), [exit codes](#exit-codes)
+  [error details](#api-error-details), [exit codes](#exit-codes), [request pacing](#google-contacts-request-pacing)
 
 ## Running the CLI
 
@@ -63,6 +64,24 @@ Each invocation reads current data: `--apply` does not approve a frozen preview 
 verify the saved result. After an uncertain write or failed verification, inspect the contact
 before retrying; a failed batch can leave earlier changes saved.
 
+## Numbered selections
+
+Enter `all`, displayed numbers, or ascending ranges directly. These rules apply to shared
+selections for contacts, email addresses, labels, custom fields, and grouped import review.
+
+| Input | Meaning |
+| --- | --- |
+| `all` | Select every currently available item |
+| `18,37` | Select those displayed numbers; an unavailable explicit number is an error |
+| `1-19` | Select displayed items from 1 through 19; gaps and undisplayed endpoints are allowed |
+| `37-100` | Select displayed items in that interval, even if 100 is not displayed |
+| `18,18-37` | Combine selections; overlapping items count once |
+| `q` or end-of-input | Cancel without saving |
+
+Results stay in displayed order. Ranges never include hidden, excluded, or already-reviewed
+items. An empty range contributes nothing to a combined selection. If the whole selection is
+empty, or the input is blank, malformed, or reversed, the prompt asks again.
+
 ## Output and timestamps
 
 Email, label, and custom-field lists show totals and numbered rows. Preview headings describe
@@ -94,6 +113,8 @@ counter updates, without animation or control codes. These thresholds require no
 ./contacts-cli list-contact --search c123456789
 ```
 
+### Search options
+
 `--search` is required and accepts name text, a complete email, phone, contact ID, or Google
 Contacts URL. `list-contacts` is also accepted; help uses the singular form.
 Names match when they contain the search text, ignoring case and extra whitespace. For example,
@@ -101,9 +122,13 @@ Names match when they contain the search text, ignoring case and extra whitespac
 Use `--exact` to require the complete name or complete phone number.
 Company searches and wildcards are not supported; `*` is literal text.
 
-Email, ID, and URL searches reuse the [contact lookup rules](#add-label) in both modes.
+### Email and ID matching
+
+Email, ID, and URL searches reuse the [contact lookup rules](#contact-matching-rules) in both modes.
 Emails match completely, ignoring case. Other commands retain their existing matching behavior;
 partial names and phone suffixes apply only to `list-contact`.
+
+### Phone matching
 
 Phone lookup ignores formatting and an optional leading `+`. By default, the saved base number
 must end with the supplied digits: `2025550142` finds `+12025550142`, and `0142` finds both.
@@ -112,6 +137,8 @@ many contacts. No country is inferred. With `--exact`, every base-number digit m
 including any stored country code. A longer search never matches a shorter saved number.
 Without an extension, all extensions of matching base numbers are included; a supplied extension
 must match exactly in both modes. Extensions are never treated as part of the base-number suffix.
+
+### Results and account reads
 
 All matching saved contacts appear in a numbered list with name, ID, first company, emails,
 and phones. A canonical phone form is omitted when it repeats the displayed number.
@@ -122,102 +149,47 @@ contact matching fields; ID and URL searches read only the specified contact.
 
 ## Add-contact
 
-`add-contact` accepts inline `--name` (or `--first-name` / `--last-name`) and repeatable `--email`,
-or `--file` with one Person object
-or an array. Repeatable `--label` reuses existing labels or previews missing labels for creation.
-Case-only label collisions require choosing an existing label, creating new, or cancelling;
-noninteractive collisions stop. `--apply` does not resolve this choice.
-Without duplicate conflicts, multiple contacts offer `all` or original preview numbers/ranges,
-such as `2,4-6`, then confirm creation. A subset preview retains original numbers; `n` or Enter returns to selection,
-and `q` cancels. One input contact uses a simple `[y/N]` confirmation. Labels apply to all selected
-contacts and are created only after confirmation. `--apply` processes all input contacts without
-selection or final confirmation, subject to duplicate review. Noninteractive runs without `--apply`
-only preview.
+Create one contact from inline fields, or import a JSON file containing one or more contacts.
+Possible matches are reviewed before anything is saved.
 
-When only labels are missing on an unambiguous, independent saved match, compact groups show
-labels once and preserve input numbers. Select `all`, numbers/ranges, or `s` to skip a group;
-`q` cancels the command. Final confirmation summarizes creations, label-only updates, information
-updates, and already-complete inputs skipped. Saving labels uses one progress counter and verified
-completion counts. Ambiguous matches and actual information changes retain detailed review.
-See [compact label-only imports](contact-input.md#compact-label-only-imports) for details.
+### Examples
 
-Before creation, saved contacts and input records are checked for matching names, emails, phones,
-or company-only identities. Single-part names alone do not qualify; structured names need first
-and last names, and full-text names need at least two words. Email and phone matches qualify
-regardless of name completeness. Possible duplicates offer Skip (default), Merge, Create separately,
-or Cancel.
-Merge adds missing information to a chosen saved contact or earlier retained input. Conflicts
-offer Keep (default), Replace, or Keep both where the field supports multiple entries. Keep both
-preserves complete entries and explicitly identifies duplicate email addresses or phone numbers.
-Email addresses match ignoring case; Replace preserves the saved address spelling when changing
-its label or other properties. Capitalization alone never requires conflict resolution.
-Names, birthdays, and Notes offer only Keep or Replace. Multiple matching saved entries require
-choosing which entry to replace; other entries stay intact. Cancel discards the entire plan.
-Each conflict identifies the entry once and lists only differing properties, with Saved/Incoming
-values. Unchanged properties and equivalent email capitalization are omitted. Label-only choices
-refer to labels; multiple differences use values/entries. Single-entry replacements also identify
-omitted properties that Replace would remove.
-Final approval shows resulting values; `--apply` still requires conflict decisions. Before the
-first preview, full details are read once per
-matched saved contact, not for the whole account. Each match shows whether it has new information,
-conflicts, or requested label changes. These details are reused during merge review; updates still
-require fresh concurrency checks. Comparisons with other input records are conditional on your
-later selections and merge choices.
-Unchanged targets are omitted from final approval; label-only updates still require approval.
-If nothing needs creating, updating, or labeling, no final prompt appears. Otherwise, final
-yes/no confirmation applies the reviewed plan; No cancels. `--apply` still requires duplicate choices; noninteractive `--apply` stops on a match
-before any writes. See [matching rules](contact-input.md#possible-duplicates) for normalization,
-company restrictions, input-order handling, and snapshot limitations.
-Contact-specific rejections and verification mismatches are reported while independent contacts
-continue. Authorization, unrecovered quota/rate limits, connectivity/server errors, unknown errors, shared-label
-failures, and interruption stop the batch. Failed or unverified contacts produce a nonzero exit
-status, even if later contacts succeed. Only explicit transient rate-limit rejections are retried automatically; uncertain writes are never replayed.
-See [merge behavior](contact-input.md#merging-information) for field rules and failure handling.
-See [contact creation](contact-input.md) for supported fields, validation, progress, verification,
-and partial-failure behavior.
+```sh
+./contacts-cli add-contact --name 'Jane Doe' --email jane@example.com
+./contacts-cli add-contact --first-name Jane --last-name Doe
+./contacts-cli add-contact --file contacts.json --label Contacts
+```
 
-Before individual duplicate review, a default-Yes **Skip these inputs? [Y/n]** prompt offers to
-skip all selected inputs where every possible match is a saved contact with nothing new and no
-requested labels to add. The count includes only selected inputs. No keeps individual review;
-`q` or end-of-input cancels the command without writes. Conflicts, useful merges, invalid merge
-comparisons, and matches to other input records remain in individual review. If nothing remains,
-the command finishes without writes; otherwise, normal review and final approval still apply.
-Interactive `--apply` still asks this question. Noninteractive preview and duplicate rejection
-with `--apply` remain unchanged; there is no automatic skip in noninteractive mode.
+### Input options
 
-Grouped previews distinguish available changes, the subset being reviewed, and selected replacements.
-A cumulative total identifies selected replacements as unsaved; a transition announces individual
-contact review when needed.
+| Option | Purpose |
+| --- | --- |
+| `--name NAME` | Full name for Google to parse |
+| `--first-name NAME`, `--last-name NAME` | Explicit name parts, together or individually; cannot combine with `--name` |
+| `--email ADDRESS` | Email for the inline contact; repeatable |
+| `--file PATH` | One Person JSON object or an array; cannot combine with inline fields |
+| `--label LABEL` | Contact label for selected contacts; repeatable; create if missing |
+| `--apply` | Process all inputs and skip final confirmation; duplicate and label choices still prompt |
 
-Similar email-label-only changes offer grouped Replace, Keep, direct selection by original input
-number/range, or individual review (default). Unselected entries stay grouped for further subset decisions,
-keeping their original numbers. Only choosing individual review or leaving one entry switches
-them to individual review. Group choices still prompt with `--apply`. Groups require at least two
-inputs with one unambiguous saved target each,
-no other changes and identical incoming labels; differing saved labels appear on each row. Final approval
-and verification apply normally. See [grouped email-label changes](contact-input.md#grouped-email-label-changes) for eligibility and cancellation.
+See [contact input](contact-input.md) for supported fields, JSON examples, and validation.
 
-Independent saved-contact matches with additions and no conflicts offer a second grouped review:
-Merge all, Skip all, direct numbers/ranges, individual review (default), or Cancel. Each row shows
-the saved target and its additions. Remaining entries stay grouped until one remains or you choose
-individual review. Choices build the unsaved plan; final approval and verification still apply.
-See [grouped conflict-free merges](contact-input.md#grouped-merges-without-conflicts) for eligibility.
+### Review and saving
 
-Individual duplicate review shows available additions before the choice. After decisions,
-Selected merge changes reports the unsaved plan. Conflicts identify their field and decision
-number; separate contact reviews are separated by blank lines. A full-name input with one given-name
-token and the same known saved surname can be reviewed as a first-name change, preserving the
-surname; ambiguous cases retain whole-name review. Kept names use a concise first-name summary.
-Missing email labels are described as Add email label, with the label and “currently none”,
-in both available and selected changes. See the [merge rules](contact-input.md#merging-information).
+1. Review the inputs and possible matches. Single-part names alone do not suggest duplicates;
+   complete names, emails, phones, and eligible company-only identities can.
+2. Select inputs by original number, or select all. Already-complete inputs can be skipped together.
+3. For possible matches, choose Skip, Merge, or Create separately. Merge conflicts offer Keep,
+   Replace, or Keep both where multiple entries are supported. Similar changes can be reviewed
+   together; label-only updates use compact groups.
+4. Confirm the final plan. Review choices have not saved anything yet. Completed writes are
+   independently verified.
 
-Individual duplicate review repeats each matching contact’s comparison result before the choice.
-Merge is offered when at least one target has additions, conflicts, or requested labels;
-only those targets can be selected for merging. Conflicting entries show Saved and Incoming
-values before the choice. Unchanged targets remain visible, with Skip, Create separately, and
-Cancel available. Labels alone can make a merge useful.
-Comparisons include earlier merge decisions in this run, so a later input with no additions
-or unresolved conflicts no longer offers Merge. No extra Google read is needed for these comparisons.
+Noninteractive runs without `--apply` preview only. Noninteractive `--apply` stops on possible
+matches or unresolved label choices before writing. Contact-specific failures allow independent
+contacts to continue; account, connection, and shared-label failures stop the batch.
+
+The [import guide](importing-contacts.md) covers matching, grouped review, conflict decisions,
+label choices, concurrency checks, verification, and partial failures.
 
 ## Duplicate a contact
 
@@ -241,6 +213,8 @@ Add `--apply` to create it without the confirmation prompt:
   --apply
 ```
 
+### Replacing or clearing fields
+
 Omit a field option to keep the source value. Overrides affect only the new contact:
 
 | Field | Replace | Leave empty |
@@ -261,11 +235,15 @@ labels and primary choices. New entries have no labels; Google assigns the prima
 Repeat `--email` or `--phone` to supply multiple entries. Surrounding whitespace is stripped from
 email/phone values. Names, companies, memberships, and other fields not overridden stay unchanged.
 
+### Validation
+
 Replacement values must be nonblank; use the clear options instead of an empty string.
 Emails use the same dotted-domain validation as contact creation; names and wildcard patterns are
 not accepted as email values. Phones use the same format validation as contact creation and may
 include an extension. Quote values containing spaces. Replacement and clearing options for the
 same field are mutually exclusive. Invalid inputs are rejected before authorization.
+
+### Preview and copied data
 
 Preview shows replacement values, explicitly marks cleared fields, lists resulting entry counts,
 and states whether a photo will be copied. A cleared field has no entries in the new contact.
@@ -280,6 +258,8 @@ other editable details, including file-as and skills. User contact groups, My Co
 memberships are retained. Unsupported system groups stop creation. Profile-only data, generated
 IDs, timestamps, verification flags, and read-only domain memberships are not copied.
 
+### Photos
+
 With `--no-photo`, photo download and upload are skipped, even if the source photo URL is missing
 or unsupported. The new contact uses Google's default avatar; its source photo is untouched.
 Otherwise, custom photos are downloaded before creation and uploaded in a separate request
@@ -291,6 +271,8 @@ Unrecognized size formats or failed downloads stop creation, with no thumbnail f
 size-setting behavior was verified experimentally; Google may change it.
 Default avatars are generated by Google. Verification confirms a custom photo exists; it does not
 compare image bytes or guarantee the original upload resolution.
+
+### Saving and verification
 
 The source contact is never updated. A fresh source read catches changes before creation, but the
 read and creation are not atomic. Each `--apply` creates another contact, even with identical flags.
@@ -324,6 +306,8 @@ Alternatively, supply a Gmail search expression:
 ./contacts-cli sender-sync --search 'subject:delivery OR subject:shipment' --contact c123456789
 ```
 
+### Choosing a message source
+
 Exactly one of `--label` or `--search` is required. Quote the search expression in your shell.
 Blank searches are rejected before authorization. Search mode uses Gmail's
 [search syntax](https://support.google.com/mail/answer/7190), groups the expression in parentheses,
@@ -334,6 +318,8 @@ Search mode skips label lookup and label-membership checks. Raw queries are not 
 
 Output identifies the contact and label or search,
 shows inspected-message and new-sender counts in progress, then existing email entries and additions.
+
+### Excluding senders
 
 Use repeatable `--exclude ADDRESS_OR_PATTERN` options to skip senders for this run. Matching
 ignores case and surrounding whitespace; duplicate inputs are combined. An exact address or a
@@ -360,6 +346,8 @@ addresses. The query-size limit still applies as concrete exclusions accumulate.
 results and unsafe query values still stop the scan. Malformed headers are skipped. Gmail matching
 limitations below still apply.
 
+### Exclusion files
+
 Use `--exclude-file PATH` to read a UTF-8 list, one address or pattern per line. Repeat the option
 for multiple files and combine it with `--exclude`. Do not put shell quotes around file patterns.
 Blank lines, surrounding whitespace, and lines starting with `#` are ignored. A line copied from
@@ -376,6 +364,8 @@ ignore@example.com
 another@example.com — Notifications
 ```
 
+### Search process and progress
+
 The search excludes existing contact addresses and all configured Gmail “Send mail as” addresses,
 including your primary address and aliases. It requests one matching message, reads its From
 header, and excludes newly discovered addresses from the next search. It stops when no matching
@@ -387,10 +377,13 @@ updates in place at most once per second; redirected output uses separate lines 
 label details appear immediately after their lookups, with blank lines separating sections. The
 final counts appear in the timestamped `Search finished: …` completion line, followed by the
 existing-email count. Counters change as requests finish; the spinner continues while waiting.
-There is no estimated total or percentage. Invalid From headers stop the search and block all writes.
+There is no estimated total or percentage. Malformed From headers are skipped and logged;
+valid senders remain eligible for saving.
 The complete preview stays on stdout. Proposed addresses appear one per line without a `+` prefix,
 with a custom label after ` — ` when applicable. Counts describe inspected messages, not the total
 number of matching messages.
+
+### Selecting and saving senders
 
 In an interactive terminal, choose all eligible addresses or a subset by number/range, then
 confirm. One eligible address uses a simple `[y/N]` confirmation. No prompt appears when there
@@ -416,6 +409,8 @@ senders** when the query contains usable positive `from:` or `to:` criteria. Onl
 supplied criteria contribute; recipients from fetched messages are never used to invent criteria.
 This describes address matches, not why Gmail returned a particular message.
 
+#### Recognized search criteria
+
 Supported criteria use lowercase `from:` / `to:` with full addresses or dotted domains,
 optionally double-quoted. Parentheses or braces can group values separated by spaces or `OR`:
 `from:(one@example.com OR two@example.com)`. Groups such as
@@ -432,6 +427,8 @@ nested fields, or negation is skipped as a whole. Unbalanced quotes/groups or ne
 32 levels disable grouping for the query. This conservative extraction does not validate or alter
 the actual Gmail query.
 
+#### Grouped preview
+
 The overall total appears first, followed by both group totals and numbered rows. Numbering
 continues across groups; order within each group follows the normal sorted additions. Empty
 groups show zero. When there are no usable criteria, search runs with additions retain a single
@@ -443,6 +440,8 @@ from unrelated senders. The command cannot determine which addresses matched the
 applied a label. Use `--exclude` or `--exclude-file` to skip particular addresses, or use
 `--search` with full addresses or domains in `from:`/`to:` criteria to separate matching
 addresses from other senders. Label runs do not fetch Gmail filters or ask about them.
+
+#### Choosing sender groups
 
 In search mode, both groups start included. In interactive runs, when Other senders is nonempty,
 the command asks `Exclude Other senders? [y/N]` before final write confirmation. Yes selects only matching
@@ -460,23 +459,15 @@ Choose addresses:
 Selection:
 ```
 
-Enter `all`, displayed numbers, or ascending ranges directly; overlaps count once and displayed
-order is preserved. Ranges select only displayed items within their bounds, skipping gaps and
-excluded rows; endpoints need not be displayed. For rows #18, #19, #37, #59, and #63, `1-19`
-selects #18 and #19, and `37-100` selects #37, #59, and #63. Explicit unavailable numbers still
-error: `64` or `18,64` is invalid. An empty range contributes no items to a combined selection;
-if the entire selection matches nothing, the prompt asks again. Reversed ranges, invalid syntax,
-and blank input also ask again; `q` or end-of-input cancels without writes.
-
-These rules apply to all shared number/range selections: contacts, email addresses, labels,
-custom fields, and grouped email-label review. Ranges never include hidden, excluded, or already
-reviewed entries.
+See [numbered selections](#numbered-selections) for range syntax and sparse numbering.
 
 A subset preview keeps original numbers and shows its total. Selecting all does not repeat the
 list. Final confirmation offers Yes to add, No or Enter to return to selection, and `q` to cancel.
 With just one available address, only `Add this address to this contact? [y/N]` is shown;
 No or Enter cancels. Selecting one address from several still offers Return to selection. Zero eligible addresses
 means no selection or confirmation. Selection affects only this run and does not save exclusions.
+
+#### Excluding other senders with a flag
 
 Use `--exclude-other` to explicitly exclude that group without the selection question:
 
@@ -504,6 +495,8 @@ so the shell argument is passed as the search value.
 
 ## Sender-sync behavior and limits
 
+### Sending identities and Gmail labels
+
 - Each sync reads Gmail's [Send mail as list](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.settings.sendAs/list)
   once, using the existing `gmail.readonly` permission. No new authorization scope is needed.
   Retrieval errors, missing primary identity, or malformed addresses stop before searching or
@@ -518,6 +511,9 @@ so the shell argument is passed as the search value.
   The selected spelling appears in the Label heading. Searches include labeled Spam and Trash.
   Only individual messages carrying the selected label are considered; unrelated messages in the
   same conversation are excluded.
+
+### Sender parsing and saved labels
+
 - `From` is the source, not `Reply-To`, `Sender`, or the envelope sender. Display names, comments,
   folded headers, and multiple valid mailboxes are parsed. Encountered missing, duplicate,
   malformed, or unsupported headers are skipped and reported by message ID. Other valid senders
@@ -534,6 +530,9 @@ so the shell argument is passed as the search value.
   fetch other messages to look for alternate names. Existing values, labels, display names, and
   explicit source-primary choices are retained. If no email had an explicit source-primary choice,
   Google assigning one during saving is allowed. Saved additions are checked for their proposed labels.
+
+### Contact reads and updates
+
 - The People API is read directly using `getBatchGet`, with contact-only sources and an explicit
   field mask. Profile-only data is not copied. Multiple editable contact sources and
   incomplete/error responses are rejected. Full-list retrieval relies on Google's documented API
@@ -541,10 +540,21 @@ so the shell argument is passed as the search value.
 - Only `emailAddresses` is updated. A fresh read and source etag protect against concurrent edits.
   Conflicts stop the run; they are not automatically merged or retried. The response and an
   independent subsequent read are checked for additions and preservation.
+
+### Size and query limits
+
 - Local guards reject projected contacts over 500 top-level field entries or 128 KiB of JSON, and
   new addresses over 1,024 characters are rejected by parsing. These are estimates, not Google's
   internal storage accounting; the server may reject a smaller contact. Existing oversized contacts
   can still be processed as no-ops.
+- Exclusions use quoted full addresses. Unsupported address syntax stops the run instead of being
+  inserted into the search query. A local guard limits the entire URL-encoded query, including the
+  base search, to 6,000 bytes. This is a conservative CLI limit, not a documented Google maximum.
+  Exceeding it stops before writing.
+  API errors also stop the run; partial discoveries are never applied after a search failure.
+
+### Mailbox changes and incomplete searches
+
 - Gmail search is not an atomic mailbox snapshot. Messages arriving or being relabeled during a
   search may require another run. A deleted message or observed loss of the selected label aborts
   the search. Repeated valid message IDs or results with no new sender also stop it before any write.
@@ -552,14 +562,12 @@ so the shell argument is passed as the search value.
   skipped IDs to avoid repeated header reads/logs. After finding a valid sender, it restarts with
   updated sender exclusions. Page tokens are never reused with a changed query; repeated or invalid
   tokens stop the run. Skipped results can require additional searches after each restart.
-- Exclusions use quoted full addresses. Unsupported address syntax stops the run instead of being
-  inserted into the search query. A local guard limits the entire URL-encoded query, including the
-  base search, to 6,000 bytes. This is a conservative CLI limit, not a documented Google maximum.
-  Exceeding it stops before writing.
-  API errors also stop the run; partial discoveries are never applied after a search failure.
 - This relies on Gmail's sender matching, rather than inspecting every header. Excluded messages
   are not checked for malformed headers or additional authors. The multiple-author case is deferred
   in [issue #4](https://github.com/stansult/contacts-cli/issues/4). Gmail matching of unusual addresses remains subject to live verification.
+
+### Request counts and retries
+
 - Requests are sequential: normally one header read and one search per new sender, plus a final
   empty search and contact/label requests. When most messages have different senders, this can use
   more requests than the old full scan. Local metrics allow comparisons with the previous baseline.
@@ -592,6 +600,8 @@ format as exclusions: one address per line, optional ` — Label`, blank lines a
 comments. Options combine; files are read fresh relative to the current directory. An empty file
 requests no changes. Removal ignores labels and matches addresses case-insensitively.
 
+### Removal patterns
+
 Removal also accepts `*` patterns in both `--remove` and `--remove-file`. `*` matches zero or
 more characters, case-insensitively against the whole address. Only `*` is supported; `?` and
 bracket patterns are not. Quote patterns on the command line to prevent shell expansion:
@@ -618,6 +628,8 @@ These commands read contacts directly; they do not search Gmail or exclude your 
 They reuse the saved authorization. Address parsing is shared with exclusions, but Gmail query
 syntax restrictions and query-length limits do not apply to direct contact edits.
 
+### Addition conflicts
+
 Addition normalizes addresses and labels for comparison, suppresses redundant labels matching
 the address/contact name/company, then deduplicates incoming entries. Conflicting resulting
 labels for one address stop before any write and identify both inputs; correct the inputs and
@@ -641,6 +653,8 @@ unless `--apply` is also supplied. With `--apply` alone, existing conflicts are 
 reported while non-conflicting changes are saved. Noninteractive runs do not ask conflict questions;
 without `--apply` they only preview. Unresolved conflicts are shown under Skipped conflicts.
 
+### Removal groups and missing addresses
+
 Removal deletes all entries matching each address, regardless of labels. Each distinct address
 has one selectable number, including case-only duplicates. Duplicate groups show every stored
 spelling and label on indented lines; empty labels say `(no label)`, and primary entries are
@@ -650,6 +664,8 @@ Absent addresses and unmatched patterns are listed under Not found. Removing eve
 allowed and leaves the contact intact with zero email entries. A no-op performs no update. Later
 sender-sync runs can add matching senders again. Addresses and patterns from the removal list
 can be reused with `--exclude-file` to skip those senders in later runs.
+
+### Selecting email changes
 
 Interactive add/remove runs use `all`, numbers/ranges such as `3-5,8`, or `q` to cancel.
 Additions and updates have continuous numbering; each update (including duplicate consolidation)
@@ -664,8 +680,11 @@ it states the full entry count. Zero changes means no prompt. A smaller selected
 against size limits independently of the full proposal. `--apply` saves all eligible changes,
 respecting the existing conflict rules; noninteractive runs without it remain preview-only.
 
+### Saving email changes
+
 Only emailAddresses is written. Other contact fields and retained email metadata are preserved.
-A fresh read and etag check reject concurrent changes; writes are not automatically retried.
+A fresh read and etag check reject concurrent changes. Only explicit transient rate-limit
+rejections can retry; uncertain writes are never replayed.
 Both the response and an independent read verify the complete expected email list and labels.
 If the primary email is removed, Google may assign primary status to a remaining entry; this is
 allowed, while a surviving primary choice must be preserved. Failed verification reports an
@@ -721,6 +740,9 @@ Without `--apply`, change headings say Proposed additions, Proposed updates, or 
 With `--apply`, they say Adding, Updating, or Removing. These headings describe the requested action;
 only the final Saved and verified message confirms success.
 
+Email previews omit a display name that equals the email address, ignoring case. A different
+display name remains visible. This affects presentation only; saved contact data is preserved.
+
 ## List-label
 
 ```sh
@@ -744,6 +766,8 @@ alias `list-labels` is accepted. Global options work before or after the command
 ./contacts-cli add-label --contact c123456789 --label Recruiter --label Follow-up
 ```
 
+### Creating account labels
+
 Without either contact option, creates account labels without reading or editing any contact. Existing
 labels appear under `Already exists`; only missing labels are proposed for creation. If all
 requested labels exist, no changes are made. Confirmation asks only about creation; `--apply`
@@ -752,6 +776,8 @@ creation stops, reports verified and unattempted counts, and leaves completed cr
 List account labels before retrying. For case-only collisions, choices explicitly say
 `Keep 'test1'; skip creating 'TEST1'`, `Create 'TEST1' as a separate label`, or `Cancel command`.
 Keeping an existing label creates nothing; it is not applied to any contact.
+
+### Contact identifiers and files
 
 With `--contact`, identify a saved contact by Google Contacts URL, bare ID, full name, email,
 or phone. Alternatively, use `--contact-file contacts.txt` for several identifiers. These options
@@ -766,6 +792,8 @@ jane@example.com
 +1 (202) 555-0142 ext. 42
 ```
 
+### Contact matching rules
+
 Names match the complete saved name, ignoring case and extra whitespace. Emails match the complete
 address, ignoring case; no substring or wildcard matching. Phone punctuation and an optional
 leading `+` are ignored. All base-number digits, including country codes, must match.
@@ -777,6 +805,8 @@ No country is inferred; `00` is not converted to `+`.
 This lookup rule applies to `add-label`; import duplicate matching is unchanged.
 Names, emails, and phones use one paginated read of saved contacts; IDs avoid that account-wide read.
 Company-only lookup is not supported; use an ID, email, or phone for an unnamed company contact.
+
+### Resolving contacts
 
 Single matches appear in numbered groups with name, ID, company when present, and the matching
 email or phone once on the same line. Unrelated addresses and phones are omitted. Name matches
@@ -799,6 +829,8 @@ authorization, and incomplete-read errors still stop before changes. No contacts
 Noninteractive ambiguity stops even with `--apply`;
 use explicit IDs or rerun interactively.
 
+### Selecting contacts to label
+
 For multiple resolved contacts, identical label additions appear once in the heading rather
 than on every row. When additions differ, each row retains its own label details. The selection
 prompt says “Choose contacts to label,” and final confirmation names the labels.
@@ -812,8 +844,10 @@ contacts. Label spelling is resolved once for the batch, and missing labels are 
 Cancelling at any selection stage makes no changes. Noninteractive runs without `--apply` preview
 only. Single-contact output retains its existing label preview.
 
+### Label spelling and preview
+
 Repeat `--label` for more labels. Label names match exactly and case-sensitively. The shared
-[case-collision choices](contact-input.md#contact-labels) offer existing labels, create new,
+[case-collision choices](importing-contacts.md#contact-labels) offer existing labels, create new,
 or cancel. `--apply` skips final confirmation but not label choices; unresolved noninteractive
 collisions stop. See [label choices and output](#label-choices-and-output) for membership-aware wording.
 
@@ -822,6 +856,8 @@ and numbered rows. New labels appear once, marked `(new label)`. If every label 
 the contact, the command makes no changes. Otherwise it
 asks once before creating labels or adding memberships. Noninteractive runs without `--apply`
 preview only.
+
+### Saving label additions
 
 The CLI uses Google's additive group-membership operation, sending no membership removals or
 contact-field replacement. Existing memberships and other contact fields are preserved. It rereads
@@ -851,10 +887,14 @@ other contacts. Repeat `--label` with literal names or quoted `*` patterns:
 ./contacts-cli remove-label --contact c123456789 --label 'Recruit*' --label 'Follow-up'
 ```
 
+### Label removal patterns
+
 `*` matches zero or more characters across the whole name, ignoring case. Other characters,
 including `/`, `.`, `+`, `?` and brackets, are literal. Quote patterns to prevent shell expansion.
 `--label '*'` offers every applied user label; Google system groups and deleted labels are excluded.
 A name containing `*` is interpreted as a pattern, with no separate literal-star escape syntax.
+
+### Matching labels on the contact
 
 Literal names offer both exact and case-different matches without a case-choice prompt. The
 preview groups Exact matches, Matching patterns, and Similar labels (case differs), omitting empty
@@ -864,11 +904,15 @@ is continuous. Labels absent from this contact are omitted, whether requested by
 pattern. If none match, the command says `No matching labels on this contact; no changes made.`
 Use `list-label` without `--contact` to inspect account labels separately.
 
+### Selecting label removals
+
 Choose `all`, numbers/ranges such as `1,3-5`, or `q`. A subset preview keeps original numbers;
 final confirmation uses the selected count. `n` or Enter returns to selection; `q` or EOF cancels.
 One eligible label uses a simple `[y/N]` confirmation; no candidates means no write. `--apply`
 removes all candidates, including case variants, without selection or confirmation. Noninteractive
 runs without it preview only. Patterns expand once for the preview, never again during writes.
+
+### Saving label removals
 
 Each request removes only this contact from one label. A fresh contact read checks identity and
 current memberships before the write; a label removed since preview is skipped. Independent
@@ -953,6 +997,8 @@ saved if a later operation fails.
 ./contacts-cli remove-custom-field --contact c123456789 --key Duplicate
 ```
 
+### Adding custom fields
+
 These commands edit custom key/value entries (`userDefined` in Google Person JSON).
 Addition requires repeatable `--field KEY VALUE`, with exactly two arguments per occurrence:
 
@@ -968,11 +1014,15 @@ value. The old addition syntax `--key KEY --value VALUE` is no longer accepted; 
 exact pairs are skipped without consolidating their stored duplicates. Case-different pairs are
 separate additions. All supplied pairs are validated, including any later left unselected.
 
+### Removing custom fields
+
 Removal retains required `--key` and optional `--value`. Supplying a value
 limits candidates to that key/value pair and its case variants; omitting it offers all values
 under the key and its case variants.
 Removing a selected pair removes all its identical duplicates. Removing `Created` or `Duplicate`
 affects only those stored custom fields, not the contact itself. These markers receive no special treatment.
+
+### Custom-field matching rules
 
 Addition matches exactly and case-sensitively; case-only similarities remain informational.
 Adding an exact pair already present skips it, preserving stored duplicates. A different value
@@ -980,6 +1030,8 @@ under the same key is appended, never used as a replacement. Removal offers both
 and case-insensitive matches for the key and optional value, without a case-resolution prompt.
 Whitespace is preserved; supplied keys and values must be nonblank and contain no control characters.
 There is no file input, replacement option, or wildcard selector.
+
+### Custom-field previews and selection
 
 The removal preview shows the total candidate entry count, then **Exact matches** and
 **Similar entries (case differs)**, omitting empty groups. Both groups are selectable with continuous
@@ -1005,13 +1057,16 @@ selection or confirmation; headings use Adding/Removing. The silent aliases `add
 and `remove-custom-fields` are accepted; help uses singular names.
 Both commands accept the [global options](#global-options) before or after the command.
 
+### Saving custom-field changes
+
 The update sends only the complete intended `userDefined` list and contact source metadata.
 Unmatched custom fields are retained, as are other contact fields. A fresh read and source etag
 protect against concurrent changes; conflicts stop rather than merging or retrying. The response
 and an independent read must both match the expected custom fields (including duplicate counts)
 and preserve the other fields in the contact read mask. Verification errors report an unverified
 update: inspect the contact before retrying. The shared local size guards, API error logging,
-interrupt handling, and exit codes apply. No mutation is automatically retried.
+interrupt handling, and exit codes apply. Only explicit transient rate-limit rejections can
+retry; uncertain writes are never replayed.
 
 API contract: [updateContact field masks and source etags](https://developers.google.com/people/api/rest/v1/people/updateContact).
 
@@ -1131,6 +1186,3 @@ other People API failures stop normally. Gmail's bounded read retry behavior is 
 
 See Google's [contact quota accounting](https://developers.google.com/people/v1/contacts)
 and [quota retry guidance](https://docs.cloud.google.com/service-usage/docs/troubleshooting).
-
-Email previews omit a display name that equals the email address, ignoring case. A different
-display name remains visible. This affects presentation only; saved contact data is preserved.

@@ -65,7 +65,7 @@ Single-part names alone do not trigger duplicate suggestions; matching emails or
 When only contact labels are missing, review compact groups by label and select contacts by number.
 Possible duplicates require interactive skip/merge/create-separately/cancel review, including with
 `--apply`. A default-Yes prompt can skip selected inputs whose saved matches all contain the
-supplied information and labels. Merge can add information or labels and resolve conflicts with Keep, Replace, or Keep both where supported. See [matching rules](docs/contact-input.md#possible-duplicates).
+supplied information and labels. Merge can add information or labels and resolve conflicts with Keep, Replace, or Keep both where supported. See [matching rules](docs/importing-contacts.md#possible-duplicates).
 Similar email-label-only changes can be reviewed together, with bulk Replace/Keep or selection
 by number. Conflict-free matches also offer grouped Merge/Skip with each target and its additions
 shown. Other differences retain individual review.
@@ -213,7 +213,8 @@ Validates locally without authorization or Google access. See [validation detail
 ## More information
 
 - [Command reference](docs/command-reference.md): options, matching, conflicts, limits, and exit codes.
-- [Contact input](docs/contact-input.md): JSON fields, validation, and creation outcomes.
+- [Contact input](docs/contact-input.md): JSON format, supported fields, and validation.
+- [Importing contacts](docs/importing-contacts.md): duplicate review, merging, labels, and partial failures.
 - [Google setup](docs/google-setup.md): credentials, permissions, and authorization troubleshooting.
 - [Diagnostic logs](docs/error-logs.md): API errors, email-verification failures, and sender-sync traces.
 - [Local metrics](docs/metrics.md): sender-sync timing and API counts; `make metrics` summarizes runs.

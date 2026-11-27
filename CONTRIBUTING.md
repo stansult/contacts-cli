@@ -3,7 +3,9 @@
 ## Project contract
 
 [README.md](README.md) covers usage; the [command reference](docs/command-reference.md) defines
-detailed behavior. Verify relevant official API contracts before changing scopes,
+command behavior. The [input format](docs/contact-input.md) defines accepted JSON, and the
+[import guide](docs/importing-contacts.md) covers duplicate review, merging, and batch outcomes.
+Verify relevant official API contracts before changing scopes,
 pagination, field masks, limits, or contact update semantics. Keep user-facing documentation
 synchronized with the implementation.
 
