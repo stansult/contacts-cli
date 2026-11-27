@@ -135,7 +135,9 @@ selection or final confirmation, subject to duplicate review. Noninteractive run
 only preview.
 
 Before creation, saved contacts and input records are checked for matching names, emails, phones,
-or company-only identities. Possible duplicates offer Skip (default), Merge, Create separately,
+or company-only identities. Single-part names alone do not qualify; structured names need first
+and last names, and full-text names need at least two words. Email and phone matches qualify
+regardless of name completeness. Possible duplicates offer Skip (default), Merge, Create separately,
 or Cancel.
 Merge adds missing information to a chosen saved contact or earlier retained input. Conflicts
 offer Keep (default), Replace, or Keep both where the field supports multiple entries. Keep both

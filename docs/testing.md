@@ -933,3 +933,10 @@ Phone-suffix tests cover countryless and shorter suffixes, formatting, complete-
 longer searches, non-suffix rejection, exact extension matching, multiple matches, and no writes.
 The shared resolver remains exact unless suffix matching is explicitly enabled by `list-contact`.
 Regression tests failed before implementation; existing add-label tests retain their matching rules.
+
+## Duplicate name matching
+
+Duplicate-name regressions cover single-part names, compound given names, honorifics, full names,
+email/phone evidence, company-only identity, and inputs within the same import. The two-Josh
+review test verifies that an unchanged phone match cannot redirect a merge to an unrelated
+name-only match. Restoring the old name rule made that regression fail; the corrected rule passes.

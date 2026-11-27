@@ -67,6 +67,12 @@ numbers, and the matching criteria. These are review signals, not proof that two
 
 - Names and company names ignore case, Unicode compatibility differences, and extra whitespace.
   Full names compare as a whole; nicknames, reordered names, and missing components are not inferred.
+  A single-part name alone does not suggest a duplicate. Structured names require both a first
+  and last name; names supplied only as full text require at least two words. A compound first
+  name without a last name does not qualify when structured parts are available.
+  Email or phone matches still qualify regardless of name completeness. For example, an incoming
+  `Josh` can match a saved Josh by phone, but not another Josh solely by name. These rules apply
+  to saved contacts and other inputs in the same import; contact search is unchanged.
 - Email addresses ignore case. Dots and plus suffixes remain significant.
 - Phone numbers ignore formatting separators but retain country codes and extensions. The CLI
   does not infer a country, equate local and international numbers, or interpret vanity numbers.

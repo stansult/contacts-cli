@@ -83,6 +83,34 @@ def test_hidden_merge_is_not_accepted(api, server, monkeypatch, tmp_path, capsys
     assert "Merge input" not in output and server.writes == 0
 
 
+def test_complete_josh_does_not_redirect_merge_to_name_only_match(api, server, monkeypatch, capsys):
+    from contacts_cli.contact_merge import review_import
+
+    incoming = {"names": [{"givenName": "Josh"}], "phoneNumbers": [{"value": "+12025550142"}]}
+    complete = {
+        **incoming,
+        "resourceName": "people/c1",
+        "metadata": {"sources": [{"type": "CONTACT", "id": "1", "etag": "v1"}]},
+    }
+    unrelated = {
+        "names": [{"givenName": "Josh"}],
+        "phoneNumbers": [{"value": "+12025550143"}],
+        "resourceName": "people/c2",
+        "metadata": {"sources": [{"type": "CONTACT", "id": "2", "etag": "v1"}]},
+    }
+    answers = iter(["m", "s"])
+    monkeypatch.setattr("builtins.input", lambda: next(answers))
+    review = review_import(
+        [1], [incoming], [complete, unrelated], api, {"people/c1": complete, "people/c2": unrelated}
+    )
+    output = capsys.readouterr().out
+    assert "Nothing new" in output
+    assert "c2" not in output
+    assert "Choose s, c, or q." in output
+    assert not review.merges and not review.creates
+    assert server.writes == 0
+
+
 @pytest.mark.parametrize("label", [False, True])
 def test_prior_merge_makes_repeated_input_unnecessary(
     api, server, monkeypatch, tmp_path, capsys, label

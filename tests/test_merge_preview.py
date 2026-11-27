@@ -167,7 +167,7 @@ def test_each_possible_target_has_its_own_result(api, server, monkeypatch, tmp_p
 def test_incoming_only_comparison_needs_no_google_detail_read(
     api, server, monkeypatch, tmp_path, capsys
 ):
-    person = {"names": [{"givenName": "Brand New"}]}
+    person = {"names": [{"givenName": "Brand", "familyName": "New"}]}
     args = setup(api, server, monkeypatch, tmp_path, [person, person], ["q"])
     assert cli.main(args) == 0
     assert "If combined with this input: Nothing new" in capsys.readouterr().out

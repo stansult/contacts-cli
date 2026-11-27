@@ -148,8 +148,14 @@ def test_incoming_merge_creates_one_contact(api, server, monkeypatch, tmp_path):
         monkeypatch,
         tmp_path,
         [
-            {"names": [{"givenName": "Jane"}], "emailAddresses": [{"value": "jane@example.com"}]},
-            {"names": [{"givenName": "Jane"}], "phoneNumbers": [{"value": "2025550142"}]},
+            {
+                "names": [{"givenName": "Jane", "familyName": "Doe"}],
+                "emailAddresses": [{"value": "jane@example.com"}],
+            },
+            {
+                "names": [{"givenName": "Jane", "familyName": "Doe"}],
+                "phoneNumbers": [{"value": "2025550142"}],
+            },
         ],
         ["all", "m", "y"],
     )
@@ -505,7 +511,7 @@ def test_conflicts_and_additions_both_shown(api, server, monkeypatch, tmp_path, 
 
 
 def test_identical_inputs_still_confirm_one_creation(api, server, monkeypatch, tmp_path, capsys):
-    person = {"names": [{"givenName": "Brand New"}]}
+    person = {"names": [{"givenName": "Brand", "familyName": "New"}]}
     args = setup(api, server, monkeypatch, tmp_path, [person, person], ["all", "s", "y"])
     assert cli.main(args) == 0 and len(server.created) == 1
     captured = capsys.readouterr()

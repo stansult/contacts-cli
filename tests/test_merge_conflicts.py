@@ -237,7 +237,7 @@ def test_choose_which_duplicate_to_replace_and_cancel(monkeypatch):
 def test_combined_inputs_conflict_can_replace_before_creation(api, server, monkeypatch, tmp_path):
     inputs = [
         {
-            "names": [{"givenName": "New Person"}],
+            "names": [{"givenName": "New", "familyName": "Person"}],
             "organizations": [{"name": "Example", "title": title}],
         }
         for title in ["Old", "New"]

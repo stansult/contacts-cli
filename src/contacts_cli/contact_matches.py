@@ -32,6 +32,7 @@ def phone_key(value):
 def identity_keys(person):
     companies = {normalized(o["name"]) for o in person.get("organizations", []) if o.get("name")}
     names = set()
+    matching_names = set()
     for entry in person.get("names", []):
         value = (
             entry.get("unstructuredName")
@@ -48,8 +49,18 @@ def identity_keys(person):
             )
         )
         if value.strip():
-            names.add(normalized(value))
-    keys = {("name", name) for name in names - companies}
+            name = normalized(value)
+            names.add(name)
+            # Structured parts distinguish a compound given name from a full name.
+            parts = any(entry.get(k, "").strip() for k in ("givenName", "middleName", "familyName"))
+            complete = (
+                bool(entry.get("givenName", "").strip() and entry.get("familyName", "").strip())
+                if parts
+                else len(name.split()) >= 2
+            )
+            if complete:
+                matching_names.add(name)
+    keys = {("name", name) for name in matching_names - companies}
     if not names or names <= companies:
         keys.update(("company", company) for company in companies if company)
     keys.update(

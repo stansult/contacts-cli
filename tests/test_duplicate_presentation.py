@@ -26,17 +26,19 @@ def test_overview_uses_original_input_numbers(api, server, monkeypatch, tmp_path
         server,
         monkeypatch,
         tmp_path,
-        [person(name="Unique"), person(name="Jane"), person(name="Bob")],
-        [person(name="Jane"), person(name="Jane"), person(name="Bob")],
+        [person(name="Unique"), person(name="Jane Doe"), person(name="Bob Smith")],
+        [person(name="Jane Doe"), person(name="Jane Doe"), person(name="Bob Smith")],
         answers=["q"],
     )
     assert cli.main(args) == 0
     output = capsys.readouterr().out
     assert "Contacts to review: 3 contacts" in output
     assert "Name: Full name:" not in output
-    assert output.index("2. Jane") < output.index("- Jane (c1)") < output.index("3. Bob")
-    assert output.index("3. Bob") < output.index("- Bob (c3)")
-    assert output.count("2. Jane") == 1
+    assert (
+        output.index("2. Jane Doe") < output.index("- Jane Doe (c1)") < output.index("3. Bob Smith")
+    )
+    assert output.index("3. Bob Smith") < output.index("- Bob Smith (c3)")
+    assert output.count("2. Jane Doe") == 1
     assert "Choose contacts to import:" in output
     assert "skip, merge, or create separately" in output
     assert "•" not in output

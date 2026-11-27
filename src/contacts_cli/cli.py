@@ -112,7 +112,8 @@ def parser() -> argparse.ArgumentParser:
         description=(
             "Create contacts from inline fields or a JSON file.\n"
             "Preview and select contacts before saving.\nPossible duplicates offer "
-            "skip, merge, or create separately."
+            "skip, merge, or create separately.\n"
+            "A single-part name alone does not suggest a duplicate."
         ),
     )
     creation.add_argument(
