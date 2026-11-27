@@ -921,3 +921,8 @@ country digits and extensions, IDs/URLs, missing contacts, plural routing, multi
 without prompts, pre-authorization validation, read failures, and no writes. Tests reuse the
 contact-resolution fixture and the independently verified paginated contact-list transport.
 New command tests failed before implementation; existing resolver tests retain label behavior.
+
+Partial-name lookup tests cover substring defaults, exact opt-in, first/last/structured names,
+case and whitespace, literal stars, unchanged email/phone/ID/URL rules in both modes, plural
+routing, pagination, and no writes. New tests failed against exact-only listing before the change.
+Existing resolver tests verify that `add-label` still requires complete names.

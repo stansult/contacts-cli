@@ -40,14 +40,16 @@ Later commands reuse the saved authorization. Local file validation needs no Goo
 ## Find contacts
 
 ```sh
-./contacts-cli list-contact --search 'Jane Doe'
+./contacts-cli list-contact --search 'Jane'
+./contacts-cli list-contact --search 'Jane Doe' --exact
 ./contacts-cli list-contact --search 'jane@example.com'
 ./contacts-cli list-contact --search '+1 202 555 0142'
 ```
 
-Shows all matches with names, IDs, companies, emails, and phones. Names must match completely,
-ignoring case and extra spaces; partial names are not supported. IDs and Google Contacts URLs
-also work. No selection or changes. See [matching rules](docs/command-reference.md#list-contact).
+Shows all matches with names, IDs, companies, emails, and phones. Names contain the search text,
+ignoring case and extra spaces; use `--exact` to match the complete name. Emails match completely;
+phones ignore formatting but require all base-number digits. IDs and Google Contacts URLs also
+work. No selection or changes. See [matching rules](docs/command-reference.md#list-contact).
 
 ## Add contacts
 

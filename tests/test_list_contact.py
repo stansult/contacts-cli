@@ -1,4 +1,4 @@
-"""Read-only contact lookup shares the label resolver's exact matching rules."""
+"""Read-only contact lookup offers partial names without broadening other identifiers."""
 
 from copy import deepcopy
 
@@ -28,10 +28,13 @@ from .test_contact_resolution import setup
         ("c999999", 0),
     ],
 )
-def test_exact_lookup(query, count, api, server, monkeypatch, capsys):
+@pytest.mark.parametrize("exact", [False, True])
+def test_exact_lookup(query, count, exact, api, server, monkeypatch, capsys):
     _, _, baseline = setup(api, server, monkeypatch)
     before = deepcopy(server.person)
-    assert cli.main(["list-contact", "--search", query]) == 0
+    assert cli.main(["list-contact", "--search", query] + (["--exact"] if exact else [])) == 0
+    if query == "Jane" and not exact:
+        count = 1
     output = capsys.readouterr().out
     assert f"Matching contacts: {count} contact" in output
     if count:
@@ -113,3 +116,47 @@ def test_redundant_canonical_phone_hidden(value, canonical, shown):
     assert f"Phone: {value} — mobile" in output
     assert ("Canonical form:" in output) is shown
     assert person == before
+
+
+@pytest.mark.parametrize(
+    "query,exact,expected",
+    [
+        ("Josh", False, ["c123", "c456", "c789"]),
+        ("Josh", True, ["c123"]),
+        ("  JOSH  smith ", False, ["c456"]),
+        ("  JOSH  smith ", True, ["c456"]),
+        ("osh", False, ["c123", "c456", "c789"]),
+        ("Smith", False, ["c456"]),
+        ("Josh*", False, []),
+        ("Company", False, []),
+        ("josh@", False, []),
+    ],
+)
+def test_partial_names(query, exact, expected, api, server, monkeypatch, capsys):
+    other, _, baseline = setup(api, server, monkeypatch)
+    server.person["names"] = [{"displayName": "Josh"}]
+    server.person["emailAddresses"] = [{"value": "josh@example.com"}]
+    other["names"] = [{"givenName": "Josh", "familyName": "Smith"}]
+    later = deepcopy(server.person)
+    later["resourceName"] = "people/c789"
+    later["names"] = [{"unstructuredName": "Joshua"}]
+    later["organizations"] = [{"name": "Company"}]
+    server.created["people/c789"] = later
+    before = deepcopy([server.person, other, later])
+    args = ["list-contacts", "--search", query] + (["--exact"] if exact else [])
+    assert cli.main(args) == 0
+    output = capsys.readouterr().out
+    assert f"Matching contacts: {len(expected)} contact" in output
+    for resource in ("c123", "c456", "c789"):
+        assert (f"({resource})" in output) == (resource in expected)
+    assert [server.person, other, later] == before
+    assert server.writes == baseline
+
+
+def test_help_explains_partial_and_exact(capsys):
+    with pytest.raises(SystemExit) as result:
+        cli.main(["list-contact", "--help"])
+    assert result.value.code == 0
+    output = " ".join(capsys.readouterr().out.split())
+    assert "Names contain the search text" in output
+    assert "--exact" in output and "complete name" in output

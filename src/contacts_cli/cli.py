@@ -91,14 +91,19 @@ def parser() -> argparse.ArgumentParser:
     commands = result.add_subparsers(dest="command", required=True)
     contact_listing = commands.add_parser(
         "list-contact",
-        help="Find saved contacts by complete name, email, phone, ID, or URL",
+        help="Find saved contacts by name, email, phone, ID, or URL",
         description="List every matching contact without selection or changes.\n"
-        "Names and emails match completely, ignoring case; partial names are not supported.",
+        "Names contain the search text, ignoring case; use --exact for a complete name.",
     )
     contact_listing.add_argument(
         "--search",
         required=True,
-        help="Complete name, email, phone (include country code), contact ID, or URL",
+        help="Name text, complete email, phone (include country code), contact ID, or URL",
+    )
+    contact_listing.add_argument(
+        "--exact",
+        action="store_true",
+        help="Match the complete name; email, phone, ID, and URL rules stay unchanged",
     )
     creation = commands.add_parser(
         "add-contact",
@@ -918,7 +923,7 @@ def run_command(args):
             if api is None:
                 return 1
             api.write_started = False
-            return run_list_contacts(api, kind, value)
+            return run_list_contacts(api, kind, value, exact=args.exact)
         if args.command == "add-contact":
             contacts = load_contact_inputs(
                 name=args.name,

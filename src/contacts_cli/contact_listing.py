@@ -18,7 +18,7 @@ def contact_row(person):
     return "\n".join(lines)
 
 
-def run_list_contacts(api, kind, value):
+def run_list_contacts(api, kind, value, *, exact=False):
     with StageProgress() as progress:
         progress.start("Reading contact" if kind == "id" else "Reading contacts for matching")
         if kind == "id":
@@ -27,7 +27,11 @@ def run_list_contacts(api, kind, value):
             except ContactFailure:
                 people = []
         else:
-            people = [person for person in read_match_contacts(api) if matches(person, kind, value)]
+            people = [
+                person
+                for person in read_match_contacts(api)
+                if matches(person, kind, value, partial_name=not exact)
+            ]
     people.sort(key=lambda person: (normalized(describe_contact(person)), person["resourceName"]))
     emit_list(
         "Matching contacts",

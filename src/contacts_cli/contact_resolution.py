@@ -47,7 +47,7 @@ def identifier_kind(value):
     return "name", normalized(value)
 
 
-def matches(person, kind, value):
+def matches(person, kind, value, *, partial_name=False):
     if kind == "email":
         return any(
             address_key(e.get("value", "")) == value for e in person.get("emailAddresses", [])
@@ -59,9 +59,8 @@ def matches(person, kind, value):
             and (not value[1] or saved[1] == value[1])
             for e in person.get("phoneNumbers", [])
         )
-    return any(
-        normalized(contact_title({"names": [entry]})) == value for entry in person.get("names", [])
-    )
+    names = (normalized(contact_title({"names": [entry]})) for entry in person.get("names", []))
+    return any(value in name if partial_name else value == name for name in names)
 
 
 def describe_contact(person):

@@ -86,17 +86,23 @@ counter updates, without animation or control codes. These thresholds require no
 ## List-contact
 
 ```sh
-./contacts-cli list-contact --search 'Jane Doe'
+./contacts-cli list-contact --search 'Jane'
+./contacts-cli list-contact --search 'Jane Doe' --exact
 ./contacts-cli list-contact --search jane@example.com
 ./contacts-cli list-contact --search '+1 202 555 0142'
 ./contacts-cli list-contact --search c123456789
 ```
 
-`--search` is required and accepts one complete name, email, phone, contact ID, or Google
+`--search` is required and accepts name text, a complete email, phone, contact ID, or Google
 Contacts URL. `list-contacts` is also accepted; help uses the singular form.
-The command reuses the [contact lookup rules](#add-label): names match completely, ignoring
-case and extra whitespace; emails match completely, ignoring case. Partial names, company
-searches, and wildcard searches are not supported.
+Names match when they contain the search text, ignoring case and extra whitespace. For example,
+`Josh` finds `Josh`, `Josh Smith`, and `Joshua`; `Smith` also finds `Josh Smith`.
+Use `--exact` to require the complete name. This option changes only name matching.
+Company searches and wildcards are not supported; `*` is literal text.
+
+Email, phone, ID, and URL searches reuse the [contact lookup rules](#add-label) in both modes.
+Emails match completely, ignoring case. Other commands retain their existing matching behavior;
+partial names apply only to `list-contact`.
 
 Phone lookup ignores formatting and an optional leading `+`, but preserves every base-number
 digit, including the country code. No country is inferred. Without an extension, all extensions
