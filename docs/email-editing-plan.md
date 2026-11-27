@@ -23,7 +23,8 @@ a defined outcome without silently discarding them. When present, the primary ma
 survives; otherwise the first match survives. Primary status comes from Google metadata, not
 array position. The survivor retains its address spelling and applicable metadata.
 
-Removing an address removes all matching entries. It is not an undo of an earlier addition;
+Removal offers all matching entries for selection; choosing one duplicate preserves the others.
+`all` and `--apply` remove every matching entry. It is not an undo of an earlier addition;
 [issue #5](https://github.com/stansult/contacts-cli/issues/5) tracks a separate command-history/undo proposal.
 
 ## Separate conflict decisions from write approval
@@ -36,7 +37,8 @@ duplicate consolidation. This keeps scripted operations predictable without new 
 ## Share display and naming conventions
 
 Email lists use the shared numbered renderer. Editing displays existing entries only when needed
-for a conflict decision; `list-email` provides the complete list. Additions and updates share continuous numbering; removals number whole address groups.
+for a conflict decision; `list-email` provides the complete list. Additions and updates share
+continuous numbering; removals number individual stored entries.
 Informational numbers follow proposed changes and cannot be selected. Conflict lists start at 1.
 Help and examples use singular commands in list, add, remove order; plural forms are accepted
 silently for convenience.
@@ -52,7 +54,7 @@ inference is deferred until representative pages establish useful behavior.
 ## Select approved address changes
 
 Conflict decisions establish eligible changes before selection. Each selected update includes
-its complete duplicate consolidation; removal always selects all entries matching one address.
+its complete duplicate consolidation; removal selects individual snapshot occurrences.
 Rebuild the selected result from the original contact and selected approved inputs, preserving
 unselected entries and avoiding repeated conflict prompts. Validate the selected contact size
 and retain the existing fresh-read/etag checks before writing.
@@ -60,6 +62,7 @@ and retain the existing fresh-read/etag checks before writing.
 ## Removal patterns
 
 Expand `*` patterns once against the original contact snapshot, then deduplicate overlapping
-matches into concrete address groups. Selection must use those concrete addresses literally,
-even if a stored address contains a `*`. Never expand again after selection or against a newer
+matches without repeating any snapshot occurrence. Selection uses original entry indexes,
+so even identical duplicates can be removed independently, and stored `*` characters stay literal.
+Never expand again after selection or against a newer
 contact. Existing concurrency checks still reject a changed contact before writing.

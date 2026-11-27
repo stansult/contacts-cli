@@ -1,26 +1,23 @@
-"""Display and select indivisible email-address changes from an approved plan."""
+"""Select individual removals and indivisible addition/update changes."""
 
 from .core import address_key, email_update_body
-from .email_edit import describe, is_primary, make_edit_plan, verify_edit
+from .email_edit import is_primary, make_edit_plan, removal_indexes, select_removals, verify_edit
 from .output import email_rows, emit, emit_list
 from .selection import review_selection
 
 
 def edit_choices(plan, *, remove):
-    """Return (address, display text, kind), additions before updates."""
+    """Return (snapshot index or address, display text, kind) for each choice."""
     if remove:
-        result = []
-        for address in plan.changes:
-            matches = [e for e in plan.removed if address_key(e["value"]) == address_key(address)]
-            if len(matches) == 1:
-                text = email_rows(matches)[0][1]
-            else:
-                text = f"{address} — {len(matches)} entries" + "".join(
-                    "\n     " + describe(e) + (" (primary)" if is_primary(e) else "")
-                    for e in matches
-                )
-            result.append((address, text, "remove"))
-        return result
+        emails = plan.person.get("emailAddresses", [])
+        return [
+            (
+                i,
+                email_rows([emails[i]])[0][1] + (" (primary)" if is_primary(emails[i]) else ""),
+                "remove",
+            )
+            for i in removal_indexes(plan)
+        ]
     added = {address_key(e["value"]) for e in plan.added}
     updates = [address for address in plan.changes if address_key(address) not in added]
     return [
@@ -32,7 +29,7 @@ def edit_choices(plan, *, remove):
 def show_changes(plan, choices, numbers, *, remove, apply=False, subset=False):
     rows = [(i, choices[i - 1][1]) for i in numbers]
     if remove:
-        count = len(numbers)
+        count = len({address_key(e["value"]) for e in plan.removed})
         emit_list(
             "Selected removals" if subset else "Removing" if apply else "Proposed removals",
             rows,
@@ -83,16 +80,15 @@ def finish_email_edit(args, api, plan, *, interactive):
 
     def preview(selected):
         nonlocal selected_plan, last_selection
-        keys = {address_key(choices[i - 1][0]) for i in selected}
-        # Only changes already approved in the original plan may be rebuilt; no new decisions.
-        entries = (
-            [(choices[i - 1][0], "", "selection") for i in selected]
-            if remove
-            else [entry for entry in args.entries if address_key(entry[0]) in keys]
-        )
-        selected_plan = make_edit_plan(
-            plan.person, entries, remove=remove, resolve=lambda *a: True, expand_patterns=False
-        )
+        if remove:
+            selected_plan = select_removals(plan, [choices[i - 1][0] for i in selected])
+        else:
+            keys = {address_key(choices[i - 1][0]) for i in selected}
+            # Rebuild only previously approved additions/updates; no new decisions.
+            entries = [entry for entry in args.entries if address_key(entry[0]) in keys]
+            selected_plan = make_edit_plan(
+                plan.person, entries, resolve=lambda *a: True, expand_patterns=False
+            )
         email_update_body(selected_plan.person, selected_plan.emails)
         if selected != numbers:
             show_changes(selected_plan, choices, selected, remove=remove, subset=True)
@@ -111,11 +107,11 @@ def finish_email_edit(args, api, plan, *, interactive):
     if interactive and not args.apply:
         selected = review_selection(
             [(i, choices[i - 1][1]) for i in numbers],
-            noun="addresses" if remove else "changes",
+            noun="email entries" if remove else "changes",
             heading="Selected changes",
             unit=("change", "changes"),
             question=question,
-            action="Remove selected addresses" if remove else "Apply selected changes",
+            action="Remove selected email entries" if remove else "Apply selected changes",
             preview=preview,
         )
         if selected is None:

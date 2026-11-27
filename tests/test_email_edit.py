@@ -66,10 +66,7 @@ def test_remove_all_duplicates_and_noop(connected, server, capsys, apply):
     text = capsys.readouterr().out
     assert "Remaining email entries: 0" in text
     assert ("Removing" if apply else "Proposed removals") + ": 2 entries (1 address)" in text
-    assert (
-        "  1. same@example.com — 2 entries\n"
-        "     same@example.com — Work\n     SAME@example.com — Billing\n" in text
-    )
+    assert "  1. same@example.com — Work\n  2. SAME@example.com — Billing\n" in text
     assert "absent@example.com" in text
     assert "entry(s)" not in text
     if apply:
@@ -281,7 +278,7 @@ def test_numbered_removal_preview_alignment_and_unlabeled_entries(connected, ser
     assert server.writes == 0
 
 
-def test_removal_duplicates_reference_first_row_per_address(connected, server, capsys):
+def test_removal_duplicates_have_individual_numbers(connected, server, capsys):
     server.person["emailAddresses"] = [
         {"value": "a@example.com", "type": "Work"},
         {"value": "A@example.com"},
@@ -305,12 +302,12 @@ def test_removal_duplicates_reference_first_row_per_address(connected, server, c
         == 0
     )
     text = capsys.readouterr().out
-    assert "  1. a@example.com — 3 entries\n" in text
-    assert "     A@example.com — (no label)\n" in text
-    assert "     a@example.com — Other\n" in text
-    assert "  2. b@example.com — 2 entries\n" in text
-    assert "     B@example.com — Home\n" in text
-    assert "  3. c@example.com\n" in text
+    assert "  1. a@example.com — Work\n" in text
+    assert "  2. A@example.com\n" in text
+    assert "  3. a@example.com — Other\n" in text
+    assert "  4. b@example.com\n" in text
+    assert "  5. B@example.com — Home\n" in text
+    assert "  6. c@example.com\n" in text
     assert "[duplicate of" not in text
     assert server.writes == 0
 

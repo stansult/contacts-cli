@@ -139,10 +139,10 @@ Shows a numbered list with labels and duplicate references.
 
 Repeat the address option or use `--add-file` / `--remove-file` for lists. Removal also accepts
 `*` patterns: `--remove '*@example.com'`. `*` matches zero or more characters, ignoring case;
-quote patterns in the shell, but not in files. Removal deletes all
+quote patterns in the shell, but not in files. Removal lets you select individual
 matching entries. Adding an existing address can change its label or consolidate duplicates.
 Select all proposed changes or specific numbers/ranges before confirming. Each removal number
-selects one address and all its duplicate entries.
+selects one stored entry, so you can remove just one duplicate. `--apply` removes all matches.
 
 For a webpage, use `--from-url` instead of address/file options:
 

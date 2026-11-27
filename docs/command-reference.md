@@ -618,9 +618,9 @@ bracket patterns are not. Quote patterns on the command line to prevent shell ex
 
 In files, write patterns without quotes, one per line. Optional labels are ignored, just as for
 exact removals. Patterns expand against the contact read for the preview. Overlapping patterns
-and exact addresses produce one selectable group per distinct address; all its duplicate entries
-stay together. Selection uses those concrete groups, not a new pattern search. A contact changed
-after preview is rejected before writing. With `--apply`, every matched group is removed.
+and exact addresses include each stored entry once. Each duplicate is separately selectable.
+Selection uses those snapshot entries, not a new pattern search. A contact changed
+after preview is rejected before writing. With `--apply`, every matching entry is removed.
 Add-email requires exact addresses. Sender-sync exclusions accept the same `*` patterns; see
 [exclusion inputs](#sender-sync-preview-and-apply).
 
@@ -655,11 +655,10 @@ without `--apply` they only preview. Unresolved conflicts are shown under Skippe
 
 ### Removal groups and missing addresses
 
-Removal deletes all entries matching each address, regardless of labels. Each distinct address
-has one selectable number, including case-only duplicates. Duplicate groups show every stored
-spelling and label on indented lines; empty labels say `(no label)`, and primary entries are
-marked `(primary)`. Repeated labels are shown once per stored entry. A single unlabeled entry
-shows only its address. The heading counts both entries and distinct addresses.
+Removal lists every matching stored entry with its own selectable number, including case-only
+or completely identical duplicates. Select just one duplicate to preserve the others. Each row
+shows its stored address, label when present, and a `(primary)` marker when applicable.
+The heading counts both entries and distinct addresses.
 Absent addresses and unmatched patterns are listed under Not found. Removing every email is
 allowed and leaves the contact intact with zero email entries. A no-op performs no update. Later
 sender-sync runs can add matching senders again. Addresses and patterns from the removal list
@@ -669,14 +668,15 @@ can be reused with `--exclude-file` to skip those senders in later runs.
 
 Interactive add/remove runs use `all`, numbers/ranges such as `3-5,8`, or `q` to cancel.
 Additions and updates have continuous numbering; each update (including duplicate consolidation)
-is indivisible. Removal numbers select whole address groups. Not found and Skipped conflicts
+is indivisible. Removal numbers select individual stored entries. Not found and Skipped conflicts
 use separate, nonselectable numbers after the proposed changes and are marked informational.
 Subset previews retain original numbers and recalculate remaining email entries. Only selected
 changes are applied; unselected entries retain their original labels, duplicates, and metadata.
 
 No or Enter at final confirmation returns to selection without repeating label-conflict decisions.
-With one eligible change, a simple `[y/N]` confirmation replaces selection; for a duplicate removal
-it states the full entry count. Zero changes means no prompt. A smaller selected subset is checked
+With one eligible change, a simple `[y/N]` confirmation replaces selection. Multiple matching
+email entries offer selection even when they share the same address. Zero changes means no prompt.
+A smaller selected subset is checked
 against size limits independently of the full proposal. `--apply` saves all eligible changes,
 respecting the existing conflict rules; noninteractive runs without it remain preview-only.
 
@@ -732,9 +732,10 @@ have a separate section showing the old and new values.
 
 Use `list-email` to see all existing entries. Add/remove commands show only the existing total;
 existing entries are displayed when needed for a conflict decision. Conflict-match lists start at 1. Proposed additions and updates share continuous numbering;
-removal previews number distinct addresses. Sender-sync numbering continues across
+removal previews number individual stored entries. Sender-sync numbering continues across
 its two address groups. Duplicate references in list-email and conflict lists point to the first
-occurrence within that list; removal previews use grouped details instead. Numbers do not identify a preferred or primary address.
+occurrence within that list; removal previews show each entry separately. Numbers do not identify
+a preferred or primary address.
 
 Without `--apply`, change headings say Proposed additions, Proposed updates, or Proposed removals.
 With `--apply`, they say Adding, Updating, or Removing. These headings describe the requested action;

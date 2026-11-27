@@ -782,11 +782,14 @@ at the time of a change, not current suite totals.
   retained nonsequential numbering.
 - Selecting one address from several separately verifies that Return to selection remains
   available.
-- `tests/test_email_selection.py` covers mixed addition/update selection, whole-address duplicate
-  removal (case variants, missing labels, primary markers), returning to selection without
+- `tests/test_email_selection.py` covers mixed addition/update selection, individual duplicate
+  removal (case variants, missing labels, primary markers, and identical occurrences), returning to
+  selection without
   repeated conflict prompts, cancellation, informational-number rejection, stale previews, and a
   valid subset of an oversized proposal.
 - Exact saved-list assertions verify preservation of unselected data.
+- Six individual-duplicate removal cases failed against the previous grouped selection and pass
+  with entry selection; each occurrence is tested with distinct metadata and identical duplicates.
 
 **Fixture checks**
 
@@ -794,6 +797,8 @@ at the time of a change, not current suite totals.
   decompressed-size limits.
 - Existing fixture-contract tests independently verify the synthetic Gmail search results and
   headers used by these scenarios.
+- A direct fixture PATCH and independent read confirm retained duplicate occurrences and primary
+  metadata survive full-field replacement.
 - Existing transport fixtures model full-field replacement and concurrent edits; the stale-preview
   tests expect the external edit to remain saved with zero CLI writes.
 

@@ -104,3 +104,26 @@ def test_fixture_close_is_observable_and_does_not_modify_data(server):
     assert server.close_calls == 1
     assert server.person == original
     assert server.writes == 0
+
+
+def test_fixture_preserves_remaining_duplicate_occurrences(server):
+    retained = [
+        {"value": "same@example.com", "metadata": {"sourcePrimary": True}},
+        {"value": "same@example.com"},
+    ]
+    server.person["emailAddresses"] = deepcopy(retained) + [{"value": "same@example.com"}]
+    body = {
+        "metadata": {"sources": [{"etag": "source-v1"}]},
+        "emailAddresses": retained,
+    }
+    status, saved = fetch(
+        server, "/v1/people/c123:updateContact?updatePersonFields=emailAddresses", "PATCH", body
+    )
+    assert status == 200
+    assert saved["emailAddresses"] == retained
+    _, fetched = fetch(
+        server,
+        "/v1/people:batchGet?resourceNames=people/c123&personFields=emailAddresses"
+        "&sources=READ_SOURCE_TYPE_CONTACT",
+    )
+    assert fetched["responses"][0]["person"]["emailAddresses"] == retained

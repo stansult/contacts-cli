@@ -244,7 +244,14 @@ def parser() -> argparse.ArgumentParser:
     editing = []
     for action in ("add", "remove"):
         command = commands.add_parser(
-            f"{action}-email", help=f"{action.title()} contact email entries"
+            f"{action}-email",
+            help=f"{action.title()} contact email entries",
+            description=(
+                "Select individual matching email entries, including duplicates. "
+                "--apply removes all matches."
+                if action == "remove"
+                else None
+            ),
         )
         command.add_argument(
             "--contact",

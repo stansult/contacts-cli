@@ -1,4 +1,4 @@
-"""Removal wildcards expand once against the preview, then select concrete address groups."""
+"""Removal wildcards expand once against the preview, then select concrete email entries."""
 
 from copy import deepcopy
 
@@ -133,7 +133,7 @@ def test_cli_pattern_selection_and_preservation(api, server, monkeypatch, mode):
     elif mode == "stale":
         assert server.writes == 0
     else:
-        assert server.person["emailAddresses"] == (before[2:] if mode == "subset" else before[3:])
+        assert server.person["emailAddresses"] == (before[1:] if mode == "subset" else before[3:])
         assert server.writes == 1
 
 

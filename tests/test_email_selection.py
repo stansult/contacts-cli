@@ -1,4 +1,4 @@
-"""Select whole address changes without losing skipped entries or duplicate metadata."""
+"""Select email changes while preserving unselected occurrences and metadata."""
 
 from copy import deepcopy
 
@@ -42,7 +42,7 @@ def test_mixed_addition_and_update(api, server, monkeypatch, capsys, selection):
     assert "2. old@example.com:" in output
 
 
-def test_grouped_removals_and_reselection(api, server, monkeypatch, capsys):
+def test_individual_removals_and_reselection(api, server, monkeypatch, capsys):
     server.person["emailAddresses"] = [
         {"value": "a@example.com", "type": "work", "metadata": {"sourcePrimary": True}},
         {"value": "A@example.com"},
@@ -50,7 +50,7 @@ def test_grouped_removals_and_reselection(api, server, monkeypatch, capsys):
         {"value": "B@example.com"},
     ]
     before = deepcopy(server.person["emailAddresses"])
-    setup(api, monkeypatch, ["1", "n", "2", "y"])
+    setup(api, monkeypatch, ["1", "n", "3-4", "y"])
     assert (
         cli.main(
             [
@@ -70,18 +70,18 @@ def test_grouped_removals_and_reselection(api, server, monkeypatch, capsys):
     assert server.person["emailAddresses"] == before[:2]
     output = capsys.readouterr().out
     assert "a@example.com — work (primary)" in output
-    assert "A@example.com — (no label)" in output
-    assert "B@example.com — (no label)" in output
+    assert "2. A@example.com" in output
+    assert "4. B@example.com" in output
     assert "Selected removals: 2 entries (1 address)" in output
-    assert "2. b@example.com — 2 entries" in output
+    assert "3. b@example.com" in output
 
 
-def test_single_group_removes_all_with_count(api, server, monkeypatch, capsys):
+def test_duplicate_entries_select_all_with_count(api, server, monkeypatch, capsys):
     server.person["emailAddresses"] = [{"value": "a@example.com"}, {"value": "A@example.com"}]
-    setup(api, monkeypatch, ["y"])
+    setup(api, monkeypatch, ["all", "y"])
     assert cli.main(["remove-email", "--contact", "c123", "--remove", "a@example.com"]) == 0
     output = capsys.readouterr().out
-    assert "Remove these 2 email entries? [y/N]" in output
+    assert "Remove these 2 email entries?" in output
     assert "Remaining email entries: 0" in output
     assert server.person["emailAddresses"] == []
 
@@ -248,3 +248,28 @@ def test_skipped_conflict_cannot_be_selected(api, server, monkeypatch, capsys):
         {"value": "new@example.com"},
     ]
     assert "Use only displayed item numbers." in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("selected", [0, 1, 2])
+@pytest.mark.parametrize("identical", [False, True])
+def test_remove_individual_duplicate(api, server, monkeypatch, capsys, selected, identical):
+    entries = [
+        {"value": "a@example.com", "type": "HOME", "metadata": {"sourcePrimary": True}},
+        {"value": "A@example.com"},
+        {"value": "a@example.com", "type": "Other", "displayName": "Example"},
+    ]
+    if identical:
+        entries = [{"value": "a@example.com"} for _ in range(3)]
+    # Put unrelated entries between matches: selection must address original occurrences.
+    before = [entries[0], {"value": "keep@example.org"}, entries[1], entries[2]]
+    server.person["emailAddresses"] = deepcopy(before)
+    setup(api, monkeypatch, [str(selected + 1), "y"])
+    assert cli.main(["remove-email", "--contact", "c123", "--remove", "a@example.com"]) == 0
+    index = [0, 2, 3][selected]
+    assert server.person["emailAddresses"] == before[:index] + before[index + 1 :]
+    assert server.writes == 1
+    out = capsys.readouterr().out
+    assert "Selected removals: 1 entry (1 address)" in out
+    assert "Choose email entries:" in out
+    if not identical:
+        assert "a@example.com — HOME (primary)" in out

@@ -2,7 +2,7 @@
 
 from collections import Counter
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .address_inputs import matches_address_pattern, normalized_entries
 from .core import (
@@ -109,6 +109,32 @@ def make_edit_plan(person, entries, *, remove=False, resolve=None, expand_patter
         changes.append(address)
     return EmailEditPlan(
         deepcopy(person), emails, changes, skipped, absent, removed, added, updates
+    )
+
+
+def removal_indexes(plan):
+    """Identify each eligible occurrence in the original snapshot, in preview order."""
+    keys = {address_key(entry["value"]) for entry in plan.removed}
+    emails = plan.person.get("emailAddresses", [])
+    return sorted(
+        (i for i, entry in enumerate(emails) if address_key(entry["value"]) in keys),
+        key=lambda i: address_key(emails[i]["value"]),
+    )
+
+
+def select_removals(plan, indexes):
+    """Remove selected snapshot occurrences, retaining every other entry unchanged."""
+    selected = set(indexes)
+    if not selected <= set(removal_indexes(plan)):
+        raise SyncError("Select only email entries in the removal preview.")
+    emails = plan.person.get("emailAddresses", [])
+    removed = [deepcopy(emails[i]) for i in removal_indexes(plan) if i in selected]
+    changes = list(dict.fromkeys(address_key(entry["value"]) for entry in removed))
+    return replace(
+        plan,
+        emails=[deepcopy(entry) for i, entry in enumerate(emails) if i not in selected],
+        removed=removed,
+        changes=changes,
     )
 
 
