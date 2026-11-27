@@ -151,6 +151,8 @@ universal parsing rule for all cultures or compound surnames. Requests were sequ
 ## GitHub Actions
 
 [Tests workflow](../.github/workflows/ci.yml) runs on pushes, pull requests, and manual dispatch.
+An explicit `run-name` uses the commit message for pushes, the pull request title for PRs,
+and `Tests on <branch or tag> (manual run)` for manual runs. The workflow itself remains `Tests`.
 The explicit matrix covers Linux with Python 3.11 (the minimum supported version) and macOS with
 Python 3.13. Each job installs the locked dependencies and runs `make check`, `make check-package`,
 and whitespace checks. Actions are pinned to commit SHAs and uv to a specific version. Jobs have

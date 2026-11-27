@@ -1,4 +1,7 @@
 name: Tests
+run-name: >-
+  ${{ github.event.pull_request.title || github.event.head_commit.message ||
+      format('Tests on {0} (manual run)', github.ref_name) }}
 
 on:
   push:
