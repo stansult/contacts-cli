@@ -242,6 +242,7 @@ def test_contact_heading_name_precedes_company(
 def test_help_command_order():
     help_text = cli.parser().format_help()
     expected = [
+        "list-contact",
         "add-contact",
         "duplicate",
         "sender-sync",

@@ -11,6 +11,7 @@ from .api import exclusion_query
 from .auth import authorize, connect, default_credentials_path, default_token_path
 from .contact_create import LabelChoiceCancelled, run_create
 from .contact_inputs import load_contact_inputs, text_value
+from .contact_listing import run_list_contacts
 from .core import (
     addition_entry,
     address_key,
@@ -83,42 +84,29 @@ def file_exclusions(paths):
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(
         description="Work with Google contacts.",
-        epilog="Numbered selections: Ranges select displayed items within their bounds, "
-        "including gaps or endpoints not displayed (e.g. 1-100). Explicit numbers must "
-        "be displayed. Overlaps count once; an empty selection asks again.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Use contacts-cli COMMAND --help for options.\n"
+        "Guide: https://github.com/stansult/contacts-cli/blob/main/docs/command-reference.md",
     )
     commands = result.add_subparsers(dest="command", required=True)
+    contact_listing = commands.add_parser(
+        "list-contact",
+        help="Find saved contacts by complete name, email, phone, ID, or URL",
+        description="List every matching contact without selection or changes.\n"
+        "Names and emails match completely, ignoring case; partial names are not supported.",
+    )
+    contact_listing.add_argument(
+        "--search",
+        required=True,
+        help="Complete name, email, phone (include country code), contact ID, or URL",
+    )
     creation = commands.add_parser(
         "add-contact",
         help="Preview or create new contacts",
         description=(
-            "Preview contacts and select all or numbers/ranges before creation. "
-            "Possible duplicates by name, email, phone, or company-only identity require "
-            "interactive skip/merge/create-separately/cancel review. "
-            "The preview compares full details only for matching contacts and shows "
-            "new information, conflicts, and label changes. Review conflicts with Keep (default), "
-            "Replace, or Keep both where multiple entries are supported. "
-            "Merge is available for additions or conflicts. "
-            "Available additions appear before Merge; "
-            "numbered conflict decisions lead to Selected merge changes before saving. "
-            "A single first-name change can preserve a known matching surname. "
-            "Independent conflict-free matches offer grouped Merge, Skip, numbers/ranges, "
-            "or individual review, showing each saved target and its additions. "
-            "Grouped email-label review offers Replace, Keep, direct numbers/ranges, "
-            "or individual review. Groups share an incoming label; differing saved labels "
-            "are shown per contact. "
-            "Remaining entries stay grouped until individual review is chosen or one remains. "
-            "Available changes and selected replacements are shown separately; nothing is saved "
-            "during review. "
-            "Group choices still prompt with --apply. "
-            "Before individual review, skip all selected inputs whose saved matches have "
-            "nothing new and no labels to add (default Yes); No keeps individual review. "
-            "No final approval is needed when nothing would change. "
-            "Contact-specific failures are reported and remaining contacts continue. "
-            "Explicit transient rate-limit rejections wait and retry automatically; "
-            "authorization, unrecovered quota, connection, or shared-label failures "
-            "stop the batch. "
-            "Any failure returns a nonzero exit status."
+            "Create contacts from inline fields or a JSON file.\n"
+            "Preview and select contacts before saving.\nPossible duplicates offer "
+            "skip, merge, or create separately."
         ),
     )
     creation.add_argument(
@@ -194,8 +182,8 @@ def parser() -> argparse.ArgumentParser:
         "sender-sync",
         help="Preview or append Gmail senders to an existing contact",
         description=(
-            "Preview missing From addresses from a Gmail label or search for one contact. "
-            "Malformed From headers are skipped and logged locally; Reply-To is not collected."
+            "Preview missing From addresses from a Gmail label or search for one contact.\n"
+            "Select addresses and confirm before saving."
         ),
     )
     sync.add_argument(
@@ -275,8 +263,7 @@ def parser() -> argparse.ArgumentParser:
             type=Path,
             metavar="PATH",
             help=(
-                "UTF-8 list of addresses or * patterns, one per line without quotes; optional "
-                " — Label is ignored; blank lines and # comments allowed (repeatable)"
+                "UTF-8 addresses or * patterns, one per line without quotes (repeatable)"
                 if action == "remove"
                 else "UTF-8 address list (repeatable; combines with individual addresses)"
             ),
@@ -290,10 +277,7 @@ def parser() -> argparse.ArgumentParser:
             inputs.add_argument(
                 "--from-url",
                 metavar="URL",
-                help=(
-                    "Extract unlabeled emails from one HTML page; select by number interactively; "
-                    "--apply adds all new addresses; existing entries and labels are preserved"
-                ),
+                help="Extract unlabeled emails from one HTML page; preserve existing entries",
             )
             command.add_argument(
                 "--replace-existing",
@@ -321,22 +305,9 @@ def parser() -> argparse.ArgumentParser:
                 "Choose all or numbers/ranges from matching labels, then confirm removal."
                 if action == "remove"
                 else (
-                    "Identify saved contacts by URL, ID, full name, email, or phone. "
-                    "Names and emails match completely, ignoring case; "
-                    "name whitespace is normalized. "
-                    "Phone formatting and a leading + are ignored; "
-                    "all base-number digits, including country codes, must match. "
-                    "Without an extension, match any extension; "
-                    "a supplied extension must match exactly. "
-                    "Multiple matches require selection; "
-                    "s skips that identifier, q cancels the command. "
-                    "Unmatched identifiers are reported and skipped. "
-                    "Compact numbered matches precede an input summary. "
-                    "Contact numbers stay the same across review lists. "
-                    "Files resolve before writes; "
-                    "choose contacts "
-                    "by number/range, then confirm. "
-                    "With neither contact option, create account labels."
+                    "Add labels to saved contacts identified inline or in a file.\n"
+                    "Choose among multiple matches; unmatched identifiers are skipped.\n"
+                    "Without contact inputs, create account labels."
                 )
             ),
         )
@@ -383,7 +354,7 @@ def parser() -> argparse.ArgumentParser:
             f"{action}-custom-field",
             help=f"{action.title()} custom fields on a contact",
             description=(
-                "Choose all or numbers/ranges from exact and case-different matches; "
+                "Choose all or numbers/ranges from exact and case-different matches;\n"
                 "identical duplicates are removed together."
                 if action == "remove"
                 else None
@@ -435,8 +406,21 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print the authorization URL without opening a browser",
     )
+    reference_sections = {
+        contact_listing: "list-contact",
+        creation: "add-contact",
+        duplicate: "duplicate-a-contact",
+        sync: "sender-sync-preview-and-apply",
+        listing: "list-email",
+        **dict.fromkeys(editing, "add-email-and-remove-email"),
+        **dict(zip(label_commands, ("list-label", "add-label", "remove-label"), strict=True)),
+        **dict.fromkeys(custom_commands, "add-custom-field-and-remove-custom-field"),
+        validation: "validate-contact",
+        setup: "authorization",
+    }
     for command in (
         result,
+        contact_listing,
         sync,
         setup,
         duplicate,
@@ -449,7 +433,12 @@ def parser() -> argparse.ArgumentParser:
     ):
         top_level = command is result
         if not top_level:
-            command.epilog = "See contacts-cli --help for global options."
+            command.formatter_class = argparse.RawDescriptionHelpFormatter
+            command.epilog = (
+                "See contacts-cli --help for global options.\n"
+                "Details: https://github.com/stansult/contacts-cli/blob/main/"
+                f"docs/command-reference.md#{reference_sections[command]}"
+            )
         command.add_argument(
             "--auth-timeout",
             type=positive_seconds,
@@ -841,6 +830,7 @@ def main(argv=None) -> int:
     aliases.update(
         {f"{action}-custom-fields": f"{action}-custom-field" for action in ("add", "remove")}
     )
+    aliases["list-contacts"] = "list-contact"
     aliases["add-contacts"] = "add-contact"
     aliases["list-labels"] = "list-label"
     aliases["add-labels"] = "add-label"
@@ -919,6 +909,16 @@ def run_command(args):
                 "No Google access or changes."
             )
             return 0
+        if args.command == "list-contact":
+            from .contact_resolution import identifier_kind, load_identifiers
+
+            query = load_identifiers(args.search)[0]
+            kind, value = identifier_kind(query)
+            api = connect_with_authorization(args.token, args.auth_timeout)
+            if api is None:
+                return 1
+            api.write_started = False
+            return run_list_contacts(api, kind, value)
         if args.command == "add-contact":
             contacts = load_contact_inputs(
                 name=args.name,

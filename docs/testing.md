@@ -850,7 +850,8 @@ and continued scanning when logs cannot be saved. Tests use synthetic headers on
 combined selections, explicit unavailable numbers, reversed ranges, overlaps, display order,
 and enormous bounds without expanding the numeric span. CLI regressions exercise broad ranges
 in contact creation, sender-sync, and grouped review after earlier entries have been handled.
-No hidden or already reviewed entries are selected. Top-level help documents the shared rule.
+No hidden or already reviewed entries are selected. The command reference documents the shared
+rule; help links to that reference.
 
 ### Individual merge review and anchored names
 
@@ -905,3 +906,18 @@ the whole command. Other shared selectors keep their existing choices unless ski
 `test_contact_resolution_output.py` covers compact match rows, matched-input visibility without
 unrelated fields, grouped headings, input versus distinct-contact totals, shared label headings,
 per-contact differences, explicit label confirmation, and later matches after a skipped input.
+
+### Concise command help
+
+`test_help_reference.py` checks documentation links for every command against existing reference
+headings, essential import review guidance, and copyable URLs in narrow terminals. These tests
+failed against the previous help before the change. Detailed review rules remain in the command
+reference; inline help focuses on usage and options.
+
+### Contact listing
+
+`test_list_contact.py` covers exact names, case and whitespace, emails, phone formatting,
+country digits and extensions, IDs/URLs, missing contacts, plural routing, multiple matches
+without prompts, pre-authorization validation, read failures, and no writes. Tests reuse the
+contact-resolution fixture and the independently verified paginated contact-list transport.
+New command tests failed before implementation; existing resolver tests retain label behavior.

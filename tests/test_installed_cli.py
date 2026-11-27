@@ -57,6 +57,7 @@ def test_subprocess_guard_contract(guarded_cli, code):
     "command",
     [
         [],
+        ["list-contact"],
         ["authorize"],
         ["sender-sync"],
         ["duplicate"],

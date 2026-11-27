@@ -42,8 +42,8 @@ def test_empty_range_reprompts(monkeypatch, capsys):
     assert "No displayed items fall within this selection." in capsys.readouterr().out
 
 
-def test_top_level_help_explains_ranges(capsys):
+def test_top_level_help_points_to_selection_reference(capsys):
     with pytest.raises(SystemExit):
         cli.main(["--help"])
     text = " ".join(capsys.readouterr().out.split())
-    assert "Ranges select displayed items within their bounds" in text
+    assert "docs/command-reference.md" in text

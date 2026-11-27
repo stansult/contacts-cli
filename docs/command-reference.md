@@ -6,7 +6,7 @@
 
 - [Running the CLI](#running-the-cli), [contact identifiers](#contact-identifiers),
   [confirmation and conflicts](#previews-confirmation-and-conflicts), [output](#output-and-timestamps)
-- [Add-contact](#add-contact), [duplicate](#duplicate-a-contact), [sender-sync](#sender-sync-preview-and-apply)
+- [List-contact](#list-contact), [Add-contact](#add-contact), [duplicate](#duplicate-a-contact), [sender-sync](#sender-sync-preview-and-apply)
 - [List-email](#list-email), [add-email and remove-email](#add-email-and-remove-email)
 - [List-label](#list-label), [add-label](#add-label), [remove-label](#remove-label), [label choices](#label-choices-and-output)
 - [Custom fields](#add-custom-field-and-remove-custom-field), [validate-contact](#validate-contact),
@@ -28,12 +28,14 @@ invocation still works from the checkout.
 Alternatively, install into an existing virtual environment with `python -m pip install .`. That
 provides the `contacts-cli` command, but does not use the repository's dependency lock.
 
-Use `./contacts-cli <command> --help` for command-specific options. A subcommand is required.
+Use `./contacts-cli <command> --help` for a short usage summary, command-specific options,
+and a direct link to the detailed section below. A subcommand is required.
 
 ## Contact identifiers
 
 Commands targeting an existing contact accept a Google Contacts URL or the bare ID `c123456789`.
-The ID is the final part of the website URL, after `/person/`. Lookup by name is not supported.
+The ID is the final part of the website URL, after `/person/`. Other than `list-contact` and
+`add-label`, commands do not support name lookup.
 For compatibility, `people/c123456789` is also accepted: `people/` is Google's People API resource
 prefix, not part of the website URL.
 
@@ -80,6 +82,32 @@ immediate spinner with a fixed start timestamp for waiting stages. After 5 secon
 Errors and interruptions end the stage as failed or interrupted, not finished. Progress stops
 before prompts and other output. Redirected stderr has plain start/completion lines and throttled
 counter updates, without animation or control codes. These thresholds require no CLI flags.
+
+## List-contact
+
+```sh
+./contacts-cli list-contact --search 'Jane Doe'
+./contacts-cli list-contact --search jane@example.com
+./contacts-cli list-contact --search '+1 202 555 0142'
+./contacts-cli list-contact --search c123456789
+```
+
+`--search` is required and accepts one complete name, email, phone, contact ID, or Google
+Contacts URL. `list-contacts` is also accepted; help uses the singular form.
+The command reuses the [contact lookup rules](#add-label): names match completely, ignoring
+case and extra whitespace; emails match completely, ignoring case. Partial names, company
+searches, and wildcard searches are not supported.
+
+Phone lookup ignores formatting and an optional leading `+`, but preserves every base-number
+digit, including the country code. No country is inferred. Without an extension, all extensions
+of the same base number match; a supplied extension must match exactly.
+
+All matching saved contacts appear in a numbered list with name, ID, first company, emails,
+and phones. A canonical phone form is omitted when it repeats the displayed number.
+Multiple matches need no selection, including in redirected output. Zero matches
+(including a missing ID) produce a zero count and successful exit; read failures remain errors.
+The command does not modify contacts. Name, email, and phone searches read the account's saved
+contact matching fields; ID and URL searches read only the specified contact.
 
 ## Add-contact
 

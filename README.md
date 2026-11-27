@@ -37,6 +37,18 @@ Later commands reuse the saved authorization. Local file validation needs no Goo
 - Use `./contacts-cli <command> --help` for command options. Global options, including `--token`,
   appear in `./contacts-cli --help` and work before or after the command.
 
+## Find contacts
+
+```sh
+./contacts-cli list-contact --search 'Jane Doe'
+./contacts-cli list-contact --search 'jane@example.com'
+./contacts-cli list-contact --search '+1 202 555 0142'
+```
+
+Shows all matches with names, IDs, companies, emails, and phones. Names must match completely,
+ignoring case and extra spaces; partial names are not supported. IDs and Google Contacts URLs
+also work. No selection or changes. See [matching rules](docs/command-reference.md#list-contact).
+
 ## Add contacts
 
 ```sh

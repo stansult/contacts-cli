@@ -308,13 +308,8 @@ def test_help_documents_group_choices(capsys):
         cli.main(["add-contact", "--help"])
     assert result.value.code == 0
     text = " ".join(capsys.readouterr().out.split())
-    assert (
-        "Grouped email-label review offers Replace, Keep, direct numbers/ranges, "
-        "or individual review" in text
-    )
-    assert "Group choices still prompt with --apply" in text
-    assert "Available changes and selected replacements are shown separately" in text
-    assert "Remaining entries stay grouped until individual review is chosen or one remains" in text
+    assert "duplicate and label choices still prompt" in text
+    assert "docs/command-reference.md#add-contact" in text
 
 
 def test_direct_group_numbers_spacing_and_return(api, server, monkeypatch, tmp_path, capsys):
