@@ -168,7 +168,7 @@ approval lists resulting values for changed fields. Declining final approval mak
 - Custom fields deduplicate exact key/value pairs. Different values for the same key are retained.
   A differing **Created** marker is a conflict: Keep preserves the existing marker; explicit Replace
   or Keep both is also available. Merging into a saved contact generates no new Created marker.
-  Combining inputs into one new contact generates the normal marker once at creation.
+  Combining inputs into one new contact adds no automatic marker.
 - Requested `--label` labels apply to merge targets and new contacts. Existing memberships,
   photos, unrelated fields, and explicit primary choices are preserved. Replacing an entry retains
   its primary metadata; keeping both leaves the existing entry primary.
@@ -348,12 +348,10 @@ verification also accepts Google omitting that generic type. Nickname values and
 different types must still match.
 
 Every field is an array, even singleton fields. Every contact needs at least a name, email, phone,
-or organization with a company name. `add-contact` appends a custom field labeled **Created**:
-`Created by contacts-cli on November 14, 2026 at 1:30 AM (UTC−08:00)`. Its timestamp is generated
-immediately before each contact's creation request, using local time, and the field is verified
-with the other saved values. This automatic field is omitted from the preview. Supplied custom fields,
-including an existing Created field, are preserved. The input file is unchanged; `validate-contact`
-only validates input and adds nothing. No Notes are added. Other omitted fields stay absent.
+or organization with a company name. `add-contact` preserves supplied custom fields, including
+any Created or Duplicate fields, and adds no automatic creation marker. The input file is
+unchanged; `validate-contact` only validates input and adds nothing. No Notes are added.
+Other omitted fields stay absent.
 
 ## Validation rules
 

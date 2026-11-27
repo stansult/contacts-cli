@@ -18,7 +18,7 @@ from .contact_merge import (
     skip_unchanged_inputs,
 )
 from .core import contact_source, validate_contact
-from .duplicate import READ_FIELDS, creation_marker
+from .duplicate import READ_FIELDS
 from .errors import ContactVerificationFailure, SyncError, WriteUnverified
 from .grouped_additions import review_additions
 from .grouped_email_labels import review_label_groups
@@ -230,7 +230,6 @@ def verify_created(body, saved):
 
 def create_contact(api, body, state=None):
     body = deepcopy(body)
-    body.setdefault("userDefined", []).append(creation_marker("Created"))
     state = state or CreationState()
     state.phase = "writing"
     result = api.write(

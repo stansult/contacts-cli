@@ -111,8 +111,8 @@ output must link to `/person/c456`, not `/person/c1c8`. The success assertion fa
 original link construction before the fix. This automated test does not establish live browser
 navigation behavior.
 
-Duplicate-marker coverage checks that copying a copy replaces all earlier `Duplicate` fields
-with one fresh marker, preserves other custom fields and the source, and verifies the saved marker.
+Creation and duplication tests check that no automatic custom fields are added, supplied or
+copied custom fields remain unchanged, and missing saved custom fields fail verification.
 
 ### Duplicate field overrides
 
@@ -744,8 +744,8 @@ the original exact-address implementation before the feature was added.
 `test_contact_selection.py` exercises the shared number/range selector through `add-contact`:
 subsets, original input order/numbers, overlaps, invalid selections, reselection, cancellation,
 and end-of-input before any label or contact writes. It checks selected contact fields, labels,
-and Created markers, plus original input numbers and selected-only counts after failure or
-interruption. Single-contact confirmation, noninteractive previews, and `--apply` retain their
+and absence of automatic custom fields, plus original input numbers and selected-only counts
+after failure or interruption. Single-contact confirmation, noninteractive previews, and `--apply` retain their
 existing behavior; validation still covers the full input. Six subset/failure cases failed
 against the original all-or-nothing implementation before the change.
 

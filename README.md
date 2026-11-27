@@ -61,8 +61,7 @@ components (together or individually). Combine either form with emails, or use a
 one or more contacts with additional fields. For multiple contacts, choose `all` or numbers/ranges such as `2,4-6`, then confirm.
 Possible duplicates require interactive skip/merge/create-separately/cancel review, including with
 `--apply`. A default-Yes prompt can skip selected inputs whose saved matches all contain the
-supplied information and labels. Merge can add information or labels and resolve conflicts with Keep, Replace, or Keep both where supported. See [matching rules](docs/contact-input.md#possible-duplicates). Each new contact gets a **Created**
-custom field with its creation time.
+supplied information and labels. Merge can add information or labels and resolve conflicts with Keep, Replace, or Keep both where supported. See [matching rules](docs/contact-input.md#possible-duplicates).
 Similar email-label-only changes can be reviewed together, with bulk Replace/Keep or selection
 by number. Conflict-free matches also offer grouped Merge/Skip with each target and its additions
 shown. Other differences retain individual review.
@@ -76,9 +75,8 @@ See [contact input and creation](docs/contact-input.md).
 ./contacts-cli duplicate --contact c123456789 --name 'Delivery backup'
 ```
 
-Copies editable fields and the custom photo, and adds a **Duplicate** custom field with the
-creation time. Omitted options keep the original fields. Use `--name`, repeatable `--email`, or
-repeatable `--phone` to replace a field, or `--clear-name`, `--clear-email`, and `--clear-phone`
+Copies editable fields and the custom photo. Omitted options keep the original fields.
+Use `--name`, repeatable `--email`, or repeatable `--phone` to replace a field, or `--clear-name`, `--clear-email`, and `--clear-phone`
 to leave it empty. `--no-photo` skips the photo. The source contact stays unchanged.
 
 ```sh

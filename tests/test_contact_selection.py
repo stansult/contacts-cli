@@ -57,7 +57,7 @@ def test_selection(api, server, monkeypatch, tmp_path, capsys, answers, expected
             assert f"input #{i}" in output
         for p in server.created.values():
             assert len(p["memberships"]) == 1
-            assert p["userDefined"][-1]["key"] == "Created"
+            assert not p.get("userDefined")
     else:
         assert server.writes == 0
     if expected == [2, 4]:

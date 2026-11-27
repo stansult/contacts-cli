@@ -3,7 +3,6 @@
 import json
 import re
 from copy import deepcopy
-from datetime import UTC
 
 import pytest
 
@@ -75,7 +74,7 @@ def test_preview_and_apply(command, apply, api, server, monkeypatch, capsys, tmp
         assert len(server.created) == 2 and len(server.groups) == 3
         saved = server.created["people/c456"]
         for field in person:
-            assert (saved[field][:-1] if field == "userDefined" else saved[field]) == person[field]
+            assert saved[field] == person[field]
         assert len(saved["memberships"]) == 2
         assert "Created and verified 2 contacts" in output
         assert "https://contacts.google.com/person/c457" in output
@@ -406,17 +405,7 @@ def test_multiple_label_choices_and_eof(monkeypatch, capsys):
         contact_create.choose_label("recruiter", ["Recruiter"])
 
 
-def test_created_marker_preserves_custom_fields(api, server, monkeypatch):
-    from datetime import datetime
-
-    from contacts_cli import contact_create
-    from contacts_cli.duplicate import creation_marker, duplicate_marker
-
-    now = datetime(2026, 11, 14, 1, 30, tzinfo=UTC)
-    monkeypatch.setattr(
-        contact_create, "creation_marker", lambda label: creation_marker(label, now)
-    )
-
+def test_creation_preserves_supplied_custom_fields(api, server):
     body = {
         "names": [{"givenName": "Jane"}],
         "userDefined": [{"key": "Created", "value": "Imported history"}],
@@ -424,13 +413,11 @@ def test_created_marker_preserves_custom_fields(api, server, monkeypatch):
     original = deepcopy(body)
     create_contact(api, body)
     fields = server.created["people/c456"]["userDefined"]
-    assert fields[:-1] == original["userDefined"]
-    assert fields[-1]["key"] == "Created"
-    assert fields[-1]["value"] == duplicate_marker(now)["value"]
+    assert fields == original["userDefined"]
     assert body == original
 
 
-def test_created_marker_is_verified(api, monkeypatch):
+def test_supplied_created_field_is_verified(api, monkeypatch):
     original = api.get_contact
 
     def missing_marker(resource, fields):
@@ -442,7 +429,13 @@ def test_created_marker_is_verified(api, monkeypatch):
 
     monkeypatch.setattr(api, "get_contact", missing_marker)
     with pytest.raises(WriteUnverified, match="Custom field differs"):
-        create_contact(api, {"names": [{"givenName": "Jane"}]})
+        create_contact(
+            api,
+            {
+                "names": [{"givenName": "Jane"}],
+                "userDefined": [{"key": "Created", "value": "Imported history"}],
+            },
+        )
 
 
 def test_preview_omits_automatic_marker_but_keeps_supplied_created_field():
@@ -454,3 +447,8 @@ def test_preview_omits_automatic_marker_but_keeps_supplied_created_field():
     preview = contact_preview(person)
     assert "Custom field: Created: Imported history" in preview
     assert "Created by contacts-cli" not in preview
+
+
+def test_creation_adds_no_custom_fields(api, server):
+    create_contact(api, {"names": [{"givenName": "Jane"}]})
+    assert not server.created["people/c456"].get("userDefined")

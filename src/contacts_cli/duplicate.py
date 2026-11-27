@@ -4,7 +4,6 @@ import json
 import re
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import datetime
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import requests
@@ -21,28 +20,6 @@ COPY_FIELDS = (
 )
 READ_FIELDS = COPY_FIELDS + ",metadata,photos"
 PHOTO_LIMIT = 10 * 1024 * 1024
-
-
-def creation_marker(label, now=None):
-    now = now if now is not None else datetime.now().astimezone()
-    months = (
-        "January February March April May June July August September October November December"
-    ).split()
-    offset = now.strftime("%z")
-    offset = (offset[:3] + ":" + offset[3:5]).replace("-", "−")
-    hour = now.hour % 12 or 12
-    period = "AM" if now.hour < 12 else "PM"
-    return {
-        "key": label,
-        "value": (
-            f"Created by contacts-cli on {months[now.month - 1]} {now.day}, {now.year} "
-            f"at {hour}:{now.minute:02d} {period} (UTC{offset})"
-        ),
-    }
-
-
-def duplicate_marker(now=None):
-    return creation_marker("Duplicate", now)
 
 
 def replacement_fields(
@@ -171,9 +148,6 @@ def make_duplicate_plan(
         clear_phone=clear_phone,
     )
     body = copy_body(person, schemas)
-    body["userDefined"] = [
-        field for field in body.get("userDefined", []) if field.get("key") != "Duplicate"
-    ] + [duplicate_marker()]
     for field, entries in replacements.items():
         if entries:
             body[field] = entries

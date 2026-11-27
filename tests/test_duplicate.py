@@ -80,8 +80,8 @@ def test_all_fields_and_full_email_list(server, api):
         assert saved[field] == expected
     assert saved["phoneNumbers"] == original["phoneNumbers"]
     assert saved["biographies"] == original["biographies"]
-    assert saved["userDefined"][:-1] == original["userDefined"]
-    assert saved["userDefined"][-1]["key"] == "Duplicate"
+    assert saved["userDefined"] == original["userDefined"]
+    assert saved["userDefined"] == server.person["userDefined"]
     assert saved["memberships"] == original["memberships"]
     assert server.person == original
 
@@ -216,10 +216,6 @@ def test_failed_verification_exit_code_and_link(server, api, monkeypatch, capsys
 
 
 def test_rename_preserves_every_other_field(server, api, monkeypatch):
-    monkeypatch.setattr(
-        "contacts_cli.duplicate.duplicate_marker",
-        lambda: {"key": "Duplicate", "value": "Created by contacts-cli at a fixed test time"},
-    )
     unchanged = plan_for(api)
     renamed = plan_for(api, "Backup")
     assert {k: v for k, v in unchanged.body.items() if k != "names"} == {
@@ -238,7 +234,7 @@ def test_default_photo_needs_no_download(server, api, monkeypatch):
     assert server.writes == 1
 
 
-def test_duplicate_marker_preserves_existing_fields_and_is_verified(server, api):
+def test_duplicate_preserves_existing_custom_fields_and_verifies_them(server, api):
     original = deepcopy(server.person)
     server.person["userDefined"].extend(
         [
@@ -249,14 +245,9 @@ def test_duplicate_marker_preserves_existing_fields_and_is_verified(server, api)
     )
     existing = deepcopy(server.person["userDefined"])
     plan = plan_for(api)
-    preserved = [field for field in existing if field["key"] != "Duplicate"]
-    assert plan.body["userDefined"][:-1] == preserved
-    marker = plan.body["userDefined"][-1]
-    assert marker["key"] == "Duplicate"
-    assert marker["value"].startswith("Created by contacts-cli on ")
-    assert " at " in marker["value"] and "(UTC" in marker["value"]
+    assert plan.body["userDefined"] == existing
     api.duplicate(plan)
-    assert server.created["people/c456"]["userDefined"] == preserved + [marker]
+    assert server.created["people/c456"]["userDefined"] == existing
     assert server.person["userDefined"] == existing
     from contacts_cli.duplicate import verify_duplicate
 
@@ -265,26 +256,6 @@ def test_duplicate_marker_preserves_existing_fields_and_is_verified(server, api)
     with pytest.raises(SyncError, match="editable fields"):
         verify_duplicate(plan, saved, api.people._rootDesc["schemas"])
     assert server.person["names"] == original["names"]
-
-
-@pytest.mark.parametrize(
-    "hour,offset,expected",
-    [
-        (14, -8, "November 11, 2026 at 2:30 PM (UTC−08:00)"),
-        (0, 0, "November 11, 2026 at 12:30 AM (UTC+00:00)"),
-        (12, 5.5, "November 11, 2026 at 12:30 PM (UTC+05:30)"),
-    ],
-)
-def test_duplicate_marker_readable_time(hour, offset, expected):
-    from datetime import datetime, timedelta, timezone
-
-    from contacts_cli.duplicate import duplicate_marker
-
-    now = datetime(2026, 11, 11, hour, 30, tzinfo=timezone(timedelta(hours=offset)))
-    assert duplicate_marker(now) == {
-        "key": "Duplicate",
-        "value": "Created by contacts-cli on " + expected,
-    }
 
 
 @pytest.mark.parametrize(
@@ -340,3 +311,11 @@ def test_unknown_photo_size_stops_before_download(monkeypatch):
     )
     with pytest.raises(SyncError, match="full-size"):
         download_photo("https://lh3.googleusercontent.com/unknown")
+
+
+def test_duplicate_adds_no_custom_fields(api, server):
+    server.person.pop("userDefined", None)
+    plan = plan_for(api)
+    assert not plan.body.get("userDefined")
+    api.duplicate(plan)
+    assert not server.created["people/c456"].get("userDefined")

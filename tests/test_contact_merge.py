@@ -157,7 +157,7 @@ def test_incoming_merge_creates_one_contact(api, server, monkeypatch, tmp_path):
     assert len(server.created) == 1
     saved = next(iter(server.created.values()))
     assert saved["phoneNumbers"] and saved["emailAddresses"]
-    assert len([e for e in saved["userDefined"] if e["key"] == "Created"]) == 1
+    assert not saved.get("userDefined")
 
 
 def test_two_inputs_one_existing_update(api, server, monkeypatch, tmp_path):

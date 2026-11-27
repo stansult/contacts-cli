@@ -251,12 +251,8 @@ Preview shows replacement values, explicitly marks cleared fields, lists resulti
 and states whether a photo will be copied. A cleared field has no entries in the new contact.
 Success prints the new contact's link, using the person identifier returned by Google.
 
-Each copy adds a **Duplicate** custom field, for example:
-`Created by contacts-cli on November 11, 2026 at 2:30 PM (UTC−08:00)`.
-The timestamp uses the computer's local time when that run prepares the copy, including its UTC
-offset. Existing fields labeled exactly **Duplicate** are replaced with this one fresh marker;
-other custom fields are preserved. A separate preview run does not fix the timestamp for a later
-`--apply` run.
+Custom fields are copied unchanged, including any existing Created or Duplicate fields.
+No automatic creation marker is added.
 
 The copy includes editable contact fields exposed by the People API: names, emails and custom
 labels, phones, addresses, notes, dates, organizations, relationships, URLs, custom fields, and

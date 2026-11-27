@@ -87,8 +87,7 @@ def test_overrides_preview_and_apply(flags, expected, server, api, monkeypatch, 
         assert saved.get(field, []) == expected.get(field, [])
     for field in ("biographies", "memberships"):
         assert saved[field] == original[field]
-    assert saved["userDefined"][:-1] == original["userDefined"]
-    assert saved["userDefined"][-1]["key"] == "Duplicate"
+    assert saved["userDefined"] == original["userDefined"]
     assert server.person == original
 
 
@@ -201,10 +200,6 @@ def test_duplicate_help(capsys):
     ],
 )
 def test_one_override_preserves_other_fields(option, field, value, api, monkeypatch):
-    monkeypatch.setattr(
-        "contacts_cli.duplicate.duplicate_marker",
-        lambda: {"key": "Duplicate", "value": "Synthetic fixed time"},
-    )
     person = api.get_contact("people/c123", READ_FIELDS)
     schemas = api.people._rootDesc["schemas"]
     original = make_duplicate_plan(person, schemas)
