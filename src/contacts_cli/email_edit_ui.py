@@ -53,6 +53,20 @@ def finish_email_edit(args, api, plan, *, interactive):
     numbers = list(range(1, len(choices) + 1))
     show_changes(plan, choices, numbers, remove=remove, apply=args.apply)
     next_number = len(choices) + 1
+    if plan.duplicate_kept:
+        emails = plan.person.get("emailAddresses", [])
+        emit_list(
+            "Kept entries",
+            [
+                (
+                    next_number + offset,
+                    email_rows([emails[i]])[0][1] + (" (primary)" if is_primary(emails[i]) else ""),
+                )
+                for offset, i in enumerate(plan.duplicate_kept)
+            ],
+            note="Informational only; these numbers cannot be selected.",
+        )
+        next_number += len(plan.duplicate_kept)
     for heading, values, unit in [
         (
             "Not found",
@@ -73,7 +87,11 @@ def finish_email_edit(args, api, plan, *, interactive):
             next_number += len(values)
     emit(f"Remaining email entries: {len(plan.emails)}", primary=False)
     if not choices:
-        emit("No changes selected; no update made.")
+        emit(
+            "No duplicate email entries found; no changes made."
+            if getattr(args, "duplicates", False)
+            else "No changes selected; no update made."
+        )
         return 0
     selected_plan = plan
     last_selection = numbers

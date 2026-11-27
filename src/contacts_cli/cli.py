@@ -21,7 +21,7 @@ from .core import (
 )
 from .custom_fields import run_custom_field
 from .duplicate import READ_FIELDS, make_duplicate_plan, replacement_fields
-from .email_edit import make_edit_plan
+from .email_edit import make_duplicate_removal_plan, make_edit_plan
 from .email_edit_ui import finish_email_edit
 from .error_logs import COMMAND as ERROR_LOG_COMMAND
 from .error_logs import TRACE, RunDiagnostics
@@ -248,7 +248,7 @@ def parser() -> argparse.ArgumentParser:
             help=f"{action.title()} contact email entries",
             description=(
                 "Select individual matching email entries, including duplicates. "
-                "--apply removes all matches."
+                "--apply removes all proposed entries."
                 if action == "remove"
                 else None
             ),
@@ -259,6 +259,12 @@ def parser() -> argparse.ArgumentParser:
             help="Google Contacts URL or bare ID such as c123456789",
         )
         inputs = command.add_argument_group("Email inputs (at least one required)")
+        if action == "remove":
+            inputs.add_argument(
+                "--duplicates",
+                action="store_true",
+                help="Remove extra copies of repeated addresses; keep the primary or first entry",
+            )
         inputs.add_argument(
             f"--{action}",
             action="append",
@@ -744,8 +750,12 @@ def run_email_edit(args, api):
                 return choice in {"y", "yes"}
             emit("Choose y, n, a, or s.", file=sys.stderr)
 
-    plan = make_edit_plan(
-        person, args.entries, remove=args.command == "remove-email", resolve=resolve
+    plan = (
+        make_duplicate_removal_plan(person)
+        if getattr(args, "duplicates", False)
+        else make_edit_plan(
+            person, args.entries, remove=args.command == "remove-email", resolve=resolve
+        )
     )
     return finish_email_edit(args, api, plan, interactive=interactive)
 
@@ -869,8 +879,16 @@ def main(argv=None) -> int:
             arguments.error(
                 "--from-url cannot be combined with --add, --add-file, or --replace-existing"
             )
-        if not url and not getattr(args, action) and not getattr(args, action + "_file"):
-            alternatives = " or --from-url" if action == "add" else ""
+        duplicates = getattr(args, "duplicates", False)
+        if duplicates and (args.remove or args.remove_file):
+            arguments.error("--duplicates cannot be combined with --remove or --remove-file")
+        if (
+            not url
+            and not duplicates
+            and not getattr(args, action)
+            and not getattr(args, action + "_file")
+        ):
+            alternatives = " or --from-url" if action == "add" else " or --duplicates"
             arguments.error(f"{args.command} requires --{action} or --{action}-file{alternatives}")
     if args.command in {"add-contact", "duplicate"}:
         explicit_name = args.first_name is not None or args.last_name is not None

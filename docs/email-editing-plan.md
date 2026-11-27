@@ -66,3 +66,11 @@ matches without repeating any snapshot occurrence. Selection uses original entry
 so even identical duplicates can be removed independently, and stored `*` characters stay literal.
 Never expand again after selection or against a newer
 contact. Existing concurrency checks still reject a changed contact before writing.
+
+## Duplicate-only removal
+
+Duplicate-only mode uses the same occurrence selection and save verification as ordinary removal.
+Its candidate indexes exclude one survivor per normalized address: the first primary entry, or
+the first stored occurrence if no primary is marked. Labels do not change duplicate identity.
+Keep survivor indexes separate from removable indexes so identical dictionaries cannot cause
+the retained occurrence to become selectable. Preview survivors as informational entries.

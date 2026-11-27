@@ -788,6 +788,12 @@ at the time of a change, not current suite totals.
   repeated conflict prompts, cancellation, informational-number rejection, stale previews, and a
   valid subset of an oversized proposal.
 - Exact saved-list assertions verify preservation of unselected data.
+- `tests/test_remove_duplicates.py` covers case-insensitive duplicate-only selection, retained
+  primary/first entries, identical occurrences, differing labels, unique addresses and plus tags,
+  subset selection, invalid retained-entry numbers, reselection, no-op and single-entry prompts,
+  apply, cancellation, noninteractive previews, stale contacts, and incompatible input options.
+- Eleven duplicate-only cases failed before the option was implemented. Independent fixture
+  replacement/readback coverage checks retained occurrence and metadata preservation.
 - Six individual-duplicate removal cases failed against the previous grouped selection and pass
   with entry selection; each occurrence is tested with distinct metadata and identical duplicates.
 

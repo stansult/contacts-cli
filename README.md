@@ -144,6 +144,16 @@ matching entries. Adding an existing address can change its label or consolidate
 Select all proposed changes or specific numbers/ranges before confirming. Each removal number
 selects one stored entry, so you can remove just one duplicate. `--apply` removes all matches.
 
+To remove only extra copies of repeated addresses:
+
+```sh
+./contacts-cli remove-email --contact c123456789 --duplicates
+```
+
+This keeps the primary entry for each address, or the first stored entry when none is primary.
+Review the extra entries and select which to remove; differing labels still count as duplicates.
+Unique addresses remain unchanged. `--apply` removes all proposed extra entries.
+
 For a webpage, use `--from-url` instead of address/file options:
 
 ```sh

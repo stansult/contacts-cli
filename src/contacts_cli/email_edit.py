@@ -36,6 +36,8 @@ class EmailEditPlan:
     removed: list
     added: list
     updates: list
+    removal_candidates: tuple | None = None
+    duplicate_kept: tuple = ()
 
 
 def expand_removals(person, entries):
@@ -112,8 +114,40 @@ def make_edit_plan(person, entries, *, remove=False, resolve=None, expand_patter
     )
 
 
+def make_duplicate_removal_plan(person):
+    """Offer surplus occurrences, keeping the first primary or first stored entry."""
+    validate_contact(person)
+    emails = person.get("emailAddresses", [])
+    groups = {}
+    for i, entry in enumerate(emails):
+        groups.setdefault(address_key(entry["value"]), []).append(i)
+    candidates, kept = [], []
+    for key in sorted(groups):
+        indexes = groups[key]
+        if len(indexes) < 2:
+            continue
+        survivor = next((i for i in indexes if is_primary(emails[i])), indexes[0])
+        kept.append(survivor)
+        candidates.extend(i for i in indexes if i != survivor)
+    plan = EmailEditPlan(
+        deepcopy(person),
+        deepcopy(emails),
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        removal_candidates=tuple(candidates),
+        duplicate_kept=tuple(kept),
+    )
+    return select_removals(plan, candidates)
+
+
 def removal_indexes(plan):
     """Identify each eligible occurrence in the original snapshot, in preview order."""
+    if plan.removal_candidates is not None:
+        return list(plan.removal_candidates)
     keys = {address_key(entry["value"]) for entry in plan.removed}
     emails = plan.person.get("emailAddresses", [])
     return sorted(
@@ -135,6 +169,7 @@ def select_removals(plan, indexes):
         emails=[deepcopy(entry) for i, entry in enumerate(emails) if i not in selected],
         removed=removed,
         changes=changes,
+        removal_candidates=tuple(i for i in removal_indexes(plan) if i in selected),
     )
 
 

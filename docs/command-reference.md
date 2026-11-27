@@ -595,6 +595,7 @@ editing commands.
 `add-email` accepts repeatable `--add 'address — Label'` and `--add-file PATH` options.
 `remove-email` accepts repeatable `--remove ADDRESS` and `--remove-file PATH` options.
 Both require `--contact`. Add-email also accepts `--from-url` instead of individual/file inputs.
+Remove-email also accepts `--duplicates` instead of individual/file inputs.
 Otherwise, at least one individual or file option is required. Use the same UTF-8 file
 format as exclusions: one address per line, optional ` — Label`, blank lines and whole-line `#`
 comments. Options combine; files are read fresh relative to the current directory. An empty file
@@ -627,6 +628,29 @@ Add-email requires exact addresses. Sender-sync exclusions accept the same `*` p
 These commands read contacts directly; they do not search Gmail or exclude your sending identities.
 They reuse the saved authorization. Address parsing is shared with exclusions, but Gmail query
 syntax restrictions and query-length limits do not apply to direct contact edits.
+
+### Remove duplicate email entries
+
+```sh
+./contacts-cli remove-email --contact c123456789 --duplicates
+```
+
+`--duplicates` finds repeated addresses, ignoring case. It cannot be combined with `--remove`
+or `--remove-file`. Dots and plus tags remain significant; distinct addresses are never combined.
+
+For each repeated address, keep the primary entry; if none is primary, keep the first stored
+entry. If several are marked primary, keep the first of those. Differing labels or display names
+do not make addresses distinct: the extra occurrences are still offered for removal.
+The retained entry keeps its original spelling, label, and metadata.
+
+The preview numbers only extra occurrences as removal choices. A separate **Kept entries**
+list shows the retained occurrences and primary markers; its numbers cannot be selected.
+Select `all` or numbers/ranges, then confirm. Unselected extra occurrences remain unchanged.
+One extra occurrence uses a simple confirmation. With no duplicates, nothing is written.
+
+`--apply` removes all proposed extra occurrences without prompting. Noninteractive runs without
+it only preview. Unique addresses and other contact fields stay unchanged. The same concurrent
+edit protection and verification used for ordinary removal apply.
 
 ### Addition conflicts
 
