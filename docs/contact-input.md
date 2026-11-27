@@ -60,6 +60,25 @@ meaning to the CLI. For example:
 
 ## Possible duplicates
 
+### Compact label-only imports
+
+With `--label`, an input that matches one independent saved contact and adds only labels gets
+a compact name-only row under the labels it needs. Original input numbers stay selectable.
+Choose `all`, numbers/ranges, `s` to skip that label group, or `q` to cancel the command.
+Unselected entries in that group are skipped. These decisions only build the plan; the final
+confirmation saves it. Interactive `--apply` still requires this review but skips final confirmation.
+
+Contacts missing different label sets have separate groups. Already-complete inputs are listed
+compactly and retain the existing skip prompt. Ambiguous matches, repeated targets, input-to-input
+matches, conflicts, and new contact information retain detailed review.
+
+The final plan counts new contacts, existing contacts receiving only labels, information updates,
+and already-complete inputs skipped. Label-only saves use one progress counter; completion counts
+include only verified successes. Failures retain the contact identity and explanation. Contact
+changes after preview, interruption, and verification failures retain the usual safeguards.
+
+### Matching rules
+
 Before creation, the command reads all saved contacts' matching fields and compares them with
 input records and with one another. Contacts reaching the list API's 100-email/phone limit get a
 complete individual read before comparison. It shows possible matches, their IDs or original input

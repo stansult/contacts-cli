@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from .api import execute
 from .contact_inputs import names_match
-from .contact_matches import duplicate_matches, match_rows, read_match_contacts
+from .contact_matches import contact_title, duplicate_matches, match_rows, read_match_contacts
 from .contact_merge import (
     assess_match,
     read_matched_details,
@@ -407,18 +407,39 @@ def run_create(args, api, contacts, confirm):
     summaries = {
         n: {key: value[0] for key, value in found.items()} for n, found in assessments.items()
     }
+    from .label_only_import import candidates, review_labels, show_groups
+
+    compact = candidates(list(matches), contacts, matches, details, api, labels, missing)
+    compact_numbers = {item.number for item in compact}
+    complete_numbers = {
+        number
+        for number, found in matches.items()
+        if args.label
+        and len(found) == 1
+        and not found[0][0].startswith("input #")
+        and assessments[number][found[0][0]][2]
+    }
     has_matches = any(matches.values())
-    emit_list(
-        "Contacts to review"
-        if has_matches
-        else ("Creating contacts" if args.apply else "Proposed contacts"),
-        (
-            (i, contact_preview(p, matches[i], summaries[i]) + "\n")
-            for i, p in enumerate(contacts, 1)
-        ),
-        unit=("contact", "contacts"),
-    )
-    if args.label:
+    if len(compact_numbers | complete_numbers) != len(contacts):
+        emit_list(
+            "Contacts to review"
+            if has_matches
+            else ("Creating contacts" if args.apply else "Proposed contacts"),
+            (
+                (i, contact_preview(p, matches[i], summaries[i]) + "\n")
+                for i, p in enumerate(contacts, 1)
+                if i not in compact_numbers | complete_numbers
+            ),
+            unit=("contact", "contacts"),
+        )
+    show_groups(compact, labels, missing)
+    if complete_numbers:
+        emit_list(
+            "Already complete",
+            [(n, contact_title(details[matches[n][0][0]])) for n in sorted(complete_numbers)],
+            unit=("input", "inputs"),
+        )
+    if args.label and len(compact_numbers) != len(contacts):
         emit("Labels for every contact: " + ", ".join([*labels, *missing]), primary=False)
     question = (
         "Create these contacts" + (f" and {len(missing)} new label(s)" if missing else "") + "?"
@@ -443,6 +464,7 @@ def run_create(args, api, contacts, confirm):
             if selected is None:
                 emit("Cancelled; no changes made.")
                 return 0
+        before_skip = len(selected)
         selected = skip_unchanged_inputs(selected, matches, assessments)
         if selected is None:
             emit("Cancelled; no changes made.")
@@ -450,6 +472,18 @@ def run_create(args, api, contacts, confirm):
         if not selected:
             emit("All selected inputs skipped; no changes made.")
             return 0
+        skipped_unchanged = before_skip - len(selected)
+        label_review = review_labels(
+            [item for item in compact if item.number in selected],
+            selected,
+            labels,
+            missing,
+            apply=args.apply,
+        )
+        if label_review is None:
+            emit("Cancelled; no changes made.")
+            return 0
+        selected, label_planned = label_review
         grouped = review_label_groups(
             selected, contacts, matches, details, api, labels, missing, apply=args.apply
         )
@@ -457,6 +491,9 @@ def run_create(args, api, contacts, confirm):
             emit("Cancelled; no changes made.")
             return 0
         selected, planned = grouped
+        planned.merges.update(label_planned.merges)
+        planned.grouped_review |= label_planned.grouped_review
+        planned.skipped_unchanged = skipped_unchanged
         additive = review_additions(
             selected, contacts, matches, details, api, labels, missing, planned, apply=args.apply
         )
@@ -472,7 +509,7 @@ def run_create(args, api, contacts, confirm):
         if reviewed is None:
             emit("Cancelled; no changes made.")
             return 0
-        if reviewed.merges or reviewed.combined_inputs:
+        if reviewed.merges or reviewed.combined_inputs or reviewed.skipped_unchanged:
             return run_merged_import(args, api, reviewed, labels, missing, confirm)
         selected = list(reviewed.creates)
         if not selected:

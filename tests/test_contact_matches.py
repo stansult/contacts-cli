@@ -160,7 +160,7 @@ def test_noninteractive_match_never_writes(api, server, monkeypatch, tmp_path, c
     )
     assert cli.main(args + (["--apply"] if apply else [])) == (1 if apply else 0)
     assert server.writes == 0
-    assert "matching name" in capsys.readouterr().out
+    assert "Add label New:" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
@@ -173,7 +173,7 @@ def test_single_review(api, server, monkeypatch, tmp_path, answers, created):
         server,
         monkeypatch,
         tmp_path,
-        [person(name="Jane Doe")],
+        [person(name="Jane Doe", email="jane@example.com")],
         [person(name="Jane Doe")],
         answers,
     )
@@ -213,7 +213,7 @@ def test_apply_still_resolves_duplicate(api, server, monkeypatch, tmp_path):
         server,
         monkeypatch,
         tmp_path,
-        [person(name="Jane Doe")],
+        [person(name="Jane Doe", email="jane@example.com")],
         [person(name="Jane Doe")],
         ["c"],
     )

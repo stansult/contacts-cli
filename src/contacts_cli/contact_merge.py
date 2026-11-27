@@ -188,6 +188,7 @@ class ImportReview:
     merges: dict = field(default_factory=dict)
     combined_inputs: bool = False
     grouped_review: bool = False
+    skipped_unchanged: int = 0
 
 
 def read_matched_details(matches, api):
@@ -521,6 +522,7 @@ def run_merged_import(args, api, review, labels, missing, confirm):
     )
 
     updates, update_rows = {}, []
+    label_updates = {}
     for resource, plan in review.merges.items():
         label_additions = add_memberships(plan, labels) + list(missing)
         if changed_fields(plan, api.people._rootDesc["schemas"]) or missing:
@@ -539,7 +541,10 @@ def run_merged_import(args, api, review, labels, missing, confirm):
                         f"\n     {FIELD_NAMES.get(field_name, field_name)} after merge: "
                         + format_entry(field_name, entry)
                     )
-            update_rows.append(row)
+            if not (set(changed_fields(plan, api.people._rootDesc["schemas"])) - {"memberships"}):
+                label_updates[resource] = plan
+            else:
+                update_rows.append(row)
     unchanged = len(review.merges) - len(updates)
     if not review.creates and not updates:
         emit("Nothing to create, update, or label; no changes made.")
@@ -550,12 +555,33 @@ def run_merged_import(args, api, review, labels, missing, confirm):
             ((n, contact_preview(p)) for n, p in review.creates.items()),
             unit=("contact", "contacts"),
         )
-    if updates:
+    if update_rows:
         emit_list("Contacts to update", enumerate(update_rows, 1), unit=("contact", "contacts"))
+    if label_updates:
+        from .grouped_additions import AdditiveMerge
+        from .label_only_import import show_groups
+
+        show_groups(
+            [
+                AdditiveMerge(
+                    min(plan.inputs), contact_title(plan.original), resource, [], plan, []
+                )
+                for resource, plan in label_updates.items()
+            ],
+            labels,
+            missing,
+            heading="Selected: add",
+        )
+    if label_updates or review.skipped_unchanged:
+        emit(f"Contacts to create: {len(review.creates)}", primary=False)
+        emit(f"Existing contacts to label: {len(label_updates)}", primary=False)
+        if update_rows:
+            emit(f"Existing contacts with information changes: {len(update_rows)}", primary=False)
+        emit(f"Already-complete inputs skipped: {review.skipped_unchanged}", primary=False)
     if not args.apply and not confirm("Apply these changes?"):
         emit("Cancelled; no changes made.")
         return 0
-    created = merged = created_labels = 0
+    created = merged = created_labels = labeled = 0
     failures = ImportFailures()
     attempted = 0
     total = len(updates) + len(review.creates)
@@ -583,29 +609,46 @@ def run_merged_import(args, api, review, labels, missing, confirm):
             state = CreationState()
             labels[name] = create_label(api, name, state)
             created_labels += 1
-        for resource, plan in updates.items():
-            phase, target = "merge", resource.removeprefix("people/")
-            add_memberships(plan, labels)
-            attempted += 1
-            emit(f"Merging into {target}…")
-            try:
-                changed = apply_merge(api, plan)
-            except SyncError as exc:
-                if not contact_specific(exc):
-                    raise
-                failures.record(
-                    f"{contact_title(plan.original)} ({target}); inputs "
-                    + ", ".join(f"#{n}" for n in plan.inputs),
-                    exc,
-                    remaining=total - attempted,
-                )
-                continue
-            if changed:
-                merged += 1
-                emit(f"Merged and verified: {target}")
-            else:
-                unchanged += 1
-                emit(f"Already contains the supplied information: {target}; no update made.")
+        label_total = sum(resource in label_updates for resource in updates)
+        label_attempted = 0
+        with StageProgress() as progress:
+            if label_total:
+                progress.start("Saving contact labels", details=f"0 of {label_total} processed")
+            ordered = sorted(updates, key=lambda resource: resource not in label_updates)
+            for resource in ordered:
+                plan = updates[resource]
+                if resource not in label_updates:
+                    progress.finish()
+                phase, target = "merge", resource.removeprefix("people/")
+                add_memberships(plan, labels)
+                attempted += 1
+                if resource not in label_updates:
+                    emit(f"Merging into {target}…")
+                try:
+                    changed = apply_merge(api, plan)
+                except SyncError as exc:
+                    if not contact_specific(exc):
+                        raise
+                    failures.record(
+                        f"{contact_title(plan.original)} ({target}); inputs "
+                        + ", ".join(f"#{n}" for n in plan.inputs),
+                        exc,
+                        remaining=total - attempted,
+                    )
+                    continue
+                finally:
+                    if resource in label_updates:
+                        label_attempted += 1
+                        progress.update(f"{label_attempted} of {label_total} processed")
+                if changed:
+                    merged += 1
+                    if resource in label_updates:
+                        labeled += 1
+                    else:
+                        emit(f"Merged and verified: {target}")
+                else:
+                    unchanged += 1
+                    emit(f"Already contains the supplied information: {target}; no update made.")
         phase = "contact creation"
         for number, person in review.creates.items():
             target = f"input #{number}"
@@ -654,8 +697,15 @@ def run_merged_import(args, api, review, labels, missing, confirm):
         if not interrupted:
             emit(str(exc), primary=False)
         emit(
-            f"Completed and verified: {created} creations; {merged} merges; "
-            f"{created_labels} new labels."
+            (
+                f"Completed and verified: {created} creations; {labeled} contacts labeled; "
+                f"{merged - labeled} merges; {created_labels} new labels."
+            )
+            if label_updates
+            else (
+                f"Completed and verified: {created} creations; {merged} merges; "
+                f"{created_labels} new labels."
+            )
         )
         if phase in {"merge", "contact creation"}:
             failures.record(
@@ -674,8 +724,16 @@ def run_merged_import(args, api, review, labels, missing, confirm):
             else max(failures.exit_code, 3 if isinstance(exc, WriteUnverified) else 1)
         )
     failures.summary()
-    emit(
-        f"Completed: {created} contacts created and verified; "
-        f"{merged} merged and verified; {unchanged} unchanged."
-    )
+    if label_updates:
+        emit(
+            f"Completed: {created} contacts created and verified; "
+            f"{labeled} {'contact' if labeled == 1 else 'contacts'} labeled and verified; "
+            f"{merged - labeled} merged and verified; "
+            f"{review.skipped_unchanged} already-complete inputs skipped."
+        )
+    else:
+        emit(
+            f"Completed: {created} contacts created and verified; "
+            f"{merged} merged and verified; {unchanged} unchanged."
+        )
     return failures.exit_code

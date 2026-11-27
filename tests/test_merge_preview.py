@@ -74,8 +74,8 @@ def test_label_comparison_upfront(api, server, monkeypatch, tmp_path, capsys, pr
     assert cli.main(args + ["--label", "Test"]) == 0
     output = capsys.readouterr().out
     preview = output.split("Choice [s]:")[0]
-    assert ("labels to add: Test" in preview) == (not present)
-    assert ("Nothing new" in preview) == present
+    assert ("Add label Test:" in preview) == (not present)
+    assert ("Already complete:" in preview) == present
 
 
 def test_detail_read_failure_stops_before_selection(api, server, monkeypatch, tmp_path):
@@ -193,7 +193,7 @@ def test_new_labels_visible_before_choice(api, server, monkeypatch, tmp_path, ca
     args = setup(api, server, monkeypatch, tmp_path, [incoming(server)], ["q"])
     assert cli.main(args + ["--label", "New"]) == 0
     output = capsys.readouterr().out
-    assert "No new contact details; labels to add: New" in output
+    assert "Add label New:" in output
     assert server.writes == 0 and not server.groups
 
 

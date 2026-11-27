@@ -62,6 +62,7 @@ Use `--name` for a full name that Google parses, or `--first-name` and `--last-n
 components (together or individually). Combine either form with emails, or use a JSON file for
 one or more contacts with additional fields. For multiple contacts, choose `all` or numbers/ranges such as `2,4-6`, then confirm.
 Single-part names alone do not trigger duplicate suggestions; matching emails or phones still do.
+When only contact labels are missing, review compact groups by label and select contacts by number.
 Possible duplicates require interactive skip/merge/create-separately/cancel review, including with
 `--apply`. A default-Yes prompt can skip selected inputs whose saved matches all contain the
 supplied information and labels. Merge can add information or labels and resolve conflicts with Keep, Replace, or Keep both where supported. See [matching rules](docs/contact-input.md#possible-duplicates).

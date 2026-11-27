@@ -31,13 +31,13 @@ def test_review_shows_result_and_only_useful_merge(
         if "Skip these inputs?" in output:
             return "n"
         review = output.split(" — possible match:\n")[-1]
-        assert ("  m   Merge" in review) == (kind in {"new", "label", "new-label", "conflict"})
+        assert ("  m   Merge" in review) == (kind in {"new", "conflict"})
         expected = {
             "same": "Nothing new",
             "conflict": "Conflicts to resolve",
             "new": "New information available",
-            "label": "labels to add: Test",
-            "new-label": "labels to add: Test",
+            "label": "Add label Test:",
+            "new-label": "Add label Test:",
         }[kind]
         assert expected in review
         return "q"

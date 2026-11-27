@@ -940,3 +940,12 @@ Duplicate-name regressions cover single-part names, compound given names, honori
 email/phone evidence, company-only identity, and inputs within the same import. The two-Josh
 review test verifies that an unchanged phone match cannot redirect a merge to an unrelated
 name-only match. Restoring the old name rule made that regression fail; the corrected rule passes.
+
+## Compact label-only imports
+
+`test_label_only_import.py` covers single and multiple contacts, original subset numbers,
+differing missing-label sets, mixed creation/update/skip batches, repeated targets, ambiguity,
+conflicts, new labels, cancellation, noninteractive preview/apply, stale contacts, contact-specific
+failures, interruption cleanup, and redirected progress. A direct fake-transport PATCH independently
+checks that membership updates preserve contact details. Compact-review regressions failed before
+implementation. Existing merge tests retain full update/readback verification coverage.

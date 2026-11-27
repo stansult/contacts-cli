@@ -46,7 +46,9 @@ def test_skip_only_selected_and_keep_creation_approval(api, server, monkeypatch,
     assert cli.main(args) == 0 and server.writes == 0
     output = capsys.readouterr()
     assert "Skipped 1 unchanged input." in output.out
-    assert "Create 1 contact?" in output.err
+    assert "Contacts to create: 1" in output.out
+    assert "Already-complete inputs skipped: 1" in output.out
+    assert "Apply these changes?" in output.err
 
 
 @pytest.mark.parametrize("apply", [False, True])
@@ -125,7 +127,8 @@ def test_ineligible_inputs_keep_individual_review(api, server, monkeypatch, tmp_
     assert cli.main(args + (["--label", "New"] if kind == "label" else [])) == 0
     output = capsys.readouterr().out
     assert "Skip these inputs?" not in output
-    assert "Choice [s]" in output and server.writes == 0
+    assert ("Choose contacts to label" if kind == "label" else "Choice [s]") in output
+    assert server.writes == 0
 
 
 def test_multiple_unchanged_inputs_skipped_with_one_answer(

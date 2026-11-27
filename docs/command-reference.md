@@ -134,6 +134,13 @@ contacts and are created only after confirmation. `--apply` processes all input 
 selection or final confirmation, subject to duplicate review. Noninteractive runs without `--apply`
 only preview.
 
+When only labels are missing on an unambiguous, independent saved match, compact groups show
+labels once and preserve input numbers. Select `all`, numbers/ranges, or `s` to skip a group;
+`q` cancels the command. Final confirmation summarizes creations, label-only updates, information
+updates, and already-complete inputs skipped. Saving labels uses one progress counter and verified
+completion counts. Ambiguous matches and actual information changes retain detailed review.
+See [compact label-only imports](contact-input.md#compact-label-only-imports) for details.
+
 Before creation, saved contacts and input records are checked for matching names, emails, phones,
 or company-only identities. Single-part names alone do not qualify; structured names need first
 and last names, and full-text names need at least two words. Email and phone matches qualify

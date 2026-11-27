@@ -26,7 +26,11 @@ def test_overview_uses_original_input_numbers(api, server, monkeypatch, tmp_path
         server,
         monkeypatch,
         tmp_path,
-        [person(name="Unique"), person(name="Jane Doe"), person(name="Bob Smith")],
+        [
+            person(name="Unique"),
+            person(name="Jane Doe"),
+            person(name="Bob Smith", email="bob@example.com"),
+        ],
         [person(name="Jane Doe"), person(name="Jane Doe"), person(name="Bob Smith")],
         answers=["q"],
     )

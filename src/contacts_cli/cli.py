@@ -114,6 +114,7 @@ def parser() -> argparse.ArgumentParser:
             "Preview and select contacts before saving.\nPossible duplicates offer "
             "skip, merge, or create separately.\n"
             "A single-part name alone does not suggest a duplicate."
+            "\nLabel-only matches use compact numbered review."
         ),
     )
     creation.add_argument(

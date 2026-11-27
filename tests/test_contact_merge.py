@@ -433,7 +433,7 @@ def test_unchanged_details_still_plan_label_changes(
         monkeypatch,
         tmp_path,
         [incoming(server)],
-        ["n", "s"] if label_state == "present" else ["m", "y"],
+        ["n", "s"] if label_state == "present" else ["all", "y"],
     )
     assert cli.main(args + ["--label", "Test"]) == 0
     captured = capsys.readouterr()
@@ -442,9 +442,9 @@ def test_unchanged_details_still_plan_label_changes(
     if label_state == "present":
         assert "All selected inputs skipped" in output
     else:
-        assert "Contacts to update: 1 contact" in output
-        assert "Labels to add: Test" in output
-        assert "Contact details already present; requested labels will be added." in output
+        assert "Existing contacts to label: 1" in output
+        assert "Selected: add label Test:" in output
+        assert "1 contact labeled and verified" in output
         assert "nothing to merge" not in output
         assert "Apply these changes?" in output
 
@@ -521,7 +521,7 @@ def test_identical_inputs_still_confirm_one_creation(api, server, monkeypatch, t
 
 
 def test_label_only_cancel_creates_nothing(api, server, monkeypatch, tmp_path):
-    args = setup(api, server, monkeypatch, tmp_path, [incoming(server)], ["m", "n"])
+    args = setup(api, server, monkeypatch, tmp_path, [incoming(server)], ["all", "n"])
     before = deepcopy(server.person)
     assert cli.main(args + ["--label", "New"]) == 0
     assert server.writes == 0 and server.person == before and not server.groups
