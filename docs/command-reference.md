@@ -89,7 +89,8 @@ counter updates, without animation or control codes. These thresholds require no
 ./contacts-cli list-contact --search 'Jane'
 ./contacts-cli list-contact --search 'Jane Doe' --exact
 ./contacts-cli list-contact --search jane@example.com
-./contacts-cli list-contact --search '+1 202 555 0142'
+./contacts-cli list-contact --search '2025550142'
+./contacts-cli list-contact --search '+1 202 555 0142' --exact
 ./contacts-cli list-contact --search c123456789
 ```
 
@@ -97,16 +98,20 @@ counter updates, without animation or control codes. These thresholds require no
 Contacts URL. `list-contacts` is also accepted; help uses the singular form.
 Names match when they contain the search text, ignoring case and extra whitespace. For example,
 `Josh` finds `Josh`, `Josh Smith`, and `Joshua`; `Smith` also finds `Josh Smith`.
-Use `--exact` to require the complete name. This option changes only name matching.
+Use `--exact` to require the complete name or complete phone number.
 Company searches and wildcards are not supported; `*` is literal text.
 
-Email, phone, ID, and URL searches reuse the [contact lookup rules](#add-label) in both modes.
+Email, ID, and URL searches reuse the [contact lookup rules](#add-label) in both modes.
 Emails match completely, ignoring case. Other commands retain their existing matching behavior;
-partial names apply only to `list-contact`.
+partial names and phone suffixes apply only to `list-contact`.
 
-Phone lookup ignores formatting and an optional leading `+`, but preserves every base-number
-digit, including the country code. No country is inferred. Without an extension, all extensions
-of the same base number match; a supplied extension must match exactly.
+Phone lookup ignores formatting and an optional leading `+`. By default, the saved base number
+must end with the supplied digits: `2025550142` finds `+12025550142`, and `0142` finds both.
+This is suffix matching, not matching digits anywhere in the number. Short suffixes can return
+many contacts. No country is inferred. With `--exact`, every base-number digit must match,
+including any stored country code. A longer search never matches a shorter saved number.
+Without an extension, all extensions of matching base numbers are included; a supplied extension
+must match exactly in both modes. Extensions are never treated as part of the base-number suffix.
 
 All matching saved contacts appear in a numbered list with name, ID, first company, emails,
 and phones. A canonical phone form is omitted when it repeats the displayed number.

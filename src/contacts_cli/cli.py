@@ -93,17 +93,18 @@ def parser() -> argparse.ArgumentParser:
         "list-contact",
         help="Find saved contacts by name, email, phone, ID, or URL",
         description="List every matching contact without selection or changes.\n"
-        "Names contain the search text, ignoring case; use --exact for a complete name.",
+        "Names contain the search text; phones end with the supplied digits.\n"
+        "Use --exact for a complete name or phone number.",
     )
     contact_listing.add_argument(
         "--search",
         required=True,
-        help="Name text, complete email, phone (include country code), contact ID, or URL",
+        help="Name text, complete email, phone number or suffix, contact ID, or URL",
     )
     contact_listing.add_argument(
         "--exact",
         action="store_true",
-        help="Match the complete name; email, phone, ID, and URL rules stay unchanged",
+        help="Match the complete name or phone number (including country code)",
     )
     creation = commands.add_parser(
         "add-contact",

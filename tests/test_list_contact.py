@@ -1,4 +1,4 @@
-"""Read-only contact lookup offers partial names without broadening other identifiers."""
+"""Read-only contact lookup offers partial names and phone suffixes with exact opt-in."""
 
 from copy import deepcopy
 
@@ -33,8 +33,8 @@ def test_exact_lookup(query, count, exact, api, server, monkeypatch, capsys):
     _, _, baseline = setup(api, server, monkeypatch)
     before = deepcopy(server.person)
     assert cli.main(["list-contact", "--search", query] + (["--exact"] if exact else [])) == 0
-    if query == "Jane" and not exact:
-        count = 1
+    if not exact:
+        count = {"Jane": 1, "5550142": 2}.get(query, count)
     output = capsys.readouterr().out
     assert f"Matching contacts: {count} contact" in output
     if count:
@@ -160,3 +160,49 @@ def test_help_explains_partial_and_exact(capsys):
     output = " ".join(capsys.readouterr().out.split())
     assert "Names contain the search text" in output
     assert "--exact" in output and "complete name" in output
+
+
+@pytest.mark.parametrize(
+    "query,exact,expected",
+    [
+        ("2025550142", False, ["c123", "c456"]),
+        ("2025550142", True, ["c456"]),
+        ("(202) 555-0142 x42", False, ["c123"]),
+        ("(202) 555-0142 x42", True, []),
+        ("5550142 ext. 43", False, []),
+        ("5550142 x4", False, []),
+        ("+12025550142", False, ["c123"]),
+        ("12025550142", True, ["c123"]),
+        ("9912025550142", False, []),
+        ("1202555", False, []),
+        ("0142", False, ["c123", "c456"]),
+        ("2", False, ["c123", "c456"]),
+    ],
+)
+def test_phone_suffix_lookup(query, exact, expected, api, server, monkeypatch, capsys):
+    other, _, baseline = setup(api, server, monkeypatch)
+    before = deepcopy([server.person, other])
+    args = ["list-contacts", "--search", query] + (["--exact"] if exact else [])
+    assert cli.main(args) == 0
+    output = capsys.readouterr().out
+    assert f"Matching contacts: {len(expected)} contact" in output
+    for resource in ("c123", "c456"):
+        assert (f"({resource})" in output) == (resource in expected)
+    assert server.writes == baseline
+    assert [server.person, other] == before
+
+
+def test_phone_suffix_is_opt_in_for_shared_resolver():
+    from contacts_cli.contact_resolution import matches
+
+    person = {"phoneNumbers": [{"value": "+1 (202) 555-0142 x42"}]}
+    assert not matches(person, "phone", ("2025550142", ""))
+    assert matches(person, "phone", ("2025550142", ""), phone_suffix=True)
+
+
+def test_help_explains_phone_suffix(capsys):
+    with pytest.raises(SystemExit):
+        cli.main(["list-contact", "--help"])
+    output = " ".join(capsys.readouterr().out.split())
+    assert "phones end with the supplied digits" in output
+    assert "complete name or phone number" in output

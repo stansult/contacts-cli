@@ -925,6 +925,11 @@ contact-resolution fixture and the independently verified paginated contact-list
 New command tests failed before implementation; existing resolver tests retain label behavior.
 
 Partial-name lookup tests cover substring defaults, exact opt-in, first/last/structured names,
-case and whitespace, literal stars, unchanged email/phone/ID/URL rules in both modes, plural
+case and whitespace, literal stars, unchanged email/ID/URL rules, exact-phone lookup, plural
 routing, pagination, and no writes. New tests failed against exact-only listing before the change.
 Existing resolver tests verify that `add-label` still requires complete names.
+
+Phone-suffix tests cover countryless and shorter suffixes, formatting, complete-number mode,
+longer searches, non-suffix rejection, exact extension matching, multiple matches, and no writes.
+The shared resolver remains exact unless suffix matching is explicitly enabled by `list-contact`.
+Regression tests failed before implementation; existing add-label tests retain their matching rules.

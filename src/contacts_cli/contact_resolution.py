@@ -47,7 +47,7 @@ def identifier_kind(value):
     return "name", normalized(value)
 
 
-def matches(person, kind, value, *, partial_name=False):
+def matches(person, kind, value, *, partial_name=False, phone_suffix=False):
     if kind == "email":
         return any(
             address_key(e.get("value", "")) == value for e in person.get("emailAddresses", [])
@@ -55,7 +55,7 @@ def matches(person, kind, value, *, partial_name=False):
     if kind == "phone":
         return any(
             (saved := resolution_phone_key(e.get("value", ""))) is not None
-            and saved[0] == value[0]
+            and (saved[0].endswith(value[0]) if phone_suffix else saved[0] == value[0])
             and (not value[1] or saved[1] == value[1])
             for e in person.get("phoneNumbers", [])
         )

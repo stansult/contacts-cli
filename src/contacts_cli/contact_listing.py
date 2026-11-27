@@ -30,7 +30,7 @@ def run_list_contacts(api, kind, value, *, exact=False):
             people = [
                 person
                 for person in read_match_contacts(api)
-                if matches(person, kind, value, partial_name=not exact)
+                if matches(person, kind, value, partial_name=not exact, phone_suffix=not exact)
             ]
     people.sort(key=lambda person: (normalized(describe_contact(person)), person["resourceName"]))
     emit_list(
