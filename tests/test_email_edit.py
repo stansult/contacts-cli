@@ -415,7 +415,7 @@ def test_plural_edit_alias_and_no_existing_list(connected, server, capsys, actio
 
 def test_list_input_and_help(monkeypatch, capsys):
     monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: pytest.fail("network"))
-    assert cli.main(["list-email", "--contact", "invalid"]) == 1
+    assert cli.main(["list-email", "--contact", "https://example.com/not-a-contact"]) == 1
     for extra in [[], ["--contact", "people/c123", "--apply"]]:
         with pytest.raises(SystemExit) as error:
             cli.main(["list-emails", *extra])

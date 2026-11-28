@@ -17,8 +17,10 @@ synchronized with the implementation.
 - `api.py` handles Google requests, conflict protection, and shared update verification;
   `auth.py` handles OAuth setup and token storage.
 - `contact_resolution.py` compiles reusable `ContactFilters` and evaluates AND matching without
-  prompts or writes. `list-contact` owns label spelling choices and result presentation; existing
-  write-command identifier matching remains unchanged.
+  prompts or writes. `list-contact` owns filter spelling choices and result presentation.
+  `resolve_single_contact` reuses complete-identifier matching before single-target command
+  dispatch; `resolve_contacts` keeps the multiple-target `add-label` workflow. IDs bypass scans.
+  Command modules retain target reads, preview, write protection, and verification.
 - `label_data.py` shares paginated label reads, membership validation, active-user filtering, and
   identity validation across listing, creation, and removal. Command modules own matching and
   presentation.

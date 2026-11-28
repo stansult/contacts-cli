@@ -9,7 +9,7 @@ from .core import address_key, contact_resource
 from .errors import ContactFailure, SyncError
 from .output import emit, emit_list
 from .progress import StageProgress
-from .selection import select_numbers
+from .selection import select_numbers, select_one
 
 
 def load_identifiers(contact=None, file=None):
@@ -272,3 +272,34 @@ def read_resolved_contact(api, resource, fields):
         # get_contact uses ContactFailure only for an explicit not-found response.
         emit(f"Skipped {resource.split('/')[-1]!r}: contact not found.")
         return None
+
+
+def resolve_single_contact(api, identifier):
+    """Resolve one exact identifier; IDs bypass the scan, ambiguity never chooses implicitly."""
+    original = load_identifiers(identifier)[0]
+    kind, value = identifier_kind(original)
+    if kind == "id":
+        return value
+    with StageProgress() as progress:
+        progress.start("Reading contacts for matching")
+        candidates = [p for p in read_match_contacts(api) if matches(p, kind, value)]
+    if not candidates:
+        raise SyncError(f"No saved contact matches {original!r}; no changes made.")
+    if len(candidates) == 1:
+        return candidates[0]["resourceName"]
+    # Reuse the read-only listing's details to distinguish contacts sharing a name or phone.
+    from .contact_listing import contact_row
+
+    candidates.sort(key=lambda p: (normalized(describe_contact(p)), p["resourceName"]))
+    emit_list(
+        f"Multiple contacts match {original!r}",
+        [(n, contact_row(p)) for n, p in enumerate(candidates, 1)],
+        unit=("contact", "contacts"),
+    )
+    if not all(stream.isatty() for stream in (sys.stdin, sys.stdout, sys.stderr)):
+        raise SyncError(
+            "Multiple contacts match; use a contact ID or rerun interactively. No changes made."
+        )
+    emit("", primary=False)
+    selected = select_one(range(1, len(candidates) + 1), noun="contact")
+    return candidates[selected - 1]["resourceName"] if selected is not None else None

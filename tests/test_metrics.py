@@ -121,7 +121,18 @@ def test_storage_failure_does_not_change_result(api, monkeypatch, tmp_path, caps
 def test_failed_run_and_summary(api, monkeypatch):
     monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: api)
     assert cli.main(ARGS) == 0
-    assert cli.main(["sender-sync", "--label", "private-label", "--contact", "bad-id"]) == 1
+    assert (
+        cli.main(
+            [
+                "sender-sync",
+                "--label",
+                "private-label",
+                "--contact",
+                "https://example.com/not-a-contact",
+            ]
+        )
+        == 1
+    )
     rows = records()
     assert rows[1]["outcome"] == "failed" and rows[1]["api"] == {}
     assert "private-label" not in metrics.default_path().read_text()

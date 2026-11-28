@@ -1538,3 +1538,25 @@ runs the formatter from a clean wheel installation to verify its dependency is i
 The initial CLI cases failed before implementation. Temporarily bypassing the verification callback
 made both damaged-response/readback tests fail; restoring it makes them pass. Tests use synthetic
 contacts and local fixtures, with no live Google writes.
+
+## Single-contact lookup across commands
+
+`tests/test_single_contact_lookup.py` covers all twelve single-contact command routes using a
+resolved name, missing targets, cancellation before target reads, and help text. Actual reads and
+email writes verify complete name/email/phone lookup, extension ambiguity, later-page matches,
+ID/URL compatibility without account scans, and writing only the chosen target.
+
+Ambiguous `--apply` requires one contact; redirected ambiguity errors. Choosing a contact does not
+approve a write. Empty input, bulk syntax, out-of-range choices, EOF, lookup failures, and malformed
+identifiers have explicit coverage. The independent `select_one` contract rejects lists/ranges and
+numbers absent from the displayed set. Existing resolver tests retain multiple-contact `add-label`
+coverage; command-specific suites retain concurrency and post-write verification coverage.
+
+The initial tests produced 36 failures before integration. A temporary fault that automatically
+picked the first ambiguous match caused all 16 ambiguity/apply/cancellation cases to fail; the fault
+was restored before the final suites. Lookup reuses the existing paginated matching-field read.
+
+Four older invalid-ID tests now use malformed URLs because plain words are valid name queries.
+The timestamp test also explicitly blocks authorization; a controlled valid-name input proves that
+this guard fails before account access. The guard closes a gap exposed during the first suite run,
+when the formerly invalid word reached live read-only lookup. No Google writes occurred.

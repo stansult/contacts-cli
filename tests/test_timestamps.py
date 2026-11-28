@@ -60,13 +60,14 @@ def test_terminal_final_counter_and_shared_stream_date(terminal):
     assert other.getvalue() == "[01:02:04] Proposed additions: 9\n  example@example.com\n"
 
 
-def test_help_is_undecorated_and_error_is_timestamped(capsys):
+def test_help_is_undecorated_and_error_is_timestamped(capsys, monkeypatch):
+    monkeypatch.setattr(cli, "connect_with_authorization", lambda *a: pytest.fail("authorization"))
     with pytest.raises(SystemExit) as result:
         cli.main(["--help"])
     assert result.value.code == 0
     help_text = capsys.readouterr().out
     assert help_text == undecorated(help_text)
-    assert cli.main(["duplicate", "--contact", "bad"]) == 1
+    assert cli.main(["duplicate", "--contact", "https://example.com/not-a-contact"]) == 1
     error = capsys.readouterr().err
     assert re.match(r"\[\d{4}-\d{2}-\d{2}\]\n\[\d{2}:\d{2}:\d{2}\] Error:", error)
 

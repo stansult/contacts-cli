@@ -40,9 +40,33 @@ and a direct link to the detailed section below. A subcommand is required.
 
 ## Contact identifiers
 
-Commands targeting an existing contact accept a Google Contacts URL or the bare ID `c123456789`.
-The ID is the final part of the website URL, after `/person/`. Other than `list-contact` and
-`add-label`, commands do not support name lookup.
+Single-contact commands accept a Google Contacts URL, bare ID, full name, email, or complete
+phone number through `--contact`. This applies to email, phone, custom-field commands,
+`duplicate`, `sender-sync`, and contact-specific `list-label` and `remove-label`.
+
+- Names match completely, ignoring case and extra whitespace; a one-word saved name can match.
+- Emails match completely, ignoring case.
+- Phones ignore punctuation and an optional leading `+`, but require all base-number digits.
+  No country is guessed. An extension restricts the match to that extension; omitting it can
+  match several contacts sharing a base number.
+- One match continues to the command's normal preview. Multiple matches show identifying
+  details and require exactly one displayed number, or `q` to cancel. Enter, `all`, lists, and
+  ranges do not select a contact. End-of-input cancels.
+- No match returns an error without changes. Noninteractive ambiguous lookup also errors,
+  including with `--apply`; use an ID to resolve the ambiguity.
+- Selecting a contact does not approve a write. Normal confirmation, `--apply`, concurrent-edit
+  protection, and verification still apply to the selected contact.
+
+IDs and URLs avoid the account-wide matching read. The ID is the final part of the website URL,
+after `/person/`, such as `c123456789`. Other identifiers read saved matching fields once, then
+the command reads full target details as usual. Company and label filters and partial lookup
+remain in `list-contact`; `add-label` retains its existing multiple-contact resolution.
+
+```sh
+./contacts-cli list-email --contact 'Jane Example'
+./contacts-cli format-phone --contact jane@example.com
+./contacts-cli remove-label --contact '+1 202-555-0142' --label Test
+```
 For compatibility, `people/c123456789` is also accepted: `people/` is Google's People API resource
 prefix, not part of the website URL.
 
@@ -838,7 +862,7 @@ display name remains visible. This affects presentation only; saved contact data
 ./contacts-cli remove-phone --contact c123456789 --duplicates --apply
 ```
 
-Both commands require a contact URL or ID. Silent plural aliases `list-phones` and
+Both commands require a [contact identifier](#contact-identifiers). Silent plural aliases `list-phones` and
 `remove-phones` are accepted. `remove-phone` currently requires `--duplicates`; removal by
 number, patterns, and input files is not supported. There is no `add-phone` command yet.
 
@@ -973,7 +997,8 @@ numbers without an extension. Multiple matching contacts require selection. Supp
 to require that exact extension: `12025550142 x42` matches the example above, while
 `12025550142 x43` does not. `12025550142` also matches it; `2025550142` does not.
 No country is inferred; `00` is not converted to `+`.
-This lookup rule applies to `add-label`; import duplicate matching is unchanged.
+The same complete-identifier rules apply to single-contact commands. Import duplicate matching
+is unchanged.
 Names, emails, and phones use one paginated read of saved contacts; IDs avoid that account-wide read.
 Company-only lookup is not supported; use an ID, email, or phone for an unnamed company contact.
 

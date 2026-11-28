@@ -141,7 +141,12 @@ def test_server_error_write_outcome_unknown():
 def test_bad_contact_does_not_connect(monkeypatch):
     connection = Mock()
     monkeypatch.setattr(cli, "connect", connection)
-    assert cli.main(["sender-sync", "--label", "Example", "--contact", "bad"]) == 1
+    assert (
+        cli.main(
+            ["sender-sync", "--label", "Example", "--contact", "https://example.com/not-a-contact"]
+        )
+        == 1
+    )
     connection.assert_not_called()
 
 

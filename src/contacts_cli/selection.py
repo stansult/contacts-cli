@@ -119,3 +119,22 @@ def review_address_additions(rows):
         ),
         action="Add selected addresses",
     )
+
+
+def select_one(numbers, *, noun="contact"):
+    """Choose exactly one displayed number, or cancel; no implicit default or bulk choice."""
+    numbers = set(numbers)
+    emit(f"Choose one {noun} by number, or q to cancel:")
+    while True:
+        emit("Selection: ", end="", primary=False)
+        try:
+            answer = read_input().strip()
+        except EOFError:
+            return None
+        finally:
+            emit("", primary=False)
+        if answer.casefold() == "q":
+            return None
+        if re.fullmatch(r"[0-9]+", answer) and int(answer) in numbers:
+            return int(answer)
+        emit("Enter one displayed number, or q to cancel.")

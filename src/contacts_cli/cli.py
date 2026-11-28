@@ -159,7 +159,9 @@ def parser() -> argparse.ArgumentParser:
     )
     duplicate = commands.add_parser("duplicate", help="Preview or create a copy of a contact")
     duplicate.add_argument(
-        "--contact", required=True, help="Google Contacts URL or bare ID such as c123456789"
+        "--contact",
+        required=True,
+        help="Contact URL, ID, full name, email, or complete phone number",
     )
     for option, label in (
         ("name", "name"),
@@ -211,7 +213,9 @@ def parser() -> argparse.ArgumentParser:
         "--search", help="Find sender addresses in messages matching this Gmail search"
     )
     sync.add_argument(
-        "--contact", required=True, help="Google Contacts URL or bare ID such as c123456789"
+        "--contact",
+        required=True,
+        help="Contact URL, ID, full name, email, or complete phone number",
     )
     sync.add_argument(
         "--apply",
@@ -247,7 +251,9 @@ def parser() -> argparse.ArgumentParser:
     )
     listing = commands.add_parser("list-email", help="List a contact's existing email entries")
     listing.add_argument(
-        "--contact", required=True, help="Google Contacts URL or bare ID such as c123456789"
+        "--contact",
+        required=True,
+        help="Contact URL, ID, full name, email, or complete phone number",
     )
     editing = []
     for action in ("add", "remove"):
@@ -264,7 +270,7 @@ def parser() -> argparse.ArgumentParser:
         command.add_argument(
             "--contact",
             required=True,
-            help="Google Contacts URL or bare ID such as c123456789",
+            help="Contact URL, ID, full name, email, or complete phone number",
         )
         inputs = command.add_argument_group("Email inputs (at least one required)")
         if action == "remove":
@@ -331,7 +337,11 @@ def parser() -> argparse.ArgumentParser:
                 "when available.\nDifferent extensions stay separate; no country is guessed."
             ),
         )
-        command.add_argument("--contact", required=True, help="Google Contacts URL or bare ID")
+        command.add_argument(
+            "--contact",
+            required=True,
+            help="Contact URL, ID, full name, email, or complete phone number",
+        )
         if action == "remove":
             command.add_argument(
                 "--duplicates",
@@ -351,7 +361,8 @@ def parser() -> argparse.ArgumentParser:
     )
     label_listing.add_argument(
         "--contact",
-        help="Google Contacts URL or bare ID; omit for all account labels with contact counts",
+        help="Contact URL, ID, full name, email, or complete phone number; "
+        "omit for all account labels with contact counts",
     )
     label_commands = [label_listing]
     for action in ("add", "remove"):
@@ -379,7 +390,7 @@ def parser() -> argparse.ArgumentParser:
             help=(
                 "Contact URL, ID, full name, email, or phone; omit to create account labels"
                 if action == "add"
-                else "Google Contacts URL or bare ID"
+                else "Contact URL, ID, full name, email, or complete phone number"
             ),
         )
         if action == "add":
@@ -421,7 +432,11 @@ def parser() -> argparse.ArgumentParser:
                 else None
             ),
         )
-        custom.add_argument("--contact", required=True, help="Google Contacts URL or bare ID")
+        custom.add_argument(
+            "--contact",
+            required=True,
+            help="Contact URL, ID, full name, email, or complete phone number",
+        )
         if action == "add":
             custom.add_argument(
                 "--field",
@@ -1069,7 +1084,10 @@ def run_command(args):
             return 0
         # Reject bad input before touching credentials or the network.
         if args.contact is not None and args.command != "add-label":
-            contact_resource(args.contact)
+            from .contact_resolution import identifier_kind, load_identifiers
+
+            args.contact = load_identifiers(args.contact)[0]
+            identifier_kind(args.contact)
         if args.command == "add-custom-field":
             for number, (key, value) in enumerate(args.field, 1):
                 text_value(key, f"--field #{number} key")
@@ -1152,6 +1170,14 @@ def run_command(args):
         if api is None:
             return 1
         api.write_started = False
+        if args.contact is not None and args.command != "add-label":
+            from .contact_resolution import resolve_single_contact
+
+            args.contact = resolve_single_contact(api, args.contact)
+            if args.contact is None:
+                emit("Cancelled; no changes made.")
+                outcome("cancelled")
+                return 0
         if args.command in {"add-custom-field", "remove-custom-field"}:
             return run_custom_field(args, api, confirm_apply, contact_heading)
         if args.command == "list-label":

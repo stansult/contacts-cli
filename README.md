@@ -25,6 +25,9 @@ Later commands reuse the saved authorization. Local file validation needs no Goo
 
 - Replace the example values below with your own. `--contact` accepts a Google Contacts URL such
   as `https://contacts.google.com/person/c123456789` or its bare ID, `c123456789`.
+  Single-contact commands also accept a full name, email, or complete phone number through
+  `--contact`. Multiple matches require choosing one contact before continuing; partial lookup
+  remains in `list-contact`. See [contact identifiers](docs/command-reference.md#contact-identifiers).
 - Commands that change contacts or labels show a preview and ask for confirmation. With multiple
   choices, contact creation, sender-sync, email edits, custom-field edits, and label removal offer
   selection by number/range. Ranges include displayed items within their bounds, skipping gaps;
