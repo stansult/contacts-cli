@@ -24,7 +24,7 @@ from .core import (
 from .deadline import DeadlineHTTP, read_budget
 from .duplicate import READ_FIELDS, download_photo, verify_duplicate
 from .error_logs import save_http_error, save_malformed_message, save_verification_error
-from .errors import ContactFailure, SyncError, WriteUnverified
+from .errors import ContactFailure, ContactVerificationFailure, SyncError, WriteUnverified
 from .metrics import ACTIVE, counts, execute_measured
 from .quota import PeopleQuota, with_quota
 
@@ -386,7 +386,7 @@ class GoogleAPI:
         if contact_source(latest) != contact_source(person) or json.dumps(
             latest.get(field, []), sort_keys=True
         ) != json.dumps(person.get(field, []), sort_keys=True):
-            raise SyncError("Contact changed since preview; no update made. Rerun preview.")
+            raise ContactFailure("Contact changed since preview; no update made. Rerun preview.")
         result = self.write(
             self.people.people().updateContact(
                 resourceName=person["resourceName"],
@@ -414,7 +414,12 @@ class GoogleAPI:
                     expected=body.get("emailAddresses", []),
                     saved=saved,
                 )
-            raise WriteUnverified(
+            error = (
+                ContactVerificationFailure
+                if isinstance(exc, ContactVerificationFailure)
+                else WriteUnverified
+            )
+            raise error(
                 f"Update was submitted but verification failed ({stage}): {exc}\n"
                 "Inspect a new preview."
             ) from exc

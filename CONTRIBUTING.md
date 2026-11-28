@@ -19,7 +19,10 @@ synchronized with the implementation.
 - `contact_resolution.py` compiles reusable `ContactFilters` and evaluates AND matching without
   prompts or writes. `list-contact` owns filter spelling choices and result presentation.
   `resolve_single_contact` reuses complete-identifier matching before single-target command
-  dispatch; `resolve_contacts` keeps the multiple-target `add-label` workflow. IDs bypass scans.
+  dispatch; `resolve_contacts` supplies multiple-target lookup for `add-label` and `format-phone`.
+  `load_batch_identifiers` combines repeatable inputs with shared file parsing. IDs bypass scans.
+  Follow the [shared batch contract](docs/batch-contacts.md); its introduction distinguishes
+  implemented behavior from deferred alignment.
   Command modules retain target reads, preview, write protection, and verification.
 - `label_data.py` shares paginated label reads, membership validation, active-user filtering, and
   identity validation across listing, creation, and removal. Command modules own matching and

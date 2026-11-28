@@ -1560,3 +1560,23 @@ Four older invalid-ID tests now use malformed URLs because plain words are valid
 The timestamp test also explicitly blocks authorization; a controlled valid-name input proves that
 this guard fails before account access. The guard closes a gap exposed during the first suite run,
 when the formerly invalid word reached live read-only lookup. No Google writes occurred.
+
+## Batch phone formatting
+
+`tests/test_batch_phone_format.py` covers repeatable inline identifiers, combined UTF-8/BOM files,
+input validation before authorization, shared file-parser behavior, one matching scan, overlapping
+identifier deduplication, ambiguity selection/skip/cancel, missing contacts, and successful no-ops.
+Grouped phone-entry selection preserves global numbers and gaps, supports returning to selection,
+and keeps unselected contacts and fields unchanged. EOF and noninteractive preview never write.
+
+Every target is read and every proposed update passes local size guards before any write. The
+existing phone-only HTTP fixture contract and installed formatter checks remain applicable.
+Tests exercise real stale-preview checks and both response/readback content verification: a
+contact-specific failure continues, while readback connection failure stops with an unverified
+result. Injected explicit rejection, shared error, unknown write outcome, interruption before/after
+write, and later-contact failure verify counts, exit status, and preservation of completed work.
+
+Initial batch tests failed 16 cases before implementation. Temporarily removing contact-specific
+failure classification caused three stale/response/readback continuation tests to fail; the
+classification was restored. The existing single-lookup missing-target test now reflects
+`format-phone`'s batch skip behavior; other single-contact commands still error on no match.

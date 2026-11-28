@@ -12,17 +12,23 @@ from .progress import StageProgress
 from .selection import select_numbers, select_one
 
 
+def file_identifiers(file):
+    """Read shared UTF-8 identifier-list syntax without account access."""
+    try:
+        lines = Path(file).read_text(encoding="utf-8-sig").splitlines()
+    except (OSError, UnicodeError) as exc:
+        raise SyncError(f"Could not read contact file: {exc}") from exc
+    return [line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")]
+
+
 def load_identifiers(contact=None, file=None):
-    if file is not None:
-        try:
-            lines = Path(file).read_text(encoding="utf-8-sig").splitlines()
-        except (OSError, UnicodeError) as exc:
-            raise SyncError(f"Could not read contact file: {exc}") from exc
-        values = [
-            line.strip() for line in lines if line.strip() and not line.lstrip().startswith("#")
-        ]
-    else:
-        values = [contact.strip()] if contact is not None else []
+    values = (
+        file_identifiers(file)
+        if file is not None
+        else [contact.strip()]
+        if contact is not None
+        else []
+    )
     if not values or any(not value or any(ord(c) < 32 for c in value) for value in values):
         raise SyncError("Supply at least one nonempty contact identifier, one per line.")
     return list(dict.fromkeys(values))
@@ -303,3 +309,19 @@ def resolve_single_contact(api, identifier):
     emit("", primary=False)
     selected = select_one(range(1, len(candidates) + 1), noun="contact")
     return candidates[selected - 1]["resourceName"] if selected is not None else None
+
+
+def load_batch_identifiers(contacts=None, file=None):
+    """Combine repeatable inline targets and one file, validating before account access."""
+    values = list(contacts or [])
+    if file is not None:
+        values.extend(file_identifiers(file))
+    if not values:
+        raise SyncError("Supply --contact or a nonempty --contact-file.")
+    result = []
+    for value in values:
+        value = load_identifiers(value)[0]
+        identifier_kind(value)
+        if value not in result:
+            result.append(value)
+    return result

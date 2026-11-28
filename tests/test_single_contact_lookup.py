@@ -46,8 +46,14 @@ def test_command_resolution(command, options, api, server, monkeypatch):
 def test_missing_target_blocks_command(command, options, api, server, monkeypatch, capsys):
     _, _, baseline = setup(api, server, monkeypatch)
     monkeypatch.setattr(api, "get_contact", lambda *a: pytest.fail("command read"))
-    assert cli.main([command, "--contact", "Missing Person", *options]) == 1
-    assert "No saved contact matches" in capsys.readouterr().err
+    assert cli.main([command, "--contact", "Missing Person", *options]) == (
+        0 if command == "format-phone" else 1
+    )
+    output = capsys.readouterr()
+    if command == "format-phone":
+        assert "Unmatched inputs" in output.out
+    else:
+        assert "No saved contact matches" in output.err
     assert server.writes == baseline
 
 

@@ -123,10 +123,6 @@ def run_phone(args, api, confirm, heading):
     if args.command == "list-phone":
         emit_list("Phone numbers", phone_rows(entries))
         return 0
-    if args.command == "format-phone":
-        from .phone_format import run_format_phone
-
-        return run_format_phone(args, api, person, entries, confirm)
     candidates, kept = duplicate_phones(entries)
     if not candidates:
         emit("No duplicate phone entries found; no changes made.")

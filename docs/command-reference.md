@@ -9,6 +9,7 @@ or `[Y/n]`, with the capital letter indicating the Enter default.
 ## Contents
 
 - [Running the CLI](#running-the-cli), [contact identifiers](#contact-identifiers),
+  [multiple-contact rules](batch-contacts.md),
   [confirmation and conflicts](#previews-confirmation-and-conflicts),
   [numbered selections](#numbered-selections), [output](#output-and-timestamps)
 - [List-contact](#list-contact), [Add-contact](#add-contact), [duplicate](#duplicate-a-contact), [sender-sync](#sender-sync-preview-and-apply)
@@ -41,8 +42,9 @@ and a direct link to the detailed section below. A subcommand is required.
 ## Contact identifiers
 
 Single-contact commands accept a Google Contacts URL, bare ID, full name, email, or complete
-phone number through `--contact`. This applies to email, phone, custom-field commands,
-`duplicate`, `sender-sync`, and contact-specific `list-label` and `remove-label`.
+phone number through `--contact`. This applies to email, `list-phone`, `remove-phone`, custom-field
+commands, `duplicate`, `sender-sync`, and contact-specific `list-label` and `remove-label`.
+`format-phone` and `add-label` support [multiple-contact resolution](batch-contacts.md).
 
 - Names match completely, ignoring case and extra whitespace; a one-word saved name can match.
 - Emails match completely, ignoring case.
@@ -906,11 +908,20 @@ Verification failures report an unverified update; they do not retry the write.
 
 ```sh
 ./contacts-cli format-phone --contact c123456789
-./contacts-cli format-phone --contact c123456789 --apply
+./contacts-cli format-phone --contact 'Jane Example' --contact c123456789
+./contacts-cli format-phone --contact-file contacts.txt
+./contacts-cli format-phone --contact c123456789 --contact-file contacts.txt --apply
 ```
 
-Standardizes phone values on one contact. The silent plural alias `format-phones` is accepted.
-There is no `--format` option on other commands.
+Standardizes phone values on one or more contacts. Repeat `--contact`, supply one `--contact-file`,
+or combine them. Files use the [shared identifier-list format](batch-contacts.md#inputs-and-matching).
+Inline inputs precede file entries. IDs, URLs, full names, emails, and complete phones are accepted.
+Resolved contacts are deduplicated, so overlapping inputs never update a contact twice.
+The silent plural alias `format-phones` is accepted. There is no `--format` option on other commands.
+
+Ambiguous identifiers offer one, several, or all matching contacts; `s` skips the identifier and
+`q` cancels the command. Unmatched identifiers and missing IDs are reported and skipped.
+Noninteractive ambiguity stops before writes, even with `--apply`.
 
 ### Formatting rules
 
@@ -926,13 +937,23 @@ There is no `--format` option on other commands.
 
 ### Review and saving
 
-The preview shows each proposed value before and after formatting. Numbers retain their original
-positions in the contact's phone list, including gaps. Unchanged entries with a skip reason are
-informational and cannot be selected.
+All contacts are read and planned before saving. The preview groups before/after changes under
+stable contact headings. Selectable numbers refer to phone entries, not contacts: entry numbering
+continues across contacts, counting unchanged entries too, so gaps are expected. On one contact,
+these remain its original phone positions. Unsupported entries are informational; contacts needing
+no changes appear separately.
 
-Choose all or individual numbers/ranges, then confirm. A single change uses a yes/no question.
-Noninteractive runs without `--apply` only preview; `--apply` saves all proposed formatting.
-Already formatted entries need no write, so rerunning is a no-op when all entries are standardized.
+Choose all or individual phone-entry numbers/ranges, then confirm once for the selected batch.
+A single change uses a yes/no question. Noninteractive runs without `--apply` only preview;
+`--apply` saves all proposed formatting. Already formatted entries need no write.
+
+Saving updates each selected contact once and reports progress out of the selected contact count.
+Explicit contact rejection, stale previews, or contact-specific verification mismatches are reported
+and other contacts continue. Connection, authorization, unrecovered quota, uncertain write outcomes,
+and interruption stop the batch. A failed verification read is an uncertain result, not a safe retry.
+The completion summary separates verified, failed, unverified, and unattempted contacts, plus unchanged,
+unselected, and missing contacts. Any failure returns nonzero; completed changes remain saved.
+See [shared outcomes](batch-contacts.md#saving-and-outcomes).
 
 Formatting preserves labels, primary choices, duplicate occurrences, and unrelated fields; it
 never removes duplicate numbers. Saving uses the same reread, concurrent-edit protection, and

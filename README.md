@@ -25,9 +25,9 @@ Later commands reuse the saved authorization. Local file validation needs no Goo
 
 - Replace the example values below with your own. `--contact` accepts a Google Contacts URL such
   as `https://contacts.google.com/person/c123456789` or its bare ID, `c123456789`.
-  Single-contact commands also accept a full name, email, or complete phone number through
-  `--contact`. Multiple matches require choosing one contact before continuing; partial lookup
-  remains in `list-contact`. See [contact identifiers](docs/command-reference.md#contact-identifiers).
+  Contact lookup also accepts a full name, email, or complete phone number through
+  `--contact`. Multiple matches require selection; partial lookup remains in `list-contact`.
+  See [contact identifiers](docs/command-reference.md#contact-identifiers).
 - Commands that change contacts or labels show a preview and ask for confirmation. With multiple
   choices, contact creation, sender-sync, email edits, custom-field edits, and label removal offer
   selection by number/range. Ranges include displayed items within their bounds, skipping gaps;
@@ -192,11 +192,15 @@ unchanged. See [phone details](docs/command-reference.md#list-phone-and-remove-p
 ## Format phone numbers
 
 ```sh
-./contacts-cli format-phone --contact c123456789
+./contacts-cli format-phone --contact c123456789 --contact 'Jane Example'
+./contacts-cli format-phone --contact-file contacts.txt
 ```
 
-Previews readable international formatting, such as `+1 202-555-0142 ext. 42`. Select entries
-and confirm, or use `--apply` for all proposed changes. Labels and duplicates stay intact.
+Repeat `--contact`, use a file with one identifier per line, or combine both. Overlapping inputs
+process each contact once. The preview shows readable international formatting, such as
+`+1 202-555-0142 ext. 42`. Select entries across contacts and confirm once, or use `--apply`
+for all proposed changes. Labels and duplicates
+stay intact. Missing contacts are skipped; ambiguous matches require selection.
 Numbers without a known country code remain unchanged.
 See [formatting rules](docs/command-reference.md#format-phone).
 

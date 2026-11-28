@@ -331,7 +331,8 @@ def parser() -> argparse.ArgumentParser:
             }[action],
             description=(
                 "Preview readable international formatting with ext. N for extensions.\n"
-                "Ambiguous numbers stay unchanged; select changes before saving."
+                "Select phone changes across contacts, then confirm once.\n"
+                "Ambiguous numbers stay unchanged."
                 if action == "format"
                 else "Phone duplicates ignore formatting and use Google's canonical number "
                 "when available.\nDifferent extensions stay separate; no country is guessed."
@@ -339,9 +340,17 @@ def parser() -> argparse.ArgumentParser:
         )
         command.add_argument(
             "--contact",
-            required=True,
-            help="Contact URL, ID, full name, email, or complete phone number",
+            required=action != "format",
+            action="append" if action == "format" else "store",
+            help="Contact URL, ID, full name, email, or complete phone number"
+            + (" (repeatable; combines with --contact-file)" if action == "format" else ""),
         )
+        if action == "format":
+            command.add_argument(
+                "--contact-file",
+                type=Path,
+                help="UTF-8 identifiers, one per line; combines with --contact",
+            )
         if action == "remove":
             command.add_argument(
                 "--duplicates",
@@ -353,7 +362,8 @@ def parser() -> argparse.ArgumentParser:
             command.add_argument(
                 "--apply",
                 action="store_true",
-                help="Save all proposed changes without confirmation",
+                help="Save all proposed changes without final confirmation"
+                + ("; ambiguous contacts still prompt" if action == "format" else ""),
             )
         phone_commands.append(command)
     label_listing = commands.add_parser(
@@ -1083,11 +1093,15 @@ def run_command(args):
             emit("Authorization saved. Future sync runs use the saved token without a browser.")
             return 0
         # Reject bad input before touching credentials or the network.
-        if args.contact is not None and args.command != "add-label":
+        if args.contact is not None and args.command not in {"add-label", "format-phone"}:
             from .contact_resolution import identifier_kind, load_identifiers
 
             args.contact = load_identifiers(args.contact)[0]
             identifier_kind(args.contact)
+        if args.command == "format-phone":
+            from .contact_resolution import load_batch_identifiers
+
+            args.contact_identifiers = load_batch_identifiers(args.contact, args.contact_file)
         if args.command == "add-custom-field":
             for number, (key, value) in enumerate(args.field, 1):
                 text_value(key, f"--field #{number} key")
@@ -1170,7 +1184,11 @@ def run_command(args):
         if api is None:
             return 1
         api.write_started = False
-        if args.contact is not None and args.command != "add-label":
+        if args.command == "format-phone":
+            from .phone_format import run_format_contacts
+
+            return run_format_contacts(args, api, confirm_apply)
+        if args.contact is not None and args.command not in {"add-label", "format-phone"}:
             from .contact_resolution import resolve_single_contact
 
             args.contact = resolve_single_contact(api, args.contact)
@@ -1184,7 +1202,7 @@ def run_command(args):
             return run_list_labels(args, api, contact_heading)
         if args.command in {"add-label", "remove-label"}:
             return run_label_edit(args, api, confirm_apply, contact_heading)
-        if args.command in {"list-phone", "remove-phone", "format-phone"}:
+        if args.command in {"list-phone", "remove-phone"}:
             from .phone_edit import run_phone
 
             return run_phone(args, api, confirm_apply, contact_heading)

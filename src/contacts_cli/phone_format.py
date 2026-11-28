@@ -6,9 +6,11 @@ from copy import deepcopy
 import phonenumbers
 
 from .contact_matches import phone_key
+from .contact_resolution import describe_contact, resolve_contacts
 from .core import field_update_body
+from .errors import ContactFailure, ContactVerificationFailure, SyncError, WriteUnverified
 from .output import emit, emit_list
-from .phone_edit import phone_text, verify_phones
+from .phone_edit import phone_entries, phone_text, verify_phones
 from .selection import review_selection
 
 
@@ -43,77 +45,190 @@ def formatted_phone(entry):
     return value, None
 
 
-def run_format_phone(args, api, person, entries, confirm):
+def formatting_plan(person, start):
+    """Keep global entry numbers, including gaps, and preserve unselected occurrences."""
+    entries = phone_entries(person)
     changes, skipped = {}, []
-    for number, entry in enumerate(entries, 1):
+    for n, entry in enumerate(entries, start):
         value, reason = formatted_phone(entry)
         if reason:
-            skipped.append((number, f"{phone_text(entry)} — {reason}"))
+            skipped.append((n, f"{phone_text(entry)} — {reason}"))
         elif value != entry["value"]:
-            replacement = deepcopy(entry)
-            replacement["value"] = value
-            changes[number] = replacement
-    choices = [
-        (number, f"{phone_text(entries[number - 1])}\n     To: {phone_text(entry)}")
-        for number, entry in changes.items()
+            changes[n] = dict(deepcopy(entry), value=value)
+    return {
+        "person": person,
+        "entries": entries,
+        "start": start,
+        "changes": changes,
+        "skipped": skipped,
+    }
+
+
+def formatted_values(plan, selected):
+    return [
+        deepcopy(plan["changes"][n] if n in selected else entry)
+        for n, entry in enumerate(plan["entries"], plan["start"])
     ]
-    if choices:
-        emit_list("Formatting phones" if args.apply else "Proposed phone formatting", choices)
-    if skipped:
-        emit("", primary=False)
-        emit_list(
-            "Left unchanged",
-            skipped,
-            note="Informational only; these numbers cannot be selected." if choices else None,
+
+
+def plan_rows(plan, selected):
+    return [
+        (n, f"{phone_text(plan['entries'][n - plan['start']])}\n     To: {phone_text(entry)}")
+        for n, entry in plan["changes"].items()
+        if n in selected
+    ]
+
+
+def run_format_contacts(args, api, confirm):
+    resources = resolve_contacts(api, args.contact_identifiers)
+    if resources is None:
+        emit("Cancelled; no changes made.")
+        return 0
+    if not resources:
+        emit("No contacts selected; no changes made.")
+        return 0
+    plans, unchanged, missing = {}, [], []
+    next_number = 1
+    for resource, contact_number in resources.items():
+        emit(f"Reading contact {contact_number}: {resource.split('/')[-1]}…")
+        try:
+            person = api.get_contact(resource)
+        except ContactFailure:
+            missing.append((contact_number, resource.split("/")[-1]))
+            continue
+        plan = formatting_plan(person, next_number)
+        next_number += len(plan["entries"])
+        # Validate every proposed update before any approval or write.
+        if plan["changes"]:
+            field_update_body(person, "phoneNumbers", formatted_values(plan, plan["changes"]))
+        else:
+            unchanged.append((contact_number, describe_contact(person)))
+        plans[contact_number] = plan
+    selected = [n for plan in plans.values() for n in plan["changes"]]
+    selectable_contacts = [i for i, plan in plans.items() if plan["changes"]]
+    if missing:
+        emit_list("Contacts not found; skipped", missing, unit=("contact", "contacts"))
+    if unchanged:
+        emit_list("No formatting changes needed", unchanged, unit=("contact", "contacts"))
+
+    def show(numbers, heading):
+        count = sum(bool(set(numbers) & p["changes"].keys()) for p in plans.values())
+        emit(
+            f"{heading}: {len(numbers)} phone {'entry' if len(numbers) == 1 else 'entries'} "
+            f"on {count} {'contact' if count == 1 else 'contacts'}"
         )
-    if not choices:
+        for i, plan in plans.items():
+            rows = plan_rows(plan, numbers)
+            if rows:
+                emit("", primary=False)
+                emit_list(f"Contact #{i}: {describe_contact(plan['person'])}", rows)
+
+    if selected:
+        show(selected, "Formatting phones" if args.apply else "Proposed phone formatting")
+    for i, plan in plans.items():
+        if plan["skipped"]:
+            emit_list(
+                f"Left unchanged on contact #{i}",
+                plan["skipped"],
+                note="Informational only; these numbers cannot be selected." if selected else None,
+            )
+    if not selected:
         emit("No phone formatting changes needed; no update made.")
         return 0
-    selected = list(changes)
-
-    def expected(numbers):
-        return [
-            deepcopy(changes[n] if n in numbers else entry) for n, entry in enumerate(entries, 1)
-        ]
-
-    def question(numbers):
-        count = len(numbers) if isinstance(numbers, list) else numbers
-        return f"Format {count} phone {'entry' if count == 1 else 'entries'}?"
+    chosen = list(selected)
 
     def preview(numbers):
-        field_update_body(person, "phoneNumbers", expected(numbers))
-        if numbers != list(changes):
-            emit_list(
-                "Selected phone formatting", [(n, text) for n, text in choices if n in numbers]
-            )
+        nonlocal chosen
+        chosen = numbers
+        if numbers != selected:
+            show(numbers, "Selected phone formatting")
         emit("", primary=False)
 
-    field_update_body(person, "phoneNumbers", expected(selected))
-    if (
-        not args.apply
-        and len(choices) > 1
-        and all(s.isatty() for s in (sys.stdin, sys.stdout, sys.stderr))
-    ):
-        selected = review_selection(
-            choices,
-            noun="phone entries",
-            heading="Selected phone formatting",
-            unit=("entry", "entries"),
-            preview=preview,
-            question=question,
-            action="Format selected phone entries",
+    def question(_):
+        contacts = sum(bool(set(chosen) & p["changes"].keys()) for p in plans.values())
+        return (
+            f"Format {len(chosen)} phone {'entry' if len(chosen) == 1 else 'entries'} "
+            f"on {contacts} {'contact' if contacts == 1 else 'contacts'}?"
         )
-        if selected is None:
-            emit("Cancelled; no changes made.")
+
+    if not args.apply:
+        if all(stream.isatty() for stream in (sys.stdin, sys.stdout, sys.stderr)):
+            chosen = review_selection(
+                [(n, text) for p in plans.values() for n, text in plan_rows(p, selected)],
+                noun="phone entries",
+                heading="Selected phone formatting",
+                unit=("entry", "entries"),
+                preview=preview,
+                question=question,
+                action="Format selected phone entries",
+            )
+            if chosen is None:
+                emit("Cancelled; no changes made.")
+                return 0
+        elif not confirm(question(chosen)):
+            emit("Preview only; no changes made. Use --apply to format phone entries.")
             return 0
-    elif not args.apply and not confirm(question(selected)):
-        emit("Preview only; no changes made. Use --apply to format phone entries.")
-        return 0
-    values = expected(selected)
-    body = field_update_body(person, "phoneNumbers", values)
-    api.apply_field_change(
-        person, body, lambda saved: verify_phones(person, values, saved), "phoneNumbers"
+    targets = [(i, p) for i, p in plans.items() if set(chosen) & p["changes"].keys()]
+    verified = failed = unverified = attempted = entries_verified = 0
+    status = 0
+    for position, (i, plan) in enumerate(targets, 1):
+        attempted += 1
+        emit(
+            f"Formatting contact {position} of {len(targets)}: {describe_contact(plan['person'])}…"
+        )
+        api.write_started = False
+        values = formatted_values(plan, chosen)
+
+        def verify(saved, plan=plan, values=values):
+            try:
+                verify_phones(plan["person"], values, saved)
+            except SyncError as exc:
+                raise ContactVerificationFailure(str(exc)) from exc
+
+        try:
+            api.apply_field_change(
+                plan["person"],
+                field_update_body(plan["person"], "phoneNumbers", values),
+                verify,
+                "phoneNumbers",
+            )
+        except ContactVerificationFailure as exc:
+            unverified += 1
+            status = 3
+            emit(f"Contact #{i} unverified: {exc}")
+        except ContactFailure as exc:
+            failed += 1
+            status = status or 1
+            emit(f"Contact #{i} failed: {exc}")
+        except (SyncError, KeyboardInterrupt) as exc:
+            uncertain = isinstance(exc, WriteUnverified) or (
+                isinstance(exc, KeyboardInterrupt) and api.write_started
+            )
+            unverified += int(uncertain)
+            failed += int(not uncertain)
+            status = 130 if isinstance(exc, KeyboardInterrupt) else 3 if unverified else 1
+            emit(f"Stopped at contact #{i}: {str(exc) or 'Interrupted'}")
+            break
+        else:
+            verified += 1
+            entries_verified += len(set(chosen) & plan["changes"].keys())
+    if verified:
+        emit(
+            f"Formatted and verified {entries_verified} phone "
+            f"{'entry' if entries_verified == 1 else 'entries'}."
+        )
+    emit(
+        f"Contacts: verified: {verified}; failed: {failed}; unverified: {unverified}; "
+        f"unattempted: {len(targets) - attempted}."
     )
-    count = len(selected)
-    emit(f"Formatted and verified {count} phone {'entry' if count == 1 else 'entries'}.")
-    return 0
+    emit(
+        f"No changes needed: {len(unchanged)}; "
+        f"not selected: {len(selectable_contacts) - len(targets)}; not found: {len(missing)}.",
+        primary=False,
+    )
+    if status:
+        emit(
+            "Completed changes remain saved. Review failed or unverified contacts before retrying.",
+            primary=False,
+        )
+    return status
