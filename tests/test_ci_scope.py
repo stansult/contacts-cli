@@ -12,6 +12,11 @@ from scripts.ci_scope import changed_paths, docs_only
     "paths,expected",
     [
         (["README.md", "docs/testing.md"], True),
+        (["tests/README.md"], True),
+        (["tests/README.md", "docs/testing.md"], True),
+        (["tests/README.md", "tests/test_cli.py"], False),
+        (["tests/README.md", "tests/fixtures/input.md"], False),
+        (["tests/other.md"], False),
         (["README.md", "src/contacts_cli/cli.py"], False),
         ([".github/workflows/ci.yml"], False),
         (["tests/fixtures/input.md"], False),

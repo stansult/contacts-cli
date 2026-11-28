@@ -5,7 +5,7 @@ import os
 import subprocess
 from pathlib import Path, PurePosixPath
 
-ROOT_DOCUMENTS = {"README.md", "CONTRIBUTING.md"}
+STANDALONE_DOCUMENTS = {"README.md", "CONTRIBUTING.md", "tests/README.md"}
 # Any future Markdown automation input kept in docs must be listed here.
 FULL_CHECK_DOCUMENTS = set()
 
@@ -13,7 +13,7 @@ FULL_CHECK_DOCUMENTS = set()
 def ordinary_document(path):
     if path in FULL_CHECK_DOCUMENTS:
         return False
-    if path in ROOT_DOCUMENTS:
+    if path in STANDALONE_DOCUMENTS:
         return True
     parts = PurePosixPath(path).parts
     return len(parts) > 1 and parts[0] == "docs" and ".." not in parts and path.endswith(".md")

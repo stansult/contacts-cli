@@ -1,8 +1,14 @@
 # Testing and verification
 
+This is the contributor guide for running checks and establishing reliable test evidence.
+For a shorter introduction to the tools and test layers, see the [testing overview](../tests/README.md).
+
 ## Quick checks
 
+Use Python 3.11+ and uv. Run these commands from the repository root:
+
 ```sh
+uv sync --locked
 make check          # Offline suite, lint, formatting, and documentation links
 make check-package  # Fresh archives and installed CLI checks
 make check-docs     # Local documentation links and headings
@@ -32,7 +38,14 @@ client library's bundled discovery schemas validate request construction.
 
 `make check` runs the offline suite, lint, formatting, and local Markdown link checks.
 `make check-package` adds fresh builds, archive inspection, and clean wheel installation tests.
-Pytest disables network sockets globally; tests must never use real credentials or Google accounts.
+Pytest uses pytest-socket to disable sockets by default in its process. Local transport probes
+run controlled subprocesses; installed CLI tests load a separate network/browser guard.
+Tests must never use real credentials or Google accounts. Ruff handles lint and formatting;
+uv provides locked dependencies, and Hatchling builds the package.
+
+### Coverage map
+
+These are starting points, not an exhaustive list of test files.
 
 | Area | Tests | Contract |
 | --- | --- | --- |
@@ -46,7 +59,7 @@ Pytest disables network sockets globally; tests must never use real credentials 
 | Sender sync | `test_search.py`, `test_search_input.py`, `test_sender_criteria.py`, `test_label_sync.py`, `test_sync.py` | Search requests, completeness, conflicts, writes, and reruns |
 | Sender identities | `test_own_addresses.py`, `test_sender_labels.py` | Own-address exclusions and saved display labels |
 | Explicit exclusions | `test_exclude.py`, `test_exclude_files.py`, `test_exclude_patterns.py`, `test_exclude_other.py` | Exact and wildcard inputs, group exclusion, local matching, and query integration |
-| Email editing | `test_email_edit.py`, `test_primary_normalization.py` | Listing, addition, removal, conflicts, duplicates, and preservation |
+| Email editing | `test_email_edit.py`, `test_email_selection.py`, `test_email_update_output.py`, `test_primary_normalization.py` | Listing, addition, removal, conflicts, duplicates, and preservation |
 | Contact labels | `test_label_edit.py`, `test_remove_label.py`, `test_label_output.py`, `test_label_selection.py` | Membership edits, case choices, wildcard removal, selection, and partial failures |
 | Account labels | `test_account_labels.py`, `test_list_label.py`, `test_label_counts.py`, `test_label_data.py` | Shared catalog reads, listing, counts, and label creation |
 | Custom fields | `test_custom_fields.py`, `test_custom_field_add_pairs.py`, `test_custom_field_selection.py` | Exact additions, case-insensitive removal choices, partial selection, duplicate handling, and preservation |
@@ -156,10 +169,11 @@ contact correctness. Live account tests remain separate and require explicit aut
 ## CI routing
 
 `scripts/ci_scope.py` permits lightweight checks when every changed file is root `README.md`,
-root `CONTRIBUTING.md`, or a `.md` file anywhere under `docs/`. New and nested guides qualify
-without changing the classifier. Markdown elsewhere, non-Markdown files, and mixed changes
-run full checks. `FULL_CHECK_DOCUMENTS` overrides these rules for explicit automation-input
-exceptions; currently there are none. Keep fixtures and artifact-generation inputs outside
+root `CONTRIBUTING.md`, `tests/README.md`, or a `.md` file anywhere under `docs/`. New and nested
+guides qualify without changing the classifier. Only the exact `tests/README.md` path is exempt
+under `tests/`; fixtures and other Markdown there still require full checks. Other non-documentation
+paths and mixed changes run full checks. `FULL_CHECK_DOCUMENTS` overrides these rules for explicit
+automation-input exceptions; currently there are none. Keep fixtures and artifact-generation inputs outside
 `docs/`, as described in [documentation paths](../CONTRIBUTING.md#documentation-paths).
 
 Pushes compare the before/after commits across the entire push. Pull requests compare the merge
@@ -167,9 +181,9 @@ base with the PR head. Renames include both old and new paths. Manual runs, empt
 branches, and unavailable comparison history use full checks. Classification reads the event
 file rather than interpolating event values into shell commands.
 
-Documentation-only runs check local links and Markdown heading targets using Python's standard
-library, without uv setup, application dependencies, runtime tests, or package builds. Other
-runs retain both OS/Python test jobs. `test_ci_scope.py` checks new/nested guides, mixed paths,
+Documentation-only runs check local links and Markdown heading targets, including the tests README,
+using Python's standard library, without uv setup, application dependencies, runtime tests, or
+package builds. Other runs retain both OS/Python test jobs. `test_ci_scope.py` checks new/nested guides, mixed paths,
 and explicit exceptions, and uses a temporary Git repository to verify multi-commit push ranges,
 PR ranges, and renames independently of mocks.
 Changing this workflow or its classifier therefore runs the full suite.
@@ -190,79 +204,17 @@ If specified on both sides of the command, the value after the command takes pre
 
 ## Regression coverage and evidence
 
-Detailed evidence is organized by subsystem in the [regression reference](regression-coverage.md).
-Use the topic index below to find fixture contracts and verification evidence.
+Detailed test contracts and historical evidence live in the [regression reference](regression-coverage.md).
+Use its subsystem index rather than maintaining a second full list of regression topics here:
 
-### Contact input and importing
+- [Contact input and importing](regression-coverage.md#contact-input-and-importing)
+- [Duplication](regression-coverage.md#duplication)
+- [Contact lookup and labels](regression-coverage.md#contact-lookup-and-labels)
+- [Email and custom-field editing](regression-coverage.md#email-and-custom-field-editing)
+- [Gmail sender searches](regression-coverage.md#gmail-sender-searches)
+- [Presentation and interaction](regression-coverage.md#presentation-and-interaction)
+- [Transport and diagnostics](regression-coverage.md#transport-and-diagnostics)
 
-- [New-contact inputs](regression-coverage.md#new-contact-inputs)
-- [Contact creation selection](regression-coverage.md#contact-creation-selection)
-- [Shared name input and verification](regression-coverage.md#shared-name-input-and-verification)
-- [Live full-name parsing probe](regression-coverage.md#live-full-name-parsing-probe)
-- [Possible duplicates before contact creation](regression-coverage.md#possible-duplicates-before-contact-creation)
-- [Duplicate name matching](regression-coverage.md#duplicate-name-matching)
-- [Contact merge review](regression-coverage.md#contact-merge-review)
-- [Individual merge review and anchored names](regression-coverage.md#individual-merge-review-and-anchored-names)
-- [Grouped conflict-free merges](regression-coverage.md#grouped-conflict-free-merges)
-- [Compact label-only imports](regression-coverage.md#compact-label-only-imports)
-
-### Duplication
-
-- [Duplication fixture contracts](regression-coverage.md#duplication-fixture-contracts)
-- [Duplicate field overrides](regression-coverage.md#duplicate-field-overrides)
-- [Full-size duplicate photos (#1)](regression-coverage.md#full-size-duplicate-photos-1)
-
-### Contact lookup and labels
-
-- [Contact listing](regression-coverage.md#contact-listing)
-- [Add-label contact resolution](regression-coverage.md#add-label-contact-resolution)
-- [Contact labels](regression-coverage.md#contact-labels)
-- [Label output scenarios](regression-coverage.md#label-output-scenarios)
-- [Label removal patterns and selection](regression-coverage.md#label-removal-patterns-and-selection)
-- [Listing contact labels](regression-coverage.md#listing-contact-labels)
-- [Shared label data](regression-coverage.md#shared-label-data)
-- [Account labels](regression-coverage.md#account-labels)
-- [Account label counts](regression-coverage.md#account-label-counts)
-
-### Email and custom-field editing
-
-- [Direct email editing](regression-coverage.md#direct-email-editing)
-- [Removal patterns](regression-coverage.md#removal-patterns)
-- [Webpage email input and numbered selection](regression-coverage.md#webpage-email-input-and-numbered-selection)
-- [Custom field editing](regression-coverage.md#custom-field-editing)
-- [Custom-field removal selection](regression-coverage.md#custom-field-removal-selection)
-- [Multiple custom-field additions](regression-coverage.md#multiple-custom-field-additions)
-
-### Gmail sender searches
-
-- [Sender-search regression coverage](regression-coverage.md#sender-search-regression-coverage)
-- [Sender search input](regression-coverage.md#sender-search-input)
-- [Gmail label case choices](regression-coverage.md#gmail-label-case-choices)
-- [Search address criteria (#7)](regression-coverage.md#search-address-criteria-7)
-- [Excluding Other senders (#8)](regression-coverage.md#excluding-other-senders-8)
-- [Own sending identities and redundant output](regression-coverage.md#own-sending-identities-and-redundant-output)
-- [Explicit sender exclusions](regression-coverage.md#explicit-sender-exclusions)
-- [Wildcard sender exclusions](regression-coverage.md#wildcard-sender-exclusions)
-- [Malformed sender headers](regression-coverage.md#malformed-sender-headers)
-- [Label sync without filter discovery](regression-coverage.md#label-sync-without-filter-discovery)
-
-### Presentation and interaction
-
-- [Concise command help](regression-coverage.md#concise-command-help)
-- [Shared selection ranges](regression-coverage.md#shared-selection-ranges)
-- [Sectioned output and sender labels](regression-coverage.md#sectioned-output-and-sender-labels)
-- [Operational timestamps](regression-coverage.md#operational-timestamps)
-- [Shared stage progress](regression-coverage.md#shared-stage-progress)
-- [Command active timing](regression-coverage.md#command-active-timing)
-
-### Transport and diagnostics
-
-- [Expired or revoked authorization](regression-coverage.md#expired-or-revoked-authorization)
-- [Isolated read deadline transport](regression-coverage.md#isolated-read-deadline-transport)
-- [Persistent read transport](regression-coverage.md#persistent-read-transport)
-- [People API pacing and rate recovery](regression-coverage.md#people-api-pacing-and-rate-recovery)
-- [Metrics](regression-coverage.md#metrics)
-- [API error logging](regression-coverage.md#api-error-logging)
-- [Email verification diagnostics (#10)](regression-coverage.md#email-verification-diagnostics-10)
-- [Verification log retention](regression-coverage.md#verification-log-retention)
-- [Opt-in run diagnostics](regression-coverage.md#opt-in-run-diagnostics)
+Record the tested behavior, fixture checks, evidence that the regression detects failure, and
+limits of the result. Keep private logs outside Git. Historical suite counts are evidence for
+that change, not a current coverage metric or a promise that live Google behavior is identical.

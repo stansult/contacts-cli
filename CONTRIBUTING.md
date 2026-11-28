@@ -57,7 +57,9 @@ endpoint, scopes, transport, or request shape invalidates the existing evidence.
 
 Keep ordinary user and contributor guides under `docs/`, including nested directories.
 Documentation-only CI applies when every changed path is root `README.md`, root
-`CONTRIBUTING.md`, or a `.md` file under `docs/`. New guides need no classifier update.
+`CONTRIBUTING.md`, `tests/README.md`, or a `.md` file under `docs/`. New guides under `docs/`
+need no classifier update. The tests README is an orientation guide; other Markdown under
+`tests/` remains subject to full checks because it may be fixture input.
 Mixed changes and all other paths run full checks.
 
 Markdown used as a test fixture, executable input, or artifact-generation source belongs outside

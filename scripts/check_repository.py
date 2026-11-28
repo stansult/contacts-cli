@@ -10,6 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def check_links(root=ROOT):
     files = [root / "README.md", root / "CONTRIBUTING.md", *sorted((root / "docs").glob("*.md"))]
+    testing_readme = root / "tests" / "README.md"
+    if testing_readme.exists():
+        files.append(testing_readme)
     for source in files:
         for target in re.findall(r"\]\(([^)]+)\)", source.read_text()):
             if "://" in target or target.startswith("mailto:"):

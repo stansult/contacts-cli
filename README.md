@@ -220,6 +220,18 @@ See [custom field details](docs/command-reference.md#add-custom-field-and-remove
 
 Validates locally without authorization or Google access. See [validation details](docs/contact-input.md#validate-a-file-locally).
 
+## Testing
+
+Tests use **pytest** with synthetic Google API responses, covering previews, selected changes,
+verification, and failure handling. Automated Google-facing tests use no real accounts or credentials.
+**pytest-socket** blocks network access by default; **Ruff** checks Python style and formatting.
+Packaging checks also build and test a clean installation. GitHub Actions runs full checks on
+Linux/Python 3.11 and macOS/Python 3.13; ordinary documentation changes use lightweight checks.
+
+Start with the [testing overview](tests/README.md) for the suite's structure and tools.
+See the [testing guide](docs/testing.md) for commands and contributor procedures, or
+[regression evidence](docs/regression-coverage.md) for specific tested behavior and limitations.
+
 ## More information
 
 - [Command reference](docs/command-reference.md): options, matching, conflicts, limits, and exit codes.

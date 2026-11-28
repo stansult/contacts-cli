@@ -1482,3 +1482,14 @@ at the time of a change, not current suite totals.
   apply headings without prompts. It checks specific confirmation, stable selection numbers,
   hidden zero-addition headings, no writes after declining, and exact saved results.
 - Six initial cases failed against the dense update summaries and generic confirmation.
+
+## Testing documentation checks
+
+- `test_ci_scope.py` permits lightweight checks for the exact `tests/README.md` path, alone or
+  with other ordinary documentation. Mixed code changes, fixture Markdown, and other Markdown
+  under `tests/` still require full checks.
+- `test_repository_checks.py` verifies that a missing file or heading linked from the tests README
+  fails documentation checks, then repairs each link and verifies success.
+- Two routing cases and both broken-link cases failed before the implementation change.
+  Temporary fixture directories contain only synthetic Markdown; no application or Google calls
+  are needed to establish these contracts.

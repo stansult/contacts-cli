@@ -77,3 +77,19 @@ def test_archive_accepts_valid_runtime_layout(tmp_path, kind):
                 info.size = len(data)
                 archive.addfile(info, io.BytesIO(data))
     check_archive(path)
+
+
+@pytest.mark.parametrize(
+    "target,error", [("missing.md", "missing link"), ("../README.md#absent", "missing heading")]
+)
+def test_testing_readme_links_are_checked(tmp_path, target, error):
+    (tmp_path / "README.md").write_text("# Project\n")
+    (tmp_path / "CONTRIBUTING.md").write_text("# Contributing\n")
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    readme = tests / "README.md"
+    readme.write_text(f"[broken]({target})\n")
+    with pytest.raises(ValueError, match=error):
+        check_links(tmp_path)
+    readme.write_text("[project](../README.md#project)\n")
+    check_links(tmp_path)
