@@ -64,9 +64,10 @@ class FakeGoogle:
 
         if method == "GET" and url.path == "/v1/people/me/connections":
             assert query["sources"] == ["READ_SOURCE_TYPE_CONTACT"]
-            assert query["personFields"] == [
-                "metadata,names,organizations,emailAddresses,phoneNumbers"
-            ]
+            assert query["personFields"] in (
+                ["metadata,names,organizations,emailAddresses,phoneNumbers"],
+                ["metadata,names,organizations,emailAddresses,phoneNumbers,memberships"],
+            )
             assert query["pageSize"] == ["1000"]
             people = (
                 self.connections

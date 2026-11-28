@@ -58,6 +58,7 @@ def test_subprocess_guard_contract(guarded_cli, code):
     [
         [],
         ["list-contact"],
+        ["format-phone"],
         ["authorize"],
         ["sender-sync"],
         ["duplicate"],
@@ -109,3 +110,14 @@ def test_installed_persistent_worker_rejects_write_without_network(guarded_cli):
     assert result.returncode == 0, result.stderr
     assert "blocked external action" not in log
     assert log.count("guard ready") == 2  # Both installed parent and worker load the guard.
+
+
+def test_installed_phone_formatter(guarded_cli):
+    code = (
+        "from contacts_cli.phone_format import formatted_phone; "
+        "assert formatted_phone({'value': '+442079460018 x0042'}) == "
+        "('+44 20 7946 0018 ext. 0042', None)"
+    )
+    result, log = guarded_cli(["-c", code], python=True)
+    assert result.returncode == 0, result.stderr
+    assert log == "guard ready\n"

@@ -91,20 +91,28 @@ def parser() -> argparse.ArgumentParser:
     commands = result.add_subparsers(dest="command", required=True)
     contact_listing = commands.add_parser(
         "list-contact",
-        help="Find saved contacts by name, email, phone, ID, or URL",
+        help="Find saved contacts by identity, company, or label",
         description="List every matching contact without selection or changes.\n"
         "Names contain the search text; phones end with the supplied digits.\n"
-        "Use --exact for a complete name or phone number.",
+        "Use --exact for a complete name or phone number, and complete company.\n"
+        "Filters combine with AND. --search combines only with --company and --label.",
     )
     contact_listing.add_argument(
         "--search",
-        required=True,
         help="Name text, complete email, phone number or suffix, contact ID, or URL",
     )
+    for option, description in (
+        ("name", "Name contains text; --exact requires the complete name"),
+        ("email", "Complete email address, ignoring case"),
+        ("phone", "Phone number suffix; --exact requires all base-number digits"),
+        ("company", "Company contains text; --exact requires the complete company"),
+        ("label", "Complete existing contact label; case differences offer a choice"),
+    ):
+        contact_listing.add_argument(f"--{option}", help=description)
     contact_listing.add_argument(
         "--exact",
         action="store_true",
-        help="Match the complete name or phone number (including country code)",
+        help="Match the complete name or phone number (including country code), and company",
     )
     creation = commands.add_parser(
         "add-contact",
@@ -306,6 +314,38 @@ def parser() -> argparse.ArgumentParser:
                 help="Approve label changes/removals and consolidate matching duplicate entries",
             )
         editing.append(command)
+    phone_commands = []
+    for action in ("list", "remove", "format"):
+        command = commands.add_parser(
+            f"{action}-phone",
+            help={
+                "list": "List phone entries",
+                "remove": "Remove duplicate phone entries",
+                "format": "Standardize phone formatting",
+            }[action],
+            description=(
+                "Preview readable international formatting with ext. N for extensions.\n"
+                "Ambiguous numbers stay unchanged; select changes before saving."
+                if action == "format"
+                else "Phone duplicates ignore formatting and use Google's canonical number "
+                "when available.\nDifferent extensions stay separate; no country is guessed."
+            ),
+        )
+        command.add_argument("--contact", required=True, help="Google Contacts URL or bare ID")
+        if action == "remove":
+            command.add_argument(
+                "--duplicates",
+                action="store_true",
+                required=True,
+                help="Keep the primary or first entry per number; select extra entries to remove",
+            )
+        if action in {"remove", "format"}:
+            command.add_argument(
+                "--apply",
+                action="store_true",
+                help="Save all proposed changes without confirmation",
+            )
+        phone_commands.append(command)
     label_listing = commands.add_parser(
         "list-label", help="List account labels with contact counts, or labels on one contact"
     )
@@ -433,6 +473,8 @@ def parser() -> argparse.ArgumentParser:
         duplicate: "duplicate-a-contact",
         sync: "sender-sync-preview-and-apply",
         listing: "list-email",
+        **dict.fromkeys(phone_commands[:2], "list-phone-and-remove-phone"),
+        phone_commands[2]: "format-phone",
         **dict.fromkeys(editing, "add-email-and-remove-email"),
         **dict(zip(label_commands, ("list-label", "add-label", "remove-label"), strict=True)),
         **dict.fromkeys(custom_commands, "add-custom-field-and-remove-custom-field"),
@@ -447,6 +489,7 @@ def parser() -> argparse.ArgumentParser:
         duplicate,
         listing,
         creation,
+        *phone_commands,
         *label_commands,
         *custom_commands,
         validation,
@@ -897,6 +940,9 @@ def main(argv=None) -> int:
     aliases.update(
         {f"{action}-custom-fields": f"{action}-custom-field" for action in ("add", "remove")}
     )
+    aliases.update(
+        {f"{action}-phones": f"{action}-phone" for action in ("list", "remove", "format")}
+    )
     aliases["list-contacts"] = "list-contact"
     aliases["add-contacts"] = "add-contact"
     aliases["list-labels"] = "list-label"
@@ -985,15 +1031,19 @@ def run_command(args):
             )
             return 0
         if args.command == "list-contact":
-            from .contact_resolution import identifier_kind, load_identifiers
+            from .contact_resolution import contact_filters
 
-            query = load_identifiers(args.search)[0]
-            kind, value = identifier_kind(query)
+            filters = contact_filters(
+                **{
+                    key: getattr(args, key)
+                    for key in ("search", "name", "email", "phone", "company", "label", "exact")
+                }
+            )
             api = connect_with_authorization(args.token, args.auth_timeout)
             if api is None:
                 return 1
             api.write_started = False
-            return run_list_contacts(api, kind, value, exact=args.exact)
+            return run_list_contacts(api, filters)
         if args.command == "add-contact":
             contacts = load_contact_inputs(
                 name=args.name,
@@ -1108,6 +1158,10 @@ def run_command(args):
             return run_list_labels(args, api, contact_heading)
         if args.command in {"add-label", "remove-label"}:
             return run_label_edit(args, api, confirm_apply, contact_heading)
+        if args.command in {"list-phone", "remove-phone", "format-phone"}:
+            from .phone_edit import run_phone
+
+            return run_phone(args, api, confirm_apply, contact_heading)
         if args.command == "list-email":
             return run_list_email(args, api)
         if args.command in {"add-email", "remove-email"}:

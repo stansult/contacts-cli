@@ -1,6 +1,7 @@
 """Resolve explicit identifiers to saved contacts without mutating account data."""
 
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from .contact_matches import contact_title, normalized, phone_key, read_match_contacts
@@ -61,6 +62,77 @@ def matches(person, kind, value, *, partial_name=False, phone_suffix=False):
         )
     names = (normalized(contact_title({"names": [entry]})) for entry in person.get("names", []))
     return any(value in name if partial_name else value == name for name in names)
+
+
+@dataclass(frozen=True)
+class ContactFilters:
+    """Validated criteria; matching is pure and never selects or modifies contacts."""
+
+    criteria: tuple = ()
+    label: str | None = None
+    exact: bool = False
+
+    @property
+    def resource(self):
+        return next((value for kind, value in self.criteria if kind == "id"), None)
+
+    def matches(self, person, *, label_resource=None):
+        from .label_data import memberships
+
+        for kind, value in self.criteria:
+            if kind == "id":
+                matched = person.get("resourceName") == value
+            elif kind == "company":
+                companies = [normalized(o.get("name", "")) for o in person.get("organizations", [])]
+                matched = any(value == name if self.exact else value in name for name in companies)
+            else:
+                matched = matches(
+                    person, kind, value, partial_name=not self.exact, phone_suffix=not self.exact
+                )
+            if not matched:
+                return False
+        return self.label is None or (
+            label_resource is not None and label_resource in memberships(person)
+        )
+
+
+def contact_filters(
+    *, search=None, name=None, email=None, phone=None, company=None, label=None, exact=False
+):
+    """Compile explicit AND filters without changing identifier auto-detection."""
+    from .address_inputs import bare_address
+
+    values = dict(search=search, name=name, email=email, phone=phone, company=company, label=label)
+    if not any(value is not None for value in values.values()):
+        raise SyncError("Supply --search or at least one contact filter.")
+    if search is not None and any(value is not None for value in (name, email, phone)):
+        raise SyncError(
+            "--search cannot be combined with --name, --email, or --phone; "
+            "use explicit filters instead."
+        )
+    for key, value in values.items():
+        if value is not None:
+            if not value.strip() or any(ord(c) < 32 or ord(c) == 127 for c in value):
+                raise SyncError(f"--{key}: supply nonempty text without control characters.")
+            values[key] = value.strip()
+    criteria = []
+    for key, value in values.items():
+        if value is None or key == "label":
+            continue
+        if key == "search":
+            criteria.append(identifier_kind(value))
+        elif key == "phone":
+            parsed = resolution_phone_key(value)
+            if parsed is None:
+                raise SyncError(
+                    "--phone: supply a phone number or suffix, optionally with an extension."
+                )
+            criteria.append((key, parsed))
+        elif key == "email":
+            criteria.append((key, address_key(bare_address(value))))
+        else:
+            criteria.append((key, normalized(value)))
+    return ContactFilters(tuple(criteria), values["label"], exact)
 
 
 def describe_contact(person):

@@ -10,29 +10,12 @@ from .contact_create import (
 )
 from .core import contact_resource, contact_source
 from .errors import SyncError, WriteUnverified
-from .label_data import active_user_labels, contact_groups, label_identity
+from .label_data import active_user_labels, contact_groups, label_identity, memberships
 from .label_removal import resolve_removals
 from .output import emit, emit_list
 from .selection import review_selection
 
 LABEL_FIELDS = "names,organizations,memberships,metadata"
-
-
-def memberships(person):
-    entries = person.get("memberships", [])
-    if not isinstance(entries, list):
-        raise SyncError("Incomplete contact memberships; no labels changed.")
-    result = set()
-    for entry in entries:
-        if not isinstance(entry, dict):
-            raise SyncError("Invalid contact membership.")
-        group = entry.get("contactGroupMembership")
-        if group is not None:
-            resource = group.get("contactGroupResourceName") if isinstance(group, dict) else None
-            if not isinstance(resource, str) or not resource.startswith("contactGroups/"):
-                raise SyncError("Invalid contact label resource.")
-            result.add(resource)
-    return result
 
 
 def edit_membership(api, person, group, *, remove=False):

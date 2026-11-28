@@ -44,12 +44,18 @@ Later commands reuse the saved authorization. Local file validation needs no Goo
 ./contacts-cli list-contact --search 'Jane Doe' --exact
 ./contacts-cli list-contact --search 'jane@example.com'
 ./contacts-cli list-contact --search '2025550142'
+./contacts-cli list-contact --name 'Jane' --company 'Example' --label Recruiter
 ```
 
 Shows all matches with names, IDs, companies, emails, and phones. Names contain the search text,
 ignoring case and extra spaces. Phones match numbers ending in the supplied digits, ignoring
 formatting. Use `--exact` for a complete name or phone number, including its country code.
-Emails match completely; IDs and Google Contacts URLs also work. No selection or changes. See [matching rules](docs/command-reference.md#list-contact).
+Emails match completely; IDs and Google Contacts URLs also work. For explicit fields, use
+`--name`, `--email`, `--phone`, `--company`, or `--label`. Different filters combine with AND.
+Company matching is partial unless `--exact` is supplied; labels match complete names, with a
+choice for case differences. `--search` can combine with company and label filters, but not with
+name, email, or phone filters. Generic search does not search company fields.
+No contact selection or changes. See [matching rules](docs/command-reference.md#list-contact).
 
 ## Add contacts
 
@@ -164,6 +170,32 @@ Enter `all` or numbers/ranges such as `3-5,8`, then confirm. New addresses have
 no labels; existing addresses and labels stay unchanged. `--apply` adds all new addresses.
 See [webpage input](docs/command-reference.md#webpage-email-input) and
 [email conflict and apply rules](docs/command-reference.md#add-email-and-remove-email).
+
+## List phones or remove duplicate entries
+
+```sh
+./contacts-cli list-phone --contact c123456789
+./contacts-cli remove-phone --contact c123456789 --duplicates
+```
+
+Listing shows labels, primary status, and duplicate references. Duplicate removal keeps the
+primary entry for each repeated number, or the first stored entry when none is primary.
+It offers the extra entries for individual selection before confirmation. `--apply` removes
+all proposed extras. Different labels still count as duplicates, so review which entry is kept.
+Matching ignores formatting and uses Google's canonical number when available; different
+extensions stay separate, and no country code is guessed. Unique and unparseable numbers remain
+unchanged. See [phone details](docs/command-reference.md#list-phone-and-remove-phone).
+
+## Format phone numbers
+
+```sh
+./contacts-cli format-phone --contact c123456789
+```
+
+Previews readable international formatting, such as `+1 202-555-0142 ext. 42`. Select entries
+and confirm, or use `--apply` for all proposed changes. Labels and duplicates stay intact.
+Numbers without a known country code remain unchanged.
+See [formatting rules](docs/command-reference.md#format-phone).
 
 ## List, add, or remove labels
 

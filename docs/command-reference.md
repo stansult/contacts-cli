@@ -13,6 +13,8 @@ or `[Y/n]`, with the capital letter indicating the Enter default.
   [numbered selections](#numbered-selections), [output](#output-and-timestamps)
 - [List-contact](#list-contact), [Add-contact](#add-contact), [duplicate](#duplicate-a-contact), [sender-sync](#sender-sync-preview-and-apply)
 - [List-email](#list-email), [add-email and remove-email](#add-email-and-remove-email)
+- [List-phone and remove-phone](#list-phone-and-remove-phone)
+- [Format-phone](#format-phone)
 - [List-label](#list-label), [add-label](#add-label), [remove-label](#remove-label), [label choices](#label-choices-and-output)
 - [Custom fields](#add-custom-field-and-remove-custom-field), [validate-contact](#validate-contact),
   [authorization](#authorization)
@@ -119,12 +121,43 @@ counter updates, without animation or control codes. These thresholds require no
 
 ### Search options
 
-`--search` is required and accepts name text, a complete email, phone, contact ID, or Google
-Contacts URL. `list-contacts` is also accepted; help uses the singular form.
-Names match when they contain the search text, ignoring case and extra whitespace. For example,
-`Josh` finds `Josh`, `Josh Smith`, and `Joshua`; `Smith` also finds `Josh Smith`.
-Use `--exact` to require the complete name or complete phone number.
-Company searches and wildcards are not supported; `*` is literal text.
+Supply `--search` or at least one explicit filter. `list-contacts` is also accepted;
+help uses the singular form. Each filter accepts one value.
+
+| Option | Default matching | With `--exact` |
+| --- | --- | --- |
+| `--search` | Automatically interprets a name, email, phone, ID, or URL | Complete names and phones |
+| `--name` | Name contains text, ignoring case and extra whitespace | Complete name |
+| `--email` | Complete email, ignoring case | Unchanged |
+| `--phone` | Base-number suffix, ignoring formatting | Complete base number |
+| `--company` | Any company name contains text, ignoring case and extra whitespace | Complete company name |
+| `--label` | Complete existing user-label name | Unchanged |
+
+Different filters combine with AND. `--search` may combine with `--company` and `--label`,
+but not with `--name`, `--email`, or `--phone`. Use explicit filters to combine those fields.
+Empty values, invalid explicit emails/phones, and incompatible combinations fail before authorization.
+Wildcards are not supported; `*` in name/company text is literal.
+
+```sh
+./contacts-cli list-contact --name Jane --company Example
+./contacts-cli list-contact --email jane@example.com --label Recruiter
+./contacts-cli list-contact --phone 2025550142 --company Example
+./contacts-cli list-contact --label Recruiter
+./contacts-cli list-contact --search Jane --label Recruiter
+./contacts-cli list-contact --company 'Example Ltd' --exact
+```
+
+`--search` retains its original interpretation and never searches company fields. For example,
+`--search Josh` finds `Josh`, `Josh Smith`, and `Joshua`; `--name 123` explicitly searches names
+rather than interpreting the digits as a phone suffix. `--exact` affects every supplied name,
+phone, and company criterion.
+
+### Label filtering
+
+Exact label spelling wins. If only case-different labels exist, interactive runs offer existing
+spellings or cancellation; redirected runs require exact spelling and report an error.
+Missing labels return zero matches without creating anything. System labels are not supported.
+Label choices only resolve the filter; they never add or remove labels.
 
 ### Email and ID matching
 
@@ -148,8 +181,10 @@ All matching saved contacts appear in a numbered list with name, ID, first compa
 and phones. A canonical phone form is omitted when it repeats the displayed number.
 Multiple matches need no selection, including in redirected output. Zero matches
 (including a missing ID) produce a zero count and successful exit; read failures remain errors.
-The command does not modify contacts. Name, email, and phone searches read the account's saved
-contact matching fields; ID and URL searches read only the specified contact.
+The command does not modify contacts. Name, email, phone, company, and label filters read the
+account's saved contact matching fields. Label filtering also reads label definitions and adds
+memberships to the same paginated contact read, without one request per contact. ID/URL searches
+read only the specified contact, even when combined with company or label filters.
 
 ## Add-contact
 
@@ -794,6 +829,90 @@ only the final Saved and verified message confirms success.
 
 Email previews omit a display name that equals the email address, ignoring case. A different
 display name remains visible. This affects presentation only; saved contact data is preserved.
+
+## List-phone and remove-phone
+
+```sh
+./contacts-cli list-phone --contact c123456789
+./contacts-cli remove-phone --contact c123456789 --duplicates
+./contacts-cli remove-phone --contact c123456789 --duplicates --apply
+```
+
+Both commands require a contact URL or ID. Silent plural aliases `list-phones` and
+`remove-phones` are accepted. `remove-phone` currently requires `--duplicates`; removal by
+number, patterns, and input files is not supported. There is no `add-phone` command yet.
+
+### Listing and duplicate matching
+
+`list-phone` shows all phone entries with their labels and primary status. Later occurrences
+of the same normalized number reference the first displayed occurrence: `[duplicate of #1]`.
+That reference describes repetition, not which entry removal will retain.
+
+Duplicate detection uses these rules:
+
+- Ignore formatting and an optional leading `+`, keeping every base-number digit.
+- Prefer Google's canonical number when available. For example, a saved `(202) 555-0142`
+  whose canonical form is `+12025550142` matches a saved `+1 202-555-0142`.
+- Without that canonical form, `2025550142` does not match `+12025550142`. There is no suffix
+  matching or country inference for removal.
+- Preserve extensions from the original value even when the canonical form omits them.
+  Different extensions, and a number with versus without an extension, are distinct.
+- Labels do not affect duplicate identity. Unparseable numbers and conflicting extension
+  information are excluded from duplicate removal and remain visible in listing.
+
+### Selecting and saving removals
+
+For each duplicate group, keep its first primary entry, or its first stored entry when none
+is primary. Show extra occurrences as numbered removal choices and kept entries separately as
+informational rows. Each selectable number represents one stored occurrence, including identical
+copies. Choosing a subset leaves all unselected occurrences unchanged; kept entries cannot be selected.
+
+Multiple choices use the shared all/number/range selection and final confirmation. A single extra
+entry uses a yes/no confirmation. Return-to-selection and cancellation follow the usual rules.
+Noninteractive runs without `--apply` only preview. `--apply` removes every proposed extra.
+No duplicates means a successful no-op.
+
+Saving rereads the contact and rejects changes since preview. Only `phoneNumbers` is updated.
+Verification checks the exact retained values, labels, counts, primary choices, contact identity,
+and unrelated contact fields, both in the update response and an independent readback.
+Generated canonical forms and translated labels may change without a verification failure.
+Verification failures report an unverified update; they do not retry the write.
+
+## Format-phone
+
+```sh
+./contacts-cli format-phone --contact c123456789
+./contacts-cli format-phone --contact c123456789 --apply
+```
+
+Standardizes phone values on one contact. The silent plural alias `format-phones` is accepted.
+There is no `--format` option on other commands.
+
+### Formatting rules
+
+- Uses readable international formatting with country-specific grouping, such as
+  `+1 202-555-0142` or `+44 20 7946 0018`.
+- Writes extensions as `ext. N`, preserving their digits, including leading zeros.
+- Uses Google's saved canonical number when available; otherwise requires an explicit `+`
+  international number. It never guesses the country for a local number.
+- Leaves unsupported text, unknown country codes, impossible lengths, conflicting extensions,
+  and disagreeing international/canonical numbers unchanged, with a reason.
+- Uses the local `phonenumberslite` library. Plausible length is checked; formatting does not
+  establish whether a number is assigned or active. Formatting itself makes no network calls.
+
+### Review and saving
+
+The preview shows each proposed value before and after formatting. Numbers retain their original
+positions in the contact's phone list, including gaps. Unchanged entries with a skip reason are
+informational and cannot be selected.
+
+Choose all or individual numbers/ranges, then confirm. A single change uses a yes/no question.
+Noninteractive runs without `--apply` only preview; `--apply` saves all proposed formatting.
+Already formatted entries need no write, so rerunning is a no-op when all entries are standardized.
+
+Formatting preserves labels, primary choices, duplicate occurrences, and unrelated fields; it
+never removes duplicate numbers. Saving uses the same reread, concurrent-edit protection, and
+response/readback verification as [phone removal](#list-phone-and-remove-phone).
 
 ## List-label
 

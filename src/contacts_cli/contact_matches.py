@@ -116,7 +116,7 @@ class MatchIndex:
         ]
 
 
-def read_match_contacts(api):
+def read_match_contacts(api, *, include_memberships=False):
     """Read contact-only matching fields once; reject partial or ambiguous pagination."""
     people, ids, tokens, token = [], set(), set(), None
     while True:
@@ -126,7 +126,7 @@ def read_match_contacts(api):
             .list(
                 resourceName="people/me",
                 pageSize=1000,
-                personFields=MATCH_FIELDS,
+                personFields=MATCH_FIELDS + (",memberships" if include_memberships else ""),
                 sources=["READ_SOURCE_TYPE_CONTACT"],
                 **({"pageToken": token} if token else {}),
             )
@@ -175,7 +175,15 @@ def read_match_contacts(api):
                     raise SyncError("Invalid matching fields; duplicate checking stopped.")
             # connections.list caps emails/phones at 100; reuse the complete contact read.
             if any(len(person.get(f, [])) >= 100 for f in ("emailAddresses", "phoneNumbers")):
-                person = api.get_contact(resource)
+                person = (
+                    api.get_contact(resource, MATCH_FIELDS + ",memberships")
+                    if include_memberships
+                    else api.get_contact(resource)
+                )
+            if include_memberships:
+                from .label_data import memberships
+
+                memberships(person)
             people.append(person)
         token = result.get("nextPageToken")
         if token is None:

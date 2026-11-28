@@ -16,8 +16,14 @@ synchronized with the implementation.
 - `core.py`, `address_inputs.py`, and `contact_inputs.py` provide shared parsing and validation.
 - `api.py` handles Google requests, conflict protection, and shared update verification;
   `auth.py` handles OAuth setup and token storage.
-- `label_data.py` shares paginated label reads, active-user filtering, and identity validation
-  across listing, creation, and removal. Command modules own matching and presentation.
+- `contact_resolution.py` compiles reusable `ContactFilters` and evaluates AND matching without
+  prompts or writes. `list-contact` owns label spelling choices and result presentation; existing
+  write-command identifier matching remains unchanged.
+- `label_data.py` shares paginated label reads, membership validation, active-user filtering, and
+  identity validation across listing, creation, and removal. Command modules own matching and
+  presentation.
+- `phone_edit.py` shares phone reads and verification; `phone_format.py` uses local
+  `phonenumberslite` formatting and the shared guarded field-update path.
 - `email_edit_ui.py` selects approved email changes, including individual duplicate removals.
 - `web_emails.py` reads static webpages; `url_email_add.py` handles their email-addition flow.
   `selection.py` provides number/range parsing, direct all/number/cancel choices, and reusable review

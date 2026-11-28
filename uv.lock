@@ -280,6 +280,7 @@ dependencies = [
     { name = "google-auth-oauthlib" },
     { name = "httplib2" },
     { name = "oauthlib" },
+    { name = "phonenumberslite" },
     { name = "requests" },
 ]
 
@@ -298,6 +299,7 @@ requires-dist = [
     { name = "google-auth-oauthlib", specifier = ">=1.5,<2" },
     { name = "httplib2", specifier = ">=0.22,<1" },
     { name = "oauthlib", specifier = ">=3.2,<5" },
+    { name = "phonenumberslite", specifier = ">=9,<10" },
     { name = "requests", specifier = ">=2.32,<3" },
 ]
 
@@ -519,6 +521,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/7d/fa/3944b40b07da9ce895c0e6303a5ab7d53da063554f534556b134a54d6093/packaging-26.3.tar.gz", hash = "sha256:94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79", size = 313412, upload-time = "2026-08-04T18:15:28.737Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl", hash = "sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c", size = 129956, upload-time = "2026-08-04T18:15:27.159Z" },
+]
+
+[[package]]
+name = "phonenumberslite"
+version = "9.0.44"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1d/6b/6e09482740b17d2dcebd6fe53bef56555697282c829fafa2eff0440d64d8/phonenumberslite-9.0.44.tar.gz", hash = "sha256:9a4aa54947d90950643aaaf23fbf303ce6d99c6c10eba531acd47aaf18d41baf", size = 295584, upload-time = "2026-11-20T14:24:46.518Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c3/b1/60ac023e559703b03e2f8546060d7b0980753823d75eb42be8d5b51e83cd/phonenumberslite-9.0.44-py2.py3-none-any.whl", hash = "sha256:9e19246d5c9a6b2f0f0e89f85dffcca370047d65ca29052643346c5d8fae01f7", size = 473692, upload-time = "2026-11-20T14:24:45.216Z" },
 ]
 
 [[package]]

@@ -39,3 +39,20 @@ def label_identity(group):
     if not isinstance(resource, str) or not resource.startswith("contactGroups/"):
         raise SyncError("Invalid contact label resource returned by Google.")
     return name, resource
+
+
+def memberships(person):
+    entries = person.get("memberships", [])
+    if not isinstance(entries, list):
+        raise SyncError("Incomplete contact memberships; no labels changed.")
+    result = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            raise SyncError("Invalid contact membership.")
+        group = entry.get("contactGroupMembership")
+        if group is not None:
+            resource = group.get("contactGroupResourceName") if isinstance(group, dict) else None
+            if not isinstance(resource, str) or not resource.startswith("contactGroups/"):
+                raise SyncError("Invalid contact label resource.")
+            result.add(resource)
+    return result

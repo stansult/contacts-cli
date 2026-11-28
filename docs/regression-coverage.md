@@ -512,6 +512,22 @@ at the time of a change, not current suite totals.
 
 ## Contact lookup and labels
 
+### Explicit contact filters
+
+`tests/test_contact_filters.py` covers explicit name, email, phone, company, and label filters;
+AND intersections; exact matching; unchanged automatic search interpretation; invalid input before
+authorization; case-only label choices/cancellation; missing labels; ID lookup without an account
+scan; pagination and large-contact fallback; malformed memberships; and no writes.
+The shared predicate is exercised independently of CLI prompts. The HTTP fixture contract verifies
+membership field-mask inclusion/omission and data preservation directly.
+
+The initial new tests failed against the old CLI (27 failures). Temporarily bypassing label
+membership matching caused four focused failures; restoring it returned the suite to passing.
+An authorized isolated read-only probe on 2026-11-27 used the existing client, contact-only source,
+page size 1000, and matching fields plus memberships, with one attempt and a 15-second deadline.
+It succeeded in 0.91 seconds, returning 1000 contacts with memberships and a next-page token.
+No contact values were recorded in this evidence, and no Google data was modified.
+
 ### Contact listing
 
 **Coverage**
@@ -1493,3 +1509,32 @@ at the time of a change, not current suite totals.
 - Two routing cases and both broken-link cases failed before the implementation change.
   Temporary fixture directories contain only synthetic Markdown; no application or Google calls
   are needed to establish these contracts.
+
+## Phone listing and duplicate removal
+
+`tests/test_phone_edit.py` covers formatting and canonical-number matching, country-code
+boundaries, extensions, unparseable values, primary retention, labels, individual duplicate
+selection, returning to selection, cancellation, noninteractive preview, apply, no-ops, and
+plural aliases. The shared field-update path is exercised for stale previews and independent
+readback. Tests check retained occurrence counts and unrelated data, not just success messages.
+
+The independent fixture contract confirms phone-only replacement, preservation of other fields,
+and stale-etag rejection. The initial CLI tests failed before implementation. Temporarily disabling
+phone verification makes the six damaged-response cases and independent-readback case fail;
+the fault is restored before final verification. No live phone writes are part of these tests.
+
+## Phone formatting
+
+`tests/test_phone_format.py` covers international grouping across multiple countries, significant
+leading zeros, canonical forms, extension preservation, unsupported or conflicting values,
+no country guessing, no-ops, stable numbering, partial selection, cancellation, returning to
+selection, noninteractive preview, apply, and the plural alias. Duplicate entries remain separate.
+Concurrent edits prevent writes; damaged update responses and independent readbacks fail verification.
+
+An independent library contract checks international parsing, significant-zero round trips,
+impossible length detection, and rejection of countryless parsing. The installed-package test
+runs the formatter from a clean wheel installation to verify its dependency is included.
+
+The initial CLI cases failed before implementation. Temporarily bypassing the verification callback
+made both damaged-response/readback tests fail; restoring it makes them pass. Tests use synthetic
+contacts and local fixtures, with no live Google writes.
