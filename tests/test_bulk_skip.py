@@ -23,14 +23,17 @@ def test_bulk_skip_default_and_cancel(api, server, monkeypatch, tmp_path, capsys
     assert cli.main(args) == 0
     output = capsys.readouterr().out
     assert ("Cancelled" in output) == (answer in ("q", None))
-    assert "Choice [s]" not in output and server.writes == 0
+    assert "Choose an option (Enter = skip this input)" not in output and server.writes == 0
 
 
 def test_decline_retains_individual_review(api, server, monkeypatch, tmp_path, capsys):
     args = setup(api, server, monkeypatch, tmp_path, [incoming(server)], ["n", "s"])
     assert cli.main(args) == 0
     output = capsys.readouterr().out
-    assert "Skip these inputs? [Y/n]" in output and "Choice [s]" in output
+    assert (
+        "Skip these inputs? [Y/n]" in output
+        and "Choose an option (Enter = skip this input)" in output
+    )
     assert server.writes == 0
 
 
@@ -127,7 +130,11 @@ def test_ineligible_inputs_keep_individual_review(api, server, monkeypatch, tmp_
     assert cli.main(args + (["--label", "New"] if kind == "label" else [])) == 0
     output = capsys.readouterr().out
     assert "Skip these inputs?" not in output
-    assert ("Choose contacts to label" if kind == "label" else "Choice [s]") in output
+    assert (
+        "Choose contacts to label"
+        if kind == "label"
+        else "Choose an option (Enter = skip this input)"
+    ) in output
     assert server.writes == 0
 
 
@@ -161,4 +168,4 @@ def test_multiple_unchanged_inputs_skipped_with_one_answer(
     assert "Already contain all supplied information: 2 inputs" in output
     assert "Skipped 2 unchanged inputs." in output
     assert output.count("Skip these inputs?") == 1
-    assert "Choice [s]" not in output and server.writes == 0
+    assert "Choose an option (Enter = skip this input)" not in output and server.writes == 0

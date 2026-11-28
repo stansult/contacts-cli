@@ -39,7 +39,8 @@ duplicate consolidation. This keeps scripted operations predictable without new 
 Email lists use the shared numbered renderer. Editing displays existing entries only when needed
 for a conflict decision; `list-email` provides the complete list. Additions and updates share
 continuous numbering; removals number individual stored entries.
-Informational numbers follow proposed changes and cannot be selected. Conflict lists start at 1.
+Not-found informational numbers follow proposed changes and cannot be selected. Kept entries
+appear in an unnumbered Unchanged list. Conflict lists start at 1.
 Help and examples use singular commands in list, add, remove order; plural forms are accepted
 silently for convenience.
 
@@ -74,3 +75,19 @@ Its candidate indexes exclude one survivor per normalized address: the first pri
 the first stored occurrence if no primary is marked. Labels do not change duplicate identity.
 Keep survivor indexes separate from removable indexes so identical dictionaries cannot cause
 the retained occurrence to become selectable. Preview survivors as informational entries.
+
+
+## Separate existing decisions from new additions
+
+Use a noninteractive planning pass to collect actual existing-email decisions after normalization;
+do not count raw inputs as conflicts. The interactive pass removes each reviewed address from
+that set, so batch choices appear only when another decision remains. Both passes share the
+same planner rules. Kept entries retain their stored data and appear as Unchanged, while new
+additions continue to final selection/confirmation. A single new addition is named explicitly.
+
+## Describe the effect of an update
+
+Keep original matching entries and the replacement as structured update data. The preview and
+single-update confirmation use that same data to describe label addition/removal/replacement or
+duplicate consolidation. Do not serialize a dense before/after sentence and then parse it for
+confirmation. Selection still rebuilds only approved changes against the original snapshot.

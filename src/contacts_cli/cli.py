@@ -76,7 +76,7 @@ def file_exclusions(paths):
         except argparse.ArgumentTypeError as exc:
             raise SyncError(
                 f"{origin}: expected one supported email address or * pattern "
-                "(optionally followed by ' — Display Name')."
+                "(optionally followed by ' - Display Name')."
             ) from exc
     return addresses
 
@@ -274,7 +274,7 @@ def parser() -> argparse.ArgumentParser:
                 "Email address or quoted * pattern; * matches zero or more characters, "
                 "case-insensitively across the whole address (repeatable; e.g. '*@example.com')"
                 if action == "remove"
-                else "Email address, optionally followed by ' — Label' (repeatable)"
+                else "Email address, optionally followed by ' - Label' (repeatable)"
             ),
         )
         inputs.add_argument(
@@ -715,25 +715,61 @@ def run_email_edit(args, api):
     if getattr(args, "from_url", None):
         return run_url_add(args, api, person, interactive=interactive)
     all_choice = None
+    pending_decisions = set()
+    if args.command == "add-email" and interactive and not args.apply:
+
+        def collect_decision(address, matches, label):
+            pending_decisions.add(address_key(address))
+            return False
+
+        # Reuse the planner's normalized conflict rules, without prompting or writing.
+        make_edit_plan(person, args.entries, resolve=collect_decision)
 
     def resolve(address, matches, label):
         nonlocal all_choice
+        pending_decisions.discard(address_key(address))
         if args.replace_existing:
             return True
         if args.apply or not interactive:
             return False
         if all_choice is not None:
             return all_choice
-        emit_list("Existing matches", email_rows(matches))
+        emit_list("Already exists", email_rows(matches))
+        if not label:
+            emit("You supplied no label.", file=sys.stderr)
+        if len(matches) > 1:
+            replacement = (
+                f"Combine {len(matches)} entries into one labeled {label!r}"
+                if label
+                else f"Combine {len(matches)} entries into one with no label"
+            )
+            keeping = f"Keep all {len(matches)} existing entries"
+        else:
+            old_label = matches[0].get("type", "")
+            replacement = (
+                f"Change the label to {label!r}" if label else f"Remove the {old_label!r} label"
+            )
+            keeping = (
+                f"Keep the {old_label!r} label" if old_label else "Keep the entry without a label"
+            )
+        batch = bool(pending_decisions)
+        indent = "     " if len(matches) == 1 else "  "
         while True:
             emit(
-                f"Replace with one entry labeled {label!r}?"
-                if label
-                else "Replace with one entry with no label?",
+                f"\n{indent}r   {replacement}\n{indent}k   {keeping}",
                 file=sys.stderr,
+                primary=False,
             )
+            if batch:
+                emit(
+                    "\n  a   Use requested labels and combine duplicates "
+                    "for this and remaining conflicts\n"
+                    "  s   Keep existing entries for this and remaining conflicts",
+                    file=sys.stderr,
+                    primary=False,
+                )
             emit(
-                "[y] Replace  [n] Keep  [a] Replace all conflicts  [s] Keep all conflicts [n]: ",
+                "\nChoose an option (Enter = keep existing entries): ",
                 file=sys.stderr,
                 end="",
                 primary=False,
@@ -743,12 +779,18 @@ def run_email_edit(args, api):
             except EOFError:
                 all_choice = False
                 return False
+            finally:
+                emit("", file=sys.stderr, primary=False)
             if choice in {"a", "s"}:
                 all_choice = choice == "a"
                 return all_choice
-            if choice in {"", "n", "no", "y", "yes"}:
-                return choice in {"y", "yes"}
-            emit("Choose y, n, a, or s.", file=sys.stderr)
+            # Preserve previously accepted keys for interactive compatibility.
+            if choice in {"", "k", "keep", "n", "no", "r", "replace", "y", "yes"}:
+                return choice in {"r", "replace", "y", "yes"}
+            emit(
+                "Choose r, k, a, or s." if batch else "Choose r or k.",
+                file=sys.stderr,
+            )
 
     plan = (
         make_duplicate_removal_plan(person)

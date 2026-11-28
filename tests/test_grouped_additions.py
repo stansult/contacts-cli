@@ -30,7 +30,7 @@ def test_bulk_additions_actions(api, server, monkeypatch, tmp_path, capsys, acti
     out = capsys.readouterr().out
     assert "Available merges without conflicts: 3 contacts" in out
     assert "Target: Person 1 (c123)" in out and "Add Company: Example Company" in out
-    assert "Choice [s]" not in out
+    assert "Choose an option (Enter = skip this input)" not in out
     if action != "m":
         assert saved == before
     else:
@@ -53,7 +53,7 @@ def test_subset_then_remaining_and_invalid_number(api, server, monkeypatch, tmp_
 def test_individual_option(api, server, monkeypatch, tmp_path, capsys, choice):
     args, _, _ = additions_setup(api, server, monkeypatch, tmp_path, ["all", choice, "s", "s", "s"])
     assert cli.main(args) == 0 and server.writes == 0
-    assert capsys.readouterr().out.count("Choice [s]") == 3
+    assert capsys.readouterr().out.count("Choose an option (Enter = skip this input)") == 3
 
 
 @pytest.mark.parametrize("last", ["q", EOFError()])
@@ -122,7 +122,7 @@ def test_single_remainder_is_reviewed_individually(api, server, monkeypatch, tmp
     assert cli.main(args) == 0 and server.writes == 2
     out = capsys.readouterr().out
     assert "One entry remains for individual review." in out
-    assert out.count("Choice [s]") == 1
+    assert out.count("Choose an option (Enter = skip this input)") == 1
 
 
 def test_return_to_group_keeps_original_numbers(api, server, monkeypatch, tmp_path, capsys):

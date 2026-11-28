@@ -93,7 +93,9 @@ def test_additions_visible_before_merge_choice(api, server, monkeypatch, tmp_pat
     def answer():
         out = capsys.readouterr().out
         assert "Available additions:" in out and "Add Company: Example" in out
-        assert out.index("Add Company: Example") < out.index("Choice [s]")
+        assert out.index("Add Company: Example") < out.index(
+            "Choose an option (Enter = skip this input)"
+        )
         return "q"
 
     monkeypatch.setattr("builtins.input", answer)

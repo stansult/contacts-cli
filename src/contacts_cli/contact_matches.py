@@ -212,7 +212,7 @@ def choose_duplicate(*, allow_merge=False):
         emit("  m   Merge and resolve differences", primary=False)
     emit("  s   Skip this input\n  c   Create separately\n  q   Cancel command", primary=False)
     while True:
-        emit("Choice [s]: ", end="", primary=False)
+        emit("Choose an option (Enter = skip this input): ", end="", primary=False)
         try:
             answer = read_input().strip().casefold()
         except EOFError:

@@ -322,7 +322,7 @@ def test_interrupt_conflict_after_prior_choice_saves_nothing(
 
     monkeypatch.setattr("builtins.input", respond)
     assert cli.main(args) == 130
-    assert len(prompts) == 1 and "Choice [k]:" in prompts[0]
+    assert len(prompts) == 1 and "Choose an option (Enter = keep saved values):" in prompts[0]
     assert "First" in prompts[0] and "Second" in prompts[0]
     assert server.writes == 0 and server.person == before
     assert "no contact changes made" in capsys.readouterr().err
@@ -353,7 +353,7 @@ def test_keep_both_crossing_size_limit_stops_before_write(
     assert cli.main(args) == 1
     output = capsys.readouterr()
     assert "500-entry or 128-KiB size guard" in output.err
-    assert "Choice [k]:" in output.out
+    assert "Choose an option (Enter = keep saved values):" in output.out
     assert "Apply these changes?" not in output.err
     assert server.writes == 0 and server.person == before
 

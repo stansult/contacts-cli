@@ -344,11 +344,11 @@ def test_conflicts_use_local_numbers_after_consolidation(connected, server, monk
     assert cli.main(args("add", "--add", "a@example.com", "--add", "b@example.com")) == 0
     text = capsys.readouterr().out
     assert (
-        "Existing matches: 2 entries\n  1. a@example.com — First\n"
+        "Already exists: 2 entries\n  1. a@example.com — First\n"
         "  2. A@example.com — Second [duplicate of #1]" in text
     )
-    assert "Existing matches: 1 entry\n  1. b@example.com — Third" in text
-    assert "  2. b@example.com" in text
+    assert "Already exists: 1 entry\n  1. b@example.com — Third" in text
+    assert "Unchanged: 1 entry\n  b@example.com — Third" in text
     assert server.writes == 0
 
 

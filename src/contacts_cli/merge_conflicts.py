@@ -264,7 +264,7 @@ def choose_conflict(conflict, *, position=None, total=None):
         emit("  b   " + both, primary=False)
     emit("  q   Cancel command", primary=False)
     while True:
-        emit("Choice [k]: ", primary=False, end="")
+        emit("Choose an option (Enter = keep saved values): ", primary=False, end="")
         try:
             answer = read_input().strip().casefold()
         except EOFError:

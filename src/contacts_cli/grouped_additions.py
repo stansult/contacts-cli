@@ -117,7 +117,13 @@ def review_additions(
                 "  i       Review individually\n  q       Cancel command",
                 primary=False,
             )
-        emit("Choice [n]: " if subset else "Choice [i]: ", primary=False, end="")
+        emit(
+            "Choose an option (Enter = return to selection): "
+            if subset
+            else "Choose an option (Enter = review individually): ",
+            primary=False,
+            end="",
+        )
         try:
             answer = read_input().strip().casefold()
         except EOFError:

@@ -92,7 +92,7 @@ def review_selection(rows, *, noun, heading, unit, question, action, preview=Non
         while True:
             emit(question(len(selected)))
             emit(f"  y   {action}\n  n   Return to selection\n  q   Cancel", primary=False)
-            emit("Confirm [n]: ", end="", primary=False)
+            emit("Choose an option (Enter = return to selection): ", end="", primary=False)
             try:
                 answer = read_input().strip().casefold()
             except EOFError:

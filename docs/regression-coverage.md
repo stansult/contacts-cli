@@ -1445,3 +1445,40 @@ at the time of a change, not current suite totals.
 **Limits**
 
 - These tests do not call Google or establish the live failure cause.
+
+## Explicit multi-option prompt defaults
+
+- `tests/test_prompt_wording.py` covers separate email conflict options, label removal/replacement,
+  duplicate consolidation, Keep/Enter behavior, legacy keys, and returning to selection.
+- Existing merge and grouped-review tests assert explicit default wording while preserving their
+  saved-state, cancellation, selection, and no-write checks.
+- Seven new email/duplicate prompt cases failed against the previous UI. The selection default
+  case also checks that Enter actually returns to selection rather than confirming a write.
+- Layout assertions distinguish indented single-entry choices from duplicate-group and batch
+  choices; five cases failed before adding indentation and separation, then passed.
+- Simple yes/no confirmations retain their existing behavior and notation.
+
+## Keyboard-friendly address separators
+
+- `tests/test_address_separators.py` verifies a spaced keyboard hyphen in inline add/remove
+  inputs and addition/removal/exclusion files, including exclusion patterns.
+- En/em dash separators remain accepted. Hyphens inside addresses and mixed dashes within
+  labels survive unchanged; splitting stops at the first separator.
+- Seven cases failed against the em-dash-only parser; all nine pass with the shared parser update.
+
+## Existing-email review clarity
+
+- `tests/test_email_review_clarity.py` distinguishes one existing decision plus a new address
+  from multiple existing decisions; equal saved labels do not count as decisions.
+- Keep/Enter preserves saved labels while final Yes adds only the new address; final No writes
+  nothing. Unchanged rows precede additions, batch options disappear for the last decision, and
+  single-addition confirmation names the address.
+- The initial three scenarios failed against the previous raw-input counting and output.
+
+## Email update descriptions
+
+- `tests/test_email_update_output.py` covers label addition/removal/replacement, duplicate
+  consolidation with and without a resulting label, selected updates from mixed lists, and
+  apply headings without prompts. It checks specific confirmation, stable selection numbers,
+  hidden zero-addition headings, no writes after declining, and exact saved results.
+- Six initial cases failed against the dense update summaries and generic confirmation.

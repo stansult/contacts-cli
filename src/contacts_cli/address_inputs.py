@@ -1,5 +1,6 @@
 """Shared address and UTF-8 list parsing for exclusion and email editing."""
 
+import re
 from fnmatch import fnmatchcase
 
 from .core import address_key, parse_from_details
@@ -49,8 +50,8 @@ def file_lines(paths):
 
 
 def split_entry(line):
-    address, _, label = line.partition(" — ")
-    return address.strip(), label.strip()
+    parts = re.split(r" [-–—] ", line, maxsplit=1)
+    return parts[0].strip(), parts[1].strip() if len(parts) > 1 else ""
 
 
 def edit_inputs(values, paths, option):

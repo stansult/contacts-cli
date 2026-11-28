@@ -73,7 +73,7 @@ def test_label_comparison_upfront(api, server, monkeypatch, tmp_path, capsys, pr
     args = setup(api, server, monkeypatch, tmp_path, [incoming(server)], ["q"])
     assert cli.main(args + ["--label", "Test"]) == 0
     output = capsys.readouterr().out
-    preview = output.split("Choice [s]:")[0]
+    preview = output.split("Choose an option (Enter = skip this input):")[0]
     assert ("Add label Test:" in preview) == (not present)
     assert ("Already complete:" in preview) == present
 

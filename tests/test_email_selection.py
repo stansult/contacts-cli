@@ -39,7 +39,7 @@ def test_mixed_addition_and_update(api, server, monkeypatch, capsys, selection):
         else [{"value": "old@example.com", "type": "New"}]
     )
     output = capsys.readouterr().out
-    assert "2. old@example.com:" in output
+    assert "2. old@example.com\n     " in output
 
 
 def test_individual_removals_and_reselection(api, server, monkeypatch, capsys):
@@ -273,3 +273,19 @@ def test_remove_individual_duplicate(api, server, monkeypatch, capsys, selected,
     assert "Choose email entries:" in out
     if not identical:
         assert "a@example.com — HOME (primary)" in out
+
+
+@pytest.mark.parametrize("has_match", [False, True])
+def test_not_found_selection_note_only_with_removals(api, server, monkeypatch, capsys, has_match):
+    server.person["emailAddresses"] = [{"value": "keep@example.com"}]
+    before = deepcopy(server.person)
+    setup(api, monkeypatch, ["n"] if has_match else [])
+    args = ["remove-email", "--contact", "c123", "--remove", "absent@example.com"]
+    if has_match:
+        args += ["--remove", "keep@example.com"]
+    assert cli.main(args) == 0
+    output = capsys.readouterr().out
+    assert "Not found: 1 address" in output
+    assert ("Informational only; these numbers cannot be selected." in output) == has_match
+    assert ("Remove this email entry?" in output) == has_match
+    assert server.person == before and server.writes == 0

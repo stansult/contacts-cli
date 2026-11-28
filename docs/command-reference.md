@@ -2,6 +2,10 @@
 
 [Back to usage](../README.md). Detailed command behavior, output, and limitations.
 
+Multi-option menus list choices on separate lines and spell out the Enter default, for example
+`Choose an option (Enter = return to selection):`. Simple yes/no confirmations use `[y/N]`
+or `[Y/n]`, with the capital letter indicating the Enter default.
+
 ## Contents
 
 - [Running the CLI](#running-the-cli), [contact identifiers](#contact-identifiers),
@@ -351,7 +355,7 @@ limitations below still apply.
 Use `--exclude-file PATH` to read a UTF-8 list, one address or pattern per line. Repeat the option
 for multiple files and combine it with `--exclude`. Do not put shell quotes around file patterns.
 Blank lines, surrounding whitespace, and lines starting with `#` are ignored. A line copied from
-the preview may include ` — Display Name` after the address or pattern; that label is ignored.
+the preview may include ` - Display Name` after the address or pattern; that label is ignored.
 Inline comments and comma-separated lists are not supported. Files use the same validation and
 deduplication as `--exclude`. Missing, unreadable, non-UTF-8 files and invalid entries stop before
 authorization; invalid entries report the file and line number. Relative paths use the current
@@ -361,7 +365,7 @@ working directory. Files are read fresh each run.
 # Excluded senders
 ignore@example.com
 *@notifications.example.com
-another@example.com — Notifications
+another@example.com - Notifications
 ```
 
 ### Search process and progress
@@ -592,14 +596,18 @@ editing commands.
 
 ## Add-email and remove-email
 
-`add-email` accepts repeatable `--add 'address — Label'` and `--add-file PATH` options.
+`add-email` accepts repeatable `--add 'address - Label'` and `--add-file PATH` options.
 `remove-email` accepts repeatable `--remove ADDRESS` and `--remove-file PATH` options.
 Both require `--contact`. Add-email also accepts `--from-url` instead of individual/file inputs.
 Remove-email also accepts `--duplicates` instead of individual/file inputs.
 Otherwise, at least one individual or file option is required. Use the same UTF-8 file
-format as exclusions: one address per line, optional ` — Label`, blank lines and whole-line `#`
+format as exclusions: one address per line, optional ` - Label`, blank lines and whole-line `#`
 comments. Options combine; files are read fresh relative to the current directory. An empty file
 requests no changes. Removal ignores labels and matches addresses case-insensitively.
+Use a space on each side of the keyboard hyphen: `address@example.com - Label`.
+The same parser accepts spaced en/em dashes for compatibility with pasted preview output.
+Hyphens inside addresses and dashes within labels are preserved. This applies to inline
+add/remove inputs and addition, removal, and exclusion files.
 
 ### Removal patterns
 
@@ -666,16 +674,27 @@ all matching entries into one; Keep preserves them all. The primary matching ent
 present, otherwise the first matching entry, retaining its spelling and other metadata. Existing
 primary status is preserved. The preview shows the old labels and the entry-count reduction.
 
-Conflict choices are `y` (Replace), `n` or Enter (Keep), `a` (Replace all conflicts), and `s`
-(Keep all conflicts). All applies to current and remaining stored-entry conflicts, not unrelated
+Conflict menus put each option on its own line. For a single match, its choices are indented
+beneath the entry, separated by a blank line. Choices affecting a duplicate group or all remaining
+conflicts stay outside individual rows. Choose `r` to apply the described label change
+or duplicate consolidation, or `k` or Enter to keep the existing entries. The prompt spells out
+the Enter default; keeping an entry continues the command rather than cancelling it.
+When more existing-email decisions remain, `a` applies requested labels and duplicate consolidation
+to this and remaining conflicts; `s` keeps existing entries for this and remaining conflicts.
+New addresses and already-identical entries do not count as remaining decisions.
+Keeping existing entries does not cancel new additions. When only one new addition is selected,
+the final confirmation names its address.
+The earlier `y`/`n` keys still work as aliases for `r`/`k`.
+Batch choices apply to current and remaining stored-entry conflicts, not unrelated
 new additions. End-of-input keeps remaining conflicts. After these choices, the final preview
-lists changes, skipped conflicts, and remaining email entries. Interactive runs then select
-changes by number before final confirmation.
+lists kept entries under **Unchanged**, proposed changes, and remaining email entries. Interactive
+runs then select changes by number before final confirmation.
 
 `--replace-existing` approves all stored-entry conflicts but still requires final confirmation
 unless `--apply` is also supplied. With `--apply` alone, existing conflicts are preserved and
 reported while non-conflicting changes are saved. Noninteractive runs do not ask conflict questions;
-without `--apply` they only preview. Unresolved conflicts are shown under Skipped conflicts.
+without `--apply` they only preview. Existing entries kept without replacement are shown under
+**Unchanged**, with their saved labels.
 
 ### Removal groups and missing addresses
 
@@ -692,8 +711,10 @@ can be reused with `--exclude-file` to skip those senders in later runs.
 
 Interactive add/remove runs use `all`, numbers/ranges such as `3-5,8`, or `q` to cancel.
 Additions and updates have continuous numbering; each update (including duplicate consolidation)
-is indivisible. Removal numbers select individual stored entries. Not found and Skipped conflicts
-use separate, nonselectable numbers after the proposed changes and are marked informational.
+is indivisible. Removal numbers select individual stored entries. Not found uses separate,
+nonselectable numbers after the proposed changes. Its informational note is omitted when there
+are no proposed removals. Unchanged entries
+are listed without selection numbers before proposed changes.
 Subset previews retain original numbers and recalculate remaining email entries. Only selected
 changes are applied; unselected entries retain their original labels, duplicates, and metadata.
 
@@ -751,8 +772,14 @@ readback verification still apply. No Gmail search or sending-address exclusions
 
 Email lists use a heading with a total followed by aligned, numbered rows. Labels appear only
 when present. This applies to sender-sync additions and the direct email editing commands,
-including missing addresses and skipped conflicts. Addition rows do not repeat “Add.” Updates
-have a separate section showing the old and new values.
+including missing addresses. Unchanged entries use a total and unnumbered rows. Addition rows do not repeat “Add.” Updates
+have a separate section describing the action beneath each address:
+`Remove label: Work`, `Change label: Work → Personal`, or `Add label: Work`.
+Duplicate consolidation says `Combine 3 entries into one` and gives the resulting label
+(or `none`). Entry counts are omitted when only a label changes.
+When every update removes a label, the heading says **Proposed label removal(s)**.
+The zero-additions heading is hidden when updates exist. A single-update confirmation names
+the label action or duplicate consolidation, including when selected from a larger list.
 
 Use `list-email` to see all existing entries. Add/remove commands show only the existing total;
 existing entries are displayed when needed for a conflict decision. Conflict-match lists start at 1. Proposed additions and updates share continuous numbering;
@@ -762,7 +789,7 @@ occurrence within that list; removal previews show each entry separately. Number
 a preferred or primary address.
 
 Without `--apply`, change headings say Proposed additions, Proposed updates, or Proposed removals.
-With `--apply`, they say Adding, Updating, or Removing. These headings describe the requested action;
+With `--apply`, they say Adding, Updating, Removing, or Removing labels. These headings describe the requested action;
 only the final Saved and verified message confirms success.
 
 Email previews omit a display name that equals the email address, ignoring case. A different

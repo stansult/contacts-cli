@@ -4,6 +4,10 @@ Use `add-contact` to create contacts or review information to merge into saved c
 For JSON structure and field validation, see [contact input](contact-input.md).
 For command options, see [add-contact](command-reference.md#add-contact).
 
+Review menus spell out their Enter defaults: skip this input, keep saved values, review
+individually, or return to selection. These defaults select the named action; only a Cancel
+option cancels the command. Simple yes/no confirmations keep their `[y/N]` or `[Y/n]` notation.
+
 ## Import workflow
 
 1. Validate the entire input locally. Invalid records must be corrected even if you would not

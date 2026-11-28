@@ -48,7 +48,10 @@ def test_group_action_avoids_individual_choices(api, server, monkeypatch, tmp_pa
     output = capsys.readouterr().out
     assert "Available email label changes: 2 contacts" in output
     assert "Saved label: work / WORK" in output and "Incoming label: Event" in output
-    assert "Choice [s]" not in output and "Choice [k]" not in output
+    assert (
+        "Choose an option (Enter = skip this input)" not in output
+        and "Choose an option (Enter = keep saved values)" not in output
+    )
 
 
 def test_group_decline_final_approval_saves_nothing(api, server, monkeypatch, tmp_path):
@@ -64,7 +67,7 @@ def test_individual_fallback_keeps_existing_choices(
 ):
     args, _, _ = group_setup(api, server, monkeypatch, tmp_path, ["all", answer, "s", "s"])
     assert cli.main(args) == 0 and server.writes == 0
-    assert capsys.readouterr().out.count("Choice [s]") == 2
+    assert capsys.readouterr().out.count("Choose an option (Enter = skip this input)") == 2
 
 
 @pytest.mark.parametrize("action", ["r", "k"])
@@ -85,7 +88,7 @@ def test_partial_group_selection_leaves_others_for_review(
     )
     output = capsys.readouterr().out
     assert "One entry remains; continuing with individual review." in output
-    assert output.count("Choice [s]") == 1
+    assert output.count("Choose an option (Enter = skip this input)") == 1
     assert server.writes == (2 if action == "r" else 0)
 
 
@@ -96,13 +99,16 @@ def test_noninteractive_group_never_resolves_duplicates(
     args, _, _ = group_setup(api, server, monkeypatch, tmp_path, [])
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: False)
     assert cli.main(args + (["--apply"] if apply else [])) == (1 if apply else 0)
-    assert server.writes == 0 and "Choice [i]" not in capsys.readouterr().out
+    assert (
+        server.writes == 0
+        and "Choose an option (Enter = review individually)" not in capsys.readouterr().out
+    )
 
 
 def test_apply_still_requires_group_action(api, server, monkeypatch, tmp_path, capsys):
     args, _, _ = group_setup(api, server, monkeypatch, tmp_path, ["r"])
     assert cli.main(args + ["--apply"]) == 0 and server.writes == 2
-    assert "Choice [i]" in capsys.readouterr().out
+    assert "Choose an option (Enter = review individually)" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
@@ -231,7 +237,9 @@ def test_group_uses_original_selected_numbers_only(api, server, monkeypatch, tmp
     assert cli.main(args) == 0 and server.writes == 2
     assert saved[1]["emailAddresses"][0]["type"] == "WORK"
     group = (
-        capsys.readouterr().out.split("Available email label changes:")[1].split("Choice [i]")[0]
+        capsys.readouterr()
+        .out.split("Available email label changes:")[1]
+        .split("Choose an option (Enter = review individually)")[0]
     )
     assert "1. Person 1" in group and "3. Person 3" in group
     assert "2. Person 2" not in group
@@ -254,7 +262,10 @@ def test_grouped_and_individual_changes_and_new_contact(api, server, monkeypatch
     assert any(p["names"][0].get("givenName") == "New Person" for p in server.created.values())
     output = capsys.readouterr().out
     assert "Available email label changes: 2 contacts" in output
-    assert output.count("Choice [s]") == 1 and output.count("Choice [k]") == 1
+    assert (
+        output.count("Choose an option (Enter = skip this input)") == 1
+        and output.count("Choose an option (Enter = keep saved values)") == 1
+    )
 
 
 def test_group_choices_reprompt_invalid_values(api, server, monkeypatch, tmp_path, capsys):
@@ -327,7 +338,7 @@ def test_direct_group_numbers_spacing_and_return(api, server, monkeypatch, tmp_p
     assert "Select entries by number\n" not in out
     assert "Choose email label changes:" not in out
     assert "1-3" in out
-    assert "Choice [i]: \n" in out
+    assert "Choose an option (Enter = review individually): \n" in out
     assert "Saved3@example.com\n\n" in out
     assert "Changes will be saved after final confirmation." in out
 
@@ -354,8 +365,10 @@ def test_remaining_group_supports_multiple_subset_decisions(
     assert "Available email label changes: 3 contacts" in out
     assert "Available email label changes: 2 contacts" in out
     assert "Use only displayed item numbers." in out
-    assert "Choice [s]" not in out
-    remaining = out.split("Available email label changes: 3 contacts")[1].split("Choice [i]")[0]
+    assert "Choose an option (Enter = skip this input)" not in out
+    remaining = out.split("Available email label changes: 3 contacts")[1].split(
+        "Choose an option (Enter = review individually)"
+    )[0]
     assert "1. Person 1" not in remaining and "2. Person 2" in remaining
     assert "2-4" in remaining
 
@@ -371,7 +384,7 @@ def test_remaining_group_can_choose_individual_review(
     assert saved[0]["emailAddresses"][0]["type"] == "Event"
     out = capsys.readouterr().out
     assert "Available email label changes: 2 contacts" in out
-    assert out.count("Choice [s]") == 2
+    assert out.count("Choose an option (Enter = skip this input)") == 2
 
 
 @pytest.mark.parametrize("end", ["q", "eof"])
@@ -459,6 +472,8 @@ def test_different_saved_labels_share_group(api, server, monkeypatch, tmp_path, 
     assert "Available email label changes: 3 contacts" in out
     assert "Person 3 — Saved3@example.com — saved label: OTHER" in out
     assert "Person 1 — Saved1@example.com — saved label: work" in out
-    subset = out.split("Reviewing selection: 1 contact")[1].split("Choice [n]")[0]
+    subset = out.split("Reviewing selection: 1 contact")[1].split(
+        "Choose an option (Enter = return to selection)"
+    )[0]
     assert "saved label: OTHER" in subset
-    assert "Choice [s]" not in out
+    assert "Choose an option (Enter = skip this input)" not in out

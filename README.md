@@ -133,7 +133,7 @@ Shows a numbered list with labels and duplicate references.
 ## Add or remove email addresses
 
 ```sh
-./contacts-cli add-email --contact c123456789 --add 'person@example.com — Work'
+./contacts-cli add-email --contact c123456789 --add 'person@example.com - Work'
 ./contacts-cli remove-email --contact c123456789 --remove person@example.com
 ```
 

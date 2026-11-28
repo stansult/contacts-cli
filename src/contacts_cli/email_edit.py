@@ -22,8 +22,10 @@ def is_primary(entry):
     return bool(metadata.get("sourcePrimary") or metadata.get("primary"))
 
 
-def describe(entry):
-    return entry["value"] + (f" — {entry['type']}" if entry.get("type") else " — (no label)")
+@dataclass
+class EmailUpdate:
+    before: list
+    after: dict
 
 
 @dataclass
@@ -86,11 +88,7 @@ def make_edit_plan(person, entries, *, remove=False, resolve=None, expand_patter
             continue
         conflict = len(matches) > 1 or bool(old_label)
         if conflict and (resolve is None or not resolve(address, matches, label)):
-            skipped.append(
-                f"{address}: kept {len(matches)} existing entry(s); "
-                f"requested label: {label or '(no label)'}; existing: "
-                + "; ".join(map(describe, matches))
-            )
+            skipped.extend(deepcopy(matches))
             continue
         survivor = next((entry for entry in matches if is_primary(entry)), matches[0])
         replacement = deepcopy(survivor)
@@ -103,11 +101,7 @@ def make_edit_plan(person, entries, *, remove=False, resolve=None, expand_patter
         index = next(i for i, entry in enumerate(emails) if address_key(entry["value"]) == key)
         emails = [entry for entry in emails if address_key(entry["value"]) != key]
         emails.insert(index, replacement)
-        updates.append(
-            f"{address}: {len(matches)} entry(s) → 1; "
-            + "; ".join(map(describe, matches))
-            + f" → {describe(replacement)}"
-        )
+        updates.append(EmailUpdate(deepcopy(matches), deepcopy(replacement)))
         changes.append(address)
     return EmailEditPlan(
         deepcopy(person), emails, changes, skipped, absent, removed, added, updates
