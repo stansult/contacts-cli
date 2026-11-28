@@ -19,7 +19,9 @@ synchronized with the implementation.
 - `contact_resolution.py` compiles reusable `ContactFilters` and evaluates AND matching without
   prompts or writes. `list-contact` owns filter spelling choices and result presentation.
   `resolve_single_contact` reuses complete-identifier matching before single-target command
-  dispatch; `resolve_contacts` supplies multiple-target lookup for `add-label` and `format-phone`.
+  dispatch; `resolve_contacts` supplies multiple-target lookup for labeling, phone formatting,
+  and field listings. `batch_lists.py` shares read-only iteration and outcomes for email, phone,
+  and label lists; existing field renderers preserve their display and duplicate conventions.
   `load_batch_identifiers` combines repeatable inputs with shared file parsing. IDs bypass scans.
   Follow the [shared batch contract](docs/batch-contacts.md); it defines input ordering,
   selection, and failure handling.

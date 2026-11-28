@@ -313,7 +313,7 @@ def test_cli_closes_worker_on_every_exit_and_repeated_invocation(monkeypatch, fa
         transports.append(req.http)
         return GoogleAPI(SimpleNamespace(_http=req.http), None)
 
-    def run(args, api):
+    def run(args, api, heading):
         req = HttpRequest(api.gmail._http, lambda r, c: {}, "https://example.invalid/success")
         execute(req)
         children.append(req.http.reader.process)
@@ -322,7 +322,7 @@ def test_cli_closes_worker_on_every_exit_and_repeated_invocation(monkeypatch, fa
         return 0
 
     monkeypatch.setattr(cli, "connect_with_authorization", connect)
-    monkeypatch.setattr(cli, "run_list_email", run)
+    monkeypatch.setattr(cli, "run_field_lists", run)
     for _ in range(2):
         if isinstance(failure, RuntimeError):
             with pytest.raises(RuntimeError, match="synthetic"):

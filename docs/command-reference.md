@@ -42,15 +42,20 @@ and a direct link to the detailed section below. A subcommand is required.
 ## Contact identifiers
 
 Single-contact commands accept a Google Contacts URL, bare ID, full name, email, or complete
-phone number through `--contact`. This applies to email, `list-phone`, `remove-phone`, custom-field
-commands, `duplicate`, `sender-sync`, and contact-specific `list-label` and `remove-label`.
-`format-phone` and `add-label` support [multiple-contact resolution](batch-contacts.md).
+phone number through `--contact`. This applies to `add-email`, `remove-email`, `remove-phone`,
+custom-field commands, `duplicate`, `sender-sync`, and `remove-label`.
+`format-phone`, `add-label`, `list-email`, `list-phone`, and `list-label` support
+[multiple-contact resolution](batch-contacts.md), with the same complete-identifier matching rules.
 
 - Names match completely, ignoring case and extra whitespace; a one-word saved name can match.
 - Emails match completely, ignoring case.
 - Phones ignore punctuation and an optional leading `+`, but require all base-number digits.
   No country is guessed. An extension restricts the match to that extension; omitting it can
   match several contacts sharing a base number.
+
+For single-contact commands, supplying `--contact` more than once is an input error before
+account access; earlier targets are never silently discarded.
+
 - One match continues to the command's normal preview. Multiple matches show identifying
   details and require exactly one displayed number, or `q` to cancel. Enter, `all`, lists, and
   ranges do not select a contact. End-of-input cancels.
@@ -62,7 +67,7 @@ commands, `duplicate`, `sender-sync`, and contact-specific `list-label` and `rem
 IDs and URLs avoid the account-wide matching read. The ID is the final part of the website URL,
 after `/person/`, such as `c123456789`. Other identifiers read saved matching fields once, then
 the command reads full target details as usual. Company and label filters and partial lookup
-remain in `list-contact`; `add-label` retains its existing multiple-contact resolution.
+remain in `list-contact`.
 
 ```sh
 ./contacts-cli list-email --contact 'Jane Example'
@@ -649,7 +654,11 @@ Sources: [Gmail listing contract](https://developers.google.com/workspace/gmail/
 ./contacts-cli list-email --contact 'c123456789'
 ```
 
-Reads the contact and lists every existing email entry in its stored order, with a total,
+Repeat `--contact` and optionally combine it with `--contact-file contacts.txt` to list several
+contacts. At least one contact input is required. The [read-only batch rules](batch-contacts.md#read-only-field-listings)
+cover ambiguity choices, skipped contacts, numbering, and incomplete results.
+
+Reads each contact once and lists every existing email entry in its stored order, with a total,
 numbered rows, optional labels, and duplicate references. An empty contact shows zero entries.
 It does not modify the contact or search Gmail. No apply confirmation is needed, and `--apply`
 is not accepted. The command uses the saved authorization and supports `--token` like the
@@ -864,7 +873,9 @@ display name remains visible. This affects presentation only; saved contact data
 ./contacts-cli remove-phone --contact c123456789 --duplicates --apply
 ```
 
-Both commands require a [contact identifier](#contact-identifiers). Silent plural aliases `list-phones` and
+`list-phone` accepts repeated `--contact`, a `--contact-file`, or both; at least one contact input
+is required. See the [read-only batch rules](batch-contacts.md#read-only-field-listings).
+`remove-phone` requires one [contact identifier](#contact-identifiers). Silent plural aliases `list-phones` and
 `remove-phones` are accepted. `remove-phone` currently requires `--duplicates`; removal by
 number, patterns, and input files is not supported. There is no `add-phone` command yet.
 
@@ -966,10 +977,12 @@ response/readback verification as [phone removal](#list-phone-and-remove-phone).
 ./contacts-cli list-label --contact c123456789
 ```
 
-Without `--contact`, lists all account user labels with their total contact counts, including
-`0 contacts` for empty labels. Counts come from the same paginated label request, without
+Without `--contact` or `--contact-file`, lists all account user labels with their total contact
+counts, including `0 contacts` for empty labels. Counts come from the same paginated label request, without
 reading individual contacts. If a returned count is malformed, the row says `count unavailable`.
-With `--contact`, shows the contact and only labels applied to it, without counts. Both lists have a total and numbered rows,
+Repeat `--contact` and optionally combine it with `--contact-file` to list labels grouped by contact.
+Label names are read once for the batch. Contact-specific lists omit account-wide counts;
+see the [read-only batch rules](batch-contacts.md#read-only-field-listings). All lists have totals and numbered rows,
 sorted alphabetically without regard to case. Original spellings remain visible.
 System groups and deleted labels are omitted. An empty list shows `Labels: 0 labels`.
 The command only reads data, never prompts for a write, and has no `--apply` option. The silent

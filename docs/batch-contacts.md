@@ -2,8 +2,9 @@
 
 [Back to command reference](command-reference.md).
 
-These are the agreed rules for commands adopting multiple-contact input. `format-phone` and
-`add-label` use this contract. With no contact inputs, `add-label` creates account labels instead.
+These are the agreed rules for commands adopting multiple-contact input. `format-phone`,
+`add-label`, `list-email`, `list-phone`, and `list-label` use this contract. Without contact inputs,
+`add-label` creates account labels and `list-label` lists account labels with contact counts.
 Other commands remain single-contact commands unless their help explicitly says otherwise.
 
 ## Inputs and matching
@@ -39,8 +40,8 @@ Resolve all inputs and prepare previews before writing. Assign contact numbers w
 encountered and preserve them across matching, unchanged, proposed, and selected lists.
 
 The command defines its selection unit: contacts for labeling, phone entries for formatting.
-Field-entry numbers must be unique across a batch. Prompts identify what the numbers select;
-contact headings are not field-entry choices. Filtering leaves gaps instead of renumbering.
+For commands selecting field changes, entry numbers must be unique across a batch. Prompts
+identify what the numbers select; contact headings are not field-entry choices. Filtering leaves gaps instead of renumbering.
 
 Offer one final confirmation for all selected changes. Selecting contacts during matching does
 not approve changes. `--apply` selects all proposed changes and skips final confirmation, but
@@ -83,3 +84,27 @@ separates saved additions from memberships already applied concurrently since pr
 A missing contact reported by the membership response is contact-specific; a rejected shared
 label operation is not. A content mismatch after a successful verification read can continue;
 a failed verification read leaves the write uncertain and stops.
+
+## Read-only field listings
+
+`list-email`, `list-phone`, and `list-label` share input validation, complete-identifier matching,
+ambiguity selection, deduplication, and missing-contact skipping. `list-email` and `list-phone`
+require contact inputs. Supplying an empty `--contact-file` to `list-label` is an input error,
+not a request to list account labels.
+
+There is no change preview, final confirmation, or `--apply`. After resolving all identifiers,
+read each distinct contact once and display its entries. Multiple resolved contacts have separate
+`Contact #N` headings retaining their original matching numbers. Entry numbers restart at 1 within
+each contact; duplicate references stay within that contact. These numbers are informational, not
+a second selection prompt. A single resolved contact retains the ordinary unnumbered heading.
+
+Empty email, phone, and label lists show zero entries or labels. For contact-specific `list-label`,
+read the paginated label names once and reuse them throughout the run; do not show account-wide
+contact counts on these lists.
+
+Explicitly missing contacts are skipped. Other read failures, including incomplete data, stop
+the listing with exit status 1; interruption returns 130. Results already displayed remain visible,
+and the command says the listing is incomplete. Multiple-contact runs and failures summarize
+listed, skipped, failed, and not-attempted contacts. An interrupted read counts as failed.
+Unmatched identifiers remain in the separate input-resolution summary. A successfully displayed
+empty list counts as a listed contact. No matching contacts is a successful empty result.

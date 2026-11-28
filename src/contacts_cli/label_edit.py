@@ -244,17 +244,19 @@ def run_label_edit(args, api, confirm, heading):
     return 0
 
 
-def run_list_labels(args, api, heading):
-    """Read memberships and names; never change contact or label data."""
-    current = None
-    if args.contact is not None:
-        emit("Reading contact…")
-        person = api.get_contact(contact_resource(args.contact), LABEL_FIELDS)
-        current = memberships(person)
-        emit(heading(person) + "\n", primary=False)
+def run_list_labels(api):
+    """List account labels and counts; contact-specific lists use the shared batch flow."""
     emit("Reading contact labels…")
+    emit_list(
+        "Labels", label_rows(contact_groups(api, include_counts=True)), unit=("label", "labels")
+    )
+    return 0
+
+
+def label_rows(groups, current=None):
+    """Render account counts or contact memberships from one shared label snapshot."""
     labels = {}
-    for group in active_user_labels(contact_groups(api, include_counts=current is None)):
+    for group in active_user_labels(groups):
         if current is None or group.get("resourceName") in current:
             name, resource = label_identity(group)
             label = name
@@ -269,8 +271,7 @@ def run_list_labels(args, api, heading):
                 label = f"{name} — {suffix}"
             labels[resource] = (name, label)
     rows = sorted(labels.values(), key=lambda item: (item[0].casefold(), item[0]))
-    emit_list("Labels", enumerate((label for _, label in rows), 1), unit=("label", "labels"))
-    return 0
+    return list(enumerate((label for _, label in rows), 1))
 
 
 def run_create_labels(args, api, confirm):

@@ -9,6 +9,7 @@ from pathlib import Path
 from .address_inputs import address_pattern_input, edit_inputs, file_lines, split_entry
 from .api import exclusion_query
 from .auth import authorize, connect, default_credentials_path, default_token_path
+from .batch_lists import LIST_COMMANDS, run_field_lists
 from .contact_create import LabelChoiceCancelled, run_create
 from .contact_inputs import load_contact_inputs, text_value
 from .contact_listing import run_list_contacts
@@ -41,6 +42,17 @@ from .sender_criteria import extract_search_criteria
 from .timing import CommandTimer, read_input
 from .url_email_add import run_url_add
 from .web_emails import fetch_addresses, validate_url
+
+
+class SingleContact(argparse.Action):
+    """Reject repeated targets instead of argparse's usual last-value-wins behavior."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if getattr(namespace, self.dest, None) is not None:
+            raise argparse.ArgumentError(
+                self, "--contact can only be supplied once for this command"
+            )
+        setattr(namespace, self.dest, values)
 
 
 def positive_seconds(value: str) -> int:
@@ -160,6 +172,7 @@ def parser() -> argparse.ArgumentParser:
     duplicate = commands.add_parser("duplicate", help="Preview or create a copy of a contact")
     duplicate.add_argument(
         "--contact",
+        action=SingleContact,
         required=True,
         help="Contact URL, ID, full name, email, or complete phone number",
     )
@@ -214,6 +227,7 @@ def parser() -> argparse.ArgumentParser:
     )
     sync.add_argument(
         "--contact",
+        action=SingleContact,
         required=True,
         help="Contact URL, ID, full name, email, or complete phone number",
     )
@@ -249,12 +263,19 @@ def parser() -> argparse.ArgumentParser:
             "no shell quotes (repeatable)"
         ),
     )
-    listing = commands.add_parser("list-email", help="List a contact's existing email entries")
+    listing = commands.add_parser(
+        "list-email",
+        help="List contacts' existing email entries",
+        description="List entries for one or several contacts. Multiple matches offer selection; "
+        "missing contacts are skipped. No changes are made.",
+    )
     listing.add_argument(
         "--contact",
-        required=True,
-        help="Contact URL, ID, full name, email, or complete phone number",
+        action="append",
+        help="Contact URL, ID, full name, email, or complete phone number "
+        "(repeatable; combines with --contact-file)",
     )
+    listing.add_argument("--contact-file", type=Path, help="UTF-8 identifiers, one per line")
     editing = []
     for action in ("add", "remove"):
         command = commands.add_parser(
@@ -269,6 +290,7 @@ def parser() -> argparse.ArgumentParser:
         )
         command.add_argument(
             "--contact",
+            action=SingleContact,
             required=True,
             help="Contact URL, ID, full name, email, or complete phone number",
         )
@@ -340,12 +362,12 @@ def parser() -> argparse.ArgumentParser:
         )
         command.add_argument(
             "--contact",
-            required=action != "format",
-            action="append" if action == "format" else "store",
+            required=action == "remove",
+            action=SingleContact if action == "remove" else "append",
             help="Contact URL, ID, full name, email, or complete phone number"
-            + (" (repeatable; combines with --contact-file)" if action == "format" else ""),
+            + (" (repeatable; combines with --contact-file)" if action != "remove" else ""),
         )
-        if action == "format":
+        if action != "remove":
             command.add_argument(
                 "--contact-file",
                 type=Path,
@@ -367,19 +389,29 @@ def parser() -> argparse.ArgumentParser:
             )
         phone_commands.append(command)
     label_listing = commands.add_parser(
-        "list-label", help="List account labels with contact counts, or labels on one contact"
+        "list-label", help="List account labels with contact counts, or labels on selected contacts"
     )
     label_listing.add_argument(
         "--contact",
+        action="append",
         help="Contact URL, ID, full name, email, or complete phone number; "
-        "omit for all account labels with contact counts",
+        "repeatable; combines with --contact-file; omit both for account labels with counts",
+    )
+    label_listing.add_argument("--contact-file", type=Path, help="UTF-8 identifiers, one per line")
+    label_listing.description = (
+        "List account labels with counts, or labels grouped by selected contact. "
+        "Multiple matches offer selection; missing contacts are skipped. No changes are made."
+    )
+    phone_commands[0].description += (
+        "\nList one or several contacts. Multiple matches offer selection; "
+        "missing contacts are skipped. No changes are made."
     )
     label_commands = [label_listing]
     for action in ("add", "remove"):
         labeling = commands.add_parser(
             f"{action}-label",
             help=(
-                "Create labels or add them to a contact"
+                "Create labels or add them to contacts"
                 if action == "add"
                 else "Remove labels from a contact"
             ),
@@ -399,7 +431,7 @@ def parser() -> argparse.ArgumentParser:
         targets.add_argument(
             "--contact",
             required=action == "remove",
-            action="append" if action == "add" else "store",
+            action="append" if action == "add" else SingleContact,
             help=(
                 "Contact identifier (repeatable; combines with --contact-file); "
                 "omit for account labels"
@@ -448,6 +480,7 @@ def parser() -> argparse.ArgumentParser:
         )
         custom.add_argument(
             "--contact",
+            action=SingleContact,
             required=True,
             help="Contact URL, ID, full name, email, or complete phone number",
         )
@@ -765,14 +798,6 @@ def run(args, api) -> int:
         flags = "--exclude-other --apply" if exclude_other else "--apply"
         emit(f"Preview only; no changes made. Use {flags} to save additions.")
         outcome("preview")
-    return 0
-
-
-def run_list_email(args, api):
-    emit("Reading contact…", file=sys.stderr)
-    person = api.get_contact(contact_resource(args.contact))
-    emit(contact_heading(person) + "\n", primary=False)
-    emit_list("Email addresses", email_rows(person.get("emailAddresses", [])))
     return 0
 
 
@@ -1097,11 +1122,23 @@ def run_command(args):
             emit("Authorization saved. Future sync runs use the saved token without a browser.")
             return 0
         # Reject bad input before touching credentials or the network.
-        if args.contact is not None and args.command not in {"add-label", "format-phone"}:
+        if args.contact is not None and args.command not in {
+            "add-label",
+            "format-phone",
+            *LIST_COMMANDS,
+        }:
             from .contact_resolution import identifier_kind, load_identifiers
 
             args.contact = load_identifiers(args.contact)[0]
             identifier_kind(args.contact)
+        if args.command in LIST_COMMANDS and (
+            args.command != "list-label"
+            or args.contact is not None
+            or args.contact_file is not None
+        ):
+            from .contact_resolution import load_batch_identifiers
+
+            args.contact_identifiers = load_batch_identifiers(args.contact, args.contact_file)
         if args.command == "format-phone":
             from .contact_resolution import load_batch_identifiers
 
@@ -1186,11 +1223,17 @@ def run_command(args):
         if api is None:
             return 1
         api.write_started = False
+        if args.command in LIST_COMMANDS and hasattr(args, "contact_identifiers"):
+            return run_field_lists(args, api, contact_heading)
         if args.command == "format-phone":
             from .phone_format import run_format_contacts
 
             return run_format_contacts(args, api, confirm_apply)
-        if args.contact is not None and args.command not in {"add-label", "format-phone"}:
+        if args.contact is not None and args.command not in {
+            "add-label",
+            "format-phone",
+            *LIST_COMMANDS,
+        }:
             from .contact_resolution import resolve_single_contact
 
             args.contact = resolve_single_contact(api, args.contact)
@@ -1201,15 +1244,13 @@ def run_command(args):
         if args.command in {"add-custom-field", "remove-custom-field"}:
             return run_custom_field(args, api, confirm_apply, contact_heading)
         if args.command == "list-label":
-            return run_list_labels(args, api, contact_heading)
+            return run_list_labels(api)
         if args.command in {"add-label", "remove-label"}:
             return run_label_edit(args, api, confirm_apply, contact_heading)
-        if args.command in {"list-phone", "remove-phone"}:
+        if args.command == "remove-phone":
             from .phone_edit import run_phone
 
             return run_phone(args, api, confirm_apply, contact_heading)
-        if args.command == "list-email":
-            return run_list_email(args, api)
         if args.command in {"add-email", "remove-email"}:
             return run_email_edit(args, api)
         return run_duplicate(args, api) if args.command == "duplicate" else run(args, api)

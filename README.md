@@ -133,6 +133,10 @@ can still be added. `Reply-To` addresses are not collected.
 
 ## List email addresses
 
+`list-email`, `list-phone`, and contact-specific `list-label` accept repeated `--contact`,
+optionally combined with `--contact-file contacts.txt`. Results are grouped by contact; unmatched
+inputs are skipped. These commands only read data. See the [batch listing rules](docs/batch-contacts.md#read-only-field-listings).
+
 ```sh
 ./contacts-cli list-email --contact c123456789
 ```
@@ -215,8 +219,8 @@ See [formatting rules](docs/command-reference.md#format-phone).
 ./contacts-cli remove-label --contact c123456789 --label Recruiter
 ```
 
-`list-label` lists all account user labels with their contact counts. With `--contact`, it lists
-only that contact’s labels, without counts.
+`list-label` lists all account user labels with their contact counts. With contact inputs, it lists
+only those contacts’ labels, without counts.
 
 `add-label` accepts a contact URL, ID, full name, email, or phone with repeatable `--contact`,
 optionally combined with a `--contact-file` containing one identifier per line. Multiple matches

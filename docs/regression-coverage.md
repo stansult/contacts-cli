@@ -1600,3 +1600,38 @@ content mismatch as a generic uncertain write made its classification regression
 contact-specific classification passes. Existing resolver, label-output, and label-edit suites
 retain ambiguity, skip, cancellation, stable numbering, unchanged contacts, account-only creation,
 and fixture-level membership-operation coverage. All account data is synthetic.
+
+## Batch email, phone, and label listings
+
+`tests/test_batch_lists.py` covers repeatable identifiers combined with UTF-8/BOM files,
+validation before authorization, resolved-ID deduplication, and one target read per contact.
+Ambiguous inputs support all/subset/skip/cancel; redirected ambiguity errors, and EOF cancels
+before target reads. No mutation method may be called during listing.
+
+Output checks cover stable contact numbers after missing targets, single-contact headings,
+empty lists, and email/phone duplicate references scoped to each contact. Label tests verify
+that both pages of the fixture's label response are read once for the batch and that memberships
+remain contact-specific. Existing label fixture-contract and account-count tests retain their
+independent pagination, field-mask, and no-contact-mode checks.
+
+Read failures and interruptions preserve earlier output, stop before later reads, and report
+listed/skipped/failed/not-attempted counts. Malformed email, phone, and membership data cannot
+appear as an empty successful list. An empty contact file never becomes account-label mode.
+
+The initial cases failed 21 tests against the old single-contact implementation. Temporarily
+refetching labels for each contact failed the pagination/reuse test; continuing after a read
+failure failed all six interruption/failure cases. Both faults were restored before final checks.
+Older lookup assertions now reflect missing-target skips and shared batch ambiguity presentation
+for these three listings; mutation commands retain their single-target behavior.
+The worker-cleanup regression now injects failures at the shared listing entry point and still
+verifies subprocess/pipe/transport cleanup on success, reported errors, interruption, and unexpected
+exceptions across repeated invocations. Missing-input tests retain the pre-authorization guard;
+validation now accepts either inline identifiers or a file instead of requiring `--contact` alone.
+
+### Repeated targets on single-contact commands
+
+`tests/test_contact_argument.py` checks all eight single-contact commands: repeating `--contact`
+with either the same or a different value fails before authorization. The second occurrence also
+uses `--contact=VALUE` to cover that spelling. Single targets still parse, while the five
+batch-capable commands retain repeated inputs. Main-help assertions cover plural label wording.
+The original implementation failed 17 cases; all 30 pass after the change.

@@ -120,9 +120,6 @@ def run_phone(args, api, confirm, heading):
     person = api.get_contact(contact_resource(args.contact))
     entries = phone_entries(person)
     emit(heading(person) + "\n", primary=False)
-    if args.command == "list-phone":
-        emit_list("Phone numbers", phone_rows(entries))
-        return 0
     candidates, kept = duplicate_phones(entries)
     if not candidates:
         emit("No duplicate phone entries found; no changes made.")

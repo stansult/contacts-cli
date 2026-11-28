@@ -47,10 +47,10 @@ def test_missing_target_blocks_command(command, options, api, server, monkeypatc
     _, _, baseline = setup(api, server, monkeypatch)
     monkeypatch.setattr(api, "get_contact", lambda *a: pytest.fail("command read"))
     assert cli.main([command, "--contact", "Missing Person", *options]) == (
-        0 if command == "format-phone" else 1
+        0 if command in {"format-phone", "list-email", "list-phone", "list-label"} else 1
     )
     output = capsys.readouterr()
-    if command == "format-phone":
+    if command in {"format-phone", "list-email", "list-phone", "list-label"}:
         assert "Unmatched inputs" in output.out
     else:
         assert "No saved contact matches" in output.err
@@ -60,8 +60,8 @@ def test_missing_target_blocks_command(command, options, api, server, monkeypatc
 @pytest.mark.parametrize("identifier", ["Jane", "5550142", "2025550142 x42"])
 def test_no_partial_matching(identifier, api, server, monkeypatch, capsys):
     setup(api, server, monkeypatch)
-    assert cli.main(["list-email", "--contact", identifier]) == 1
-    assert "No saved contact matches" in capsys.readouterr().err
+    assert cli.main(["list-email", "--contact", identifier]) == 0
+    assert "Unmatched inputs" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(
@@ -168,7 +168,8 @@ def test_extension_ambiguity(api, server, monkeypatch, capsys):
     other["phoneNumbers"] = [{"value": "+1 202-555-0142 ext. 43"}]
     assert cli.main(["list-phone", "--contact", "12025550142"]) == 0
     out = capsys.readouterr().out
-    assert "Multiple contacts match" in out and "ext. 42" in out and "ext. 43" in out
+    assert "Multiple contacts match" in out
+    assert "Jane Example (c123)" in out and "Other Example (c456)" in out
     assert server.writes == baseline
 
 
