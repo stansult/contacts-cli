@@ -21,8 +21,8 @@ synchronized with the implementation.
   `resolve_single_contact` reuses complete-identifier matching before single-target command
   dispatch; `resolve_contacts` supplies multiple-target lookup for `add-label` and `format-phone`.
   `load_batch_identifiers` combines repeatable inputs with shared file parsing. IDs bypass scans.
-  Follow the [shared batch contract](docs/batch-contacts.md); its introduction distinguishes
-  implemented behavior from deferred alignment.
+  Follow the [shared batch contract](docs/batch-contacts.md); it defines input ordering,
+  selection, and failure handling.
   Command modules retain target reads, preview, write protection, and verification.
 - `label_data.py` shares paginated label reads, membership validation, active-user filtering, and
   identity validation across listing, creation, and removal. Command modules own matching and

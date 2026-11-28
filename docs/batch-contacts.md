@@ -2,10 +2,8 @@
 
 [Back to command reference](command-reference.md).
 
-These are the agreed rules for commands adopting multiple-contact input. `format-phone` uses
-this contract. `add-label` already shares matching, ambiguity selection, stable contact numbers,
-and preview-before-save behavior. It still accepts either one `--contact` or one `--contact-file`,
-not both, and stops saving on its first failure. Aligning those differences is deferred.
+These are the agreed rules for commands adopting multiple-contact input. `format-phone` and
+`add-label` use this contract. With no contact inputs, `add-label` creates account labels instead.
 Other commands remain single-contact commands unless their help explicitly says otherwise.
 
 ## Inputs and matching
@@ -69,3 +67,19 @@ is unverified, not safely failed. Never automatically replay an uncertain write.
 Deliberate skips and no-ops are successful. Any failed operation returns a nonzero exit status:
 1 for failures, 3 if any write remains unverified, or 130 for interruption. Retry only explicit
 transient rejections through the existing request policy, not uncertain writes.
+
+## Shared labels and partial contact results
+
+`add-label` creates and verifies all missing labels needed by selected contacts after final
+approval, before applying any memberships. A shared-label failure stops and reports created
+labels; all contacts remain unattempted. Labels already created remain saved.
+
+Each contact can receive several labels. A later addition can fail after earlier additions were
+verified. Report the verified labels, the failed or unverified label, and remaining unattempted
+labels for that contact. Count a contact as verified only when all selected labels are satisfied.
+A failed or unverified contact may therefore contain successful partial changes. The summary
+separates saved additions from memberships already applied concurrently since preview.
+
+A missing contact reported by the membership response is contact-specific; a rejected shared
+label operation is not. A content mismatch after a successful verification read can continue;
+a failed verification read leaves the write uncertain and stops.

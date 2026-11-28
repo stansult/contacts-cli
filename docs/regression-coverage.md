@@ -1580,3 +1580,23 @@ Initial batch tests failed 16 cases before implementation. Temporarily removing 
 failure classification caused three stale/response/readback continuation tests to fail; the
 classification was restored. The existing single-lookup missing-target test now reflects
 `format-phone`'s batch skip behavior; other single-contact commands still error on no match.
+
+## Batch label additions
+
+`tests/test_batch_labels.py` covers combined repeatable identifiers and UTF-8/BOM files,
+validation before authorization, deduplication, and creating every needed shared label before
+contact writes. Single-contact additions reuse the same saving policy while preserving their
+membership-aware spelling choices and preview.
+
+The writer classification tests exercise missing-contact responses, shared-label rejection,
+stale identities, content mismatches, and failed verification reads. Batch cases check continued
+contact-specific failures, partial label success, shared failures, uncertain writes, and
+interruptions before/after submission. They assert memberships, write counts, exit codes, and
+verified/failed/unverified/unattempted totals. Concurrent additions require no duplicate write.
+Shared creation failures report labels already created and leave every contact unattempted.
+
+The initial seven cases failed against the previous implementation. Temporarily classifying a
+content mismatch as a generic uncertain write made its classification regression fail; restoring
+contact-specific classification passes. Existing resolver, label-output, and label-edit suites
+retain ambiguity, skip, cancellation, stable numbering, unchanged contacts, account-only creation,
+and fixture-level membership-operation coverage. All account data is synthetic.

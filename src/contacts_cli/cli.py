@@ -389,16 +389,20 @@ def parser() -> argparse.ArgumentParser:
                 else (
                     "Add labels to saved contacts identified inline or in a file.\n"
                     "Choose among multiple matches; unmatched identifiers are skipped.\n"
-                    "Without contact inputs, create account labels."
+                    "Without contact inputs, create account labels.\n"
+                    "Contact-specific failures continue; "
+                    "shared or uncertain failures stop the batch."
                 )
             ),
         )
-        targets = labeling.add_mutually_exclusive_group() if action == "add" else labeling
+        targets = labeling
         targets.add_argument(
             "--contact",
             required=action == "remove",
+            action="append" if action == "add" else "store",
             help=(
-                "Contact URL, ID, full name, email, or phone; omit to create account labels"
+                "Contact identifier (repeatable; combines with --contact-file); "
+                "omit for account labels"
                 if action == "add"
                 else "Contact URL, ID, full name, email, or complete phone number"
             ),
@@ -1114,11 +1118,9 @@ def run_command(args):
             if args.command == "add-label" and (
                 args.contact is not None or args.contact_file is not None
             ):
-                from .contact_resolution import identifier_kind, load_identifiers
+                from .contact_resolution import load_batch_identifiers
 
-                args.contact_identifiers = load_identifiers(args.contact, args.contact_file)
-                for identifier in args.contact_identifiers:
-                    identifier_kind(identifier)
+                args.contact_identifiers = load_batch_identifiers(args.contact, args.contact_file)
             for number, label in enumerate(args.label, 1):
                 text_value(label, f"--label #{number}")
         elif args.command == "duplicate":

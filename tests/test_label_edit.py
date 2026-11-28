@@ -104,7 +104,7 @@ def test_case_choice_updates_applied_label(api, server, monkeypatch, capsys):
     monkeypatch.setattr(contact_create, "choose_label", lambda *a, **k: "Recruiter")
     assert cli.main(ARGS + ["--label", "recruiter", "--apply"]) == 0
     assert resource in str(server.person["memberships"])
-    assert "Added and verified 1 label" in capsys.readouterr().out
+    assert "Label additions: 1 saved" in capsys.readouterr().out
     assert len(server.groups) == 1
 
 
@@ -168,7 +168,9 @@ def test_partial_failure_stops_without_retry(status, code, api, server, monkeypa
         cli.main(ARGS + ["--label", "One", "--label", "Two", "--label", "Three", "--apply"]) == code
     )
     assert len(attempts) == 1
-    assert "Label additions verified: 1 of 3" in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert "Labels verified on this contact: One" in output
+    assert "Labels not attempted on this contact: Three" in output
     assert server.person["memberships"] == before + [
         {"contactGroupMembership": {"contactGroupResourceName": first}}
     ]

@@ -22,7 +22,7 @@ def test_compact_numbered_matches_and_summary(api, server, monkeypatch, tmp_path
     assert "unrelated@example.com" not in out and "+1 (202)" not in out
     assert "Matched '" not in out
     assert "Inputs reviewed: 3; matched: 2; unmatched: 1; skipped by choice: 0." in out
-    assert "Add label 'Test': 2 contacts" in out
+    assert "Proposed label additions: 'Test' — 2 contacts" in out
     assert "     Add: Test" not in out
 
 

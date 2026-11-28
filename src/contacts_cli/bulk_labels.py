@@ -4,7 +4,7 @@ import sys
 
 from .contact_create import CreationState, LabelChoiceCancelled, create_label, resolve_labels
 from .contact_resolution import describe_contact, read_resolved_contact
-from .errors import SyncError, WriteUnverified
+from .errors import ContactFailure, ContactVerificationFailure, SyncError, WriteUnverified
 from .label_edit import LABEL_FIELDS, add_membership, memberships
 from .output import emit, emit_list
 from .selection import review_selection
@@ -68,13 +68,22 @@ def run_bulk_labels(args, api, resources, confirm):
     ]
     emit("", primary=False)
     title = (
-        f"{'Adding' if args.apply else 'Add'} {label_noun} {label_names}"
+        (
+            f"Adding {label_noun} {label_names}"
+            if args.apply
+            else f"Proposed label additions: {label_names}"
+        )
         if common
         else "Adding labels to contacts"
         if args.apply
         else "Proposed label additions to contacts"
     )
-    emit_list(title, rows, unit=("contact", "contacts"))
+    emit_list(
+        title,
+        rows,
+        unit=("contact", "contacts"),
+        separator=" — " if common and not args.apply else ": ",
+    )
     if common and missing:
         emit("New labels to create: " + ", ".join(repr(name) for name in missing), primary=False)
     selected = list(plans)
@@ -102,38 +111,95 @@ def run_bulk_labels(args, api, resources, confirm):
         elif not confirm(question(len(plans))):
             emit("Preview only; no changes made. Use --apply to add labels.")
             return 0
-    verified = 0
+    return save_label_plans(
+        api,
+        plans,
+        selected,
+        labels,
+        unchanged=len(unchanged),
+        unselected=len(plans) - len(selected),
+    )
+
+
+def save_label_plans(api, plans, selected, labels, *, unchanged=0, unselected=0):
+    """Save shared labels first; retain per-label evidence if a contact partly succeeds."""
+    created = []
     state = CreationState()
     try:
-        for i in selected:
-            person, additions = plans[i]
-            emit(f"Adding labels to {describe_contact(person)}…")
-            for name in additions:
-                if name not in labels:
-                    state = CreationState()
-                    labels[name] = create_label(api, name, state)
-                add_membership(api, person, labels[name])
-                verified += 1
-            emit(f"Verified labels for {person['resourceName'].split('/')[-1]}.")
+        for number in selected:
+            for name in plans[number][1]:
+                if name in labels:
+                    continue
+                state = CreationState()
+                api.write_started = False
+                emit(f"Creating label: {name}…")
+                labels[name] = create_label(api, name, state)
+                created.append(name)
     except (SyncError, KeyboardInterrupt) as exc:
         interrupted = isinstance(exc, KeyboardInterrupt)
-        emit(
-            ("\n" if interrupted else "")
-            + f"Stopped; {verified} label {'addition' if verified == 1 else 'additions'} verified."
-        )
+        emit(("\n" if interrupted else "") + "Stopped while creating shared labels.")
         if not interrupted:
             emit(str(exc), primary=False)
+        if created:
+            emit("New labels verified: " + ", ".join(created) + ". They remain saved.")
         if state.phase == "created":
-            emit(f"Label created but unverified: {state.location}.", primary=False)
-        if api.write_started:
+            emit(f"Label created but unverified: {state.location}.")
+        elif state.phase == "writing" and api.write_started:
+            emit("Label creation outcome is unknown; inspect account labels before retrying.")
+        emit(f"Contacts: 0 verified; 0 failed; 0 unverified; {len(selected)} not attempted.")
+        return 130 if interrupted else 3 if isinstance(exc, WriteUnverified) else 1
+
+    verified = failed = unverified = completed = additions_verified = added = 0
+    status = 0
+    for position, number in enumerate(selected, 1):
+        person, names = plans[number]
+        satisfied = []
+        current_name = ""
+        emit(f"Adding labels to contact {position} of {len(selected)}: {describe_contact(person)}…")
+        try:
+            for current_name in names:
+                api.write_started = False
+                changed = add_membership(api, person, labels[current_name])
+                satisfied.append(current_name)
+                additions_verified += 1
+                added += bool(changed)
+            verified += 1
+            completed += 1
+        except (SyncError, KeyboardInterrupt) as exc:
+            completed += 1
+            interrupted = isinstance(exc, KeyboardInterrupt)
+            uncertain = isinstance(exc, WriteUnverified) or (interrupted and api.write_started)
+            if uncertain:
+                unverified += 1
+            else:
+                failed += 1
+            status = 130 if interrupted else max(status, 3 if uncertain else 1)
             emit(
-                "Completed changes remain saved. "
-                "Inspect the listed contacts and labels before retrying.",
+                ("\n" if interrupted else "")
+                + f"Contact #{number}: "
+                + ("interrupted." if interrupted else str(exc))
+            )
+            if satisfied:
+                emit("Labels verified on this contact: " + ", ".join(satisfied), primary=False)
+            emit(
+                f"Label {'unverified' if uncertain else 'not applied'}: {current_name}",
                 primary=False,
             )
-        return 130 if interrupted else (3 if isinstance(exc, WriteUnverified) else 1)
+            remaining = names[len(satisfied) + 1 :]
+            if remaining:
+                emit("Labels not attempted on this contact: " + ", ".join(remaining), primary=False)
+            if not isinstance(exc, (ContactFailure, ContactVerificationFailure)):
+                break
     emit(
-        f"Added and verified labels on {len(selected)} "
-        f"{'contact' if len(selected) == 1 else 'contacts'}."
+        f"Contacts: {verified} verified; {failed} failed; {unverified} unverified; "
+        f"{len(selected) - completed} not attempted."
     )
-    return 0
+    emit(
+        f"Label additions: {added} saved; "
+        f"{additions_verified - added} already applied since preview."
+    )
+    if unchanged or unselected:
+        emit(f"Contacts unchanged: {unchanged}; not selected: {unselected}.")
+    if status and (added or unverified or created):
+        emit("Completed changes remain saved. Inspect unverified results before retrying.")
+    return status

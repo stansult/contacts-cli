@@ -218,13 +218,14 @@ See [formatting rules](docs/command-reference.md#format-phone).
 `list-label` lists all account user labels with their contact counts. With `--contact`, it lists
 only that contact’s labels, without counts.
 
-`add-label` accepts a contact URL, ID, full name, email, or phone with `--contact`, or a
-`--contact-file` containing one identifier per line. Multiple matches offer a choice (`s` skips
-that identifier; `q` cancels the command); batches
+`add-label` accepts a contact URL, ID, full name, email, or phone with repeatable `--contact`,
+optionally combined with a `--contact-file` containing one identifier per line. Multiple matches
+offer a choice (`s` skips that identifier; `q` cancels the command); batches
 support selection by number or range before confirmation. Unmatched identifiers are reported and
 skipped. Phone lookup ignores formatting and a leading `+`, but requires all base-number digits.
 Omit the extension to find all contacts with that base number; supply one to match it exactly.
-Missing labels are created as needed.
+After approval, missing labels are created before contacts are updated. Contact-specific failures
+continue; shared or uncertain failures stop. See the [batch rules](docs/batch-contacts.md).
 With neither contact option, it creates account labels. Case-only matches may require a choice
 even with `--apply`.
 Repeat `--label` for multiple labels when adding or removing.

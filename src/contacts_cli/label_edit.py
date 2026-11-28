@@ -9,7 +9,7 @@ from .contact_create import (
     resolve_labels,
 )
 from .core import contact_resource, contact_source
-from .errors import SyncError, WriteUnverified
+from .errors import ContactFailure, ContactVerificationFailure, SyncError, WriteUnverified
 from .label_data import active_user_labels, contact_groups, label_identity, memberships
 from .label_removal import resolve_removals
 from .output import emit, emit_list
@@ -23,27 +23,37 @@ def edit_membership(api, person, group, *, remove=False):
     resource = person["resourceName"]
     latest = api.get_contact(resource, LABEL_FIELDS)
     if contact_source(latest)["id"] != contact_source(person)["id"]:
-        raise SyncError("Contact identity changed since preview; stopped before changing labels.")
+        raise ContactFailure(
+            "Contact identity changed since preview; stopped before changing labels."
+        )
     before = memberships(latest)
     if (group in before) != remove:
         return False
-    result = api.write(
-        api.people.contactGroups()
-        .members()
-        .modify(
-            resourceName=group,
-            body={"resourceNamesToRemove" if remove else "resourceNamesToAdd": [resource]},
-        ),
-        operation=f"label {action}",
-    )
+    try:
+        result = api.write(
+            api.people.contactGroups()
+            .members()
+            .modify(
+                resourceName=group,
+                body={"resourceNamesToRemove" if remove else "resourceNamesToAdd": [resource]},
+            ),
+            operation=f"label {action}",
+        )
+    except ContactFailure as exc:
+        # This endpoint addresses a shared label, so HTTP rejection is not proof
+        # that an individual contact failed. Only notFoundResourceNames is.
+        raise SyncError(str(exc)) from exc
     if not isinstance(result, dict):
         raise WriteUnverified(f"Label {action} returned an incomplete response.")
     if result.get("notFoundResourceNames"):
-        raise SyncError(f"Google could not find the contact; label {action} was not applied.")
+        raise ContactFailure(f"Google could not find the contact; label {action} was not applied.")
     if result.get("canNotRemoveLastContactGroupResourceNames"):
         raise SyncError("Google refused to remove the contact’s last contact-group membership.")
     try:
         saved = api.get_contact(resource, LABEL_FIELDS)
+    except SyncError as exc:
+        raise WriteUnverified(f"Label {action} verification read failed: {exc}") from exc
+    try:
         if contact_source(saved)["id"] != contact_source(person)["id"]:
             raise SyncError("Contact identity changed during verification.")
         after = memberships(saved)
@@ -55,7 +65,7 @@ def edit_membership(api, person, group, *, remove=False):
                 else "The added label or an existing label is missing from the saved contact."
             )
     except SyncError as exc:
-        raise WriteUnverified(
+        raise ContactVerificationFailure(
             f"Label {action} was submitted but verification failed: {exc}"
         ) from exc
     return True
@@ -66,6 +76,7 @@ def add_membership(api, person, group):
 
 
 def run_label_edit(args, api, confirm, heading):
+    contact_number = 1
     if args.command == "add-label" and hasattr(args, "contact_identifiers"):
         from .contact_resolution import resolve_contacts
 
@@ -81,6 +92,7 @@ def run_label_edit(args, api, confirm, heading):
 
             return run_bulk_labels(args, api, resources, confirm)
         args.contact = next(iter(resources))
+        contact_number = resources[args.contact]
     if args.contact is None:
         return run_create_labels(args, api, confirm)
     remove = args.command == "remove-label"
@@ -189,6 +201,12 @@ def run_label_edit(args, api, confirm, heading):
     elif not args.apply and not confirm(question):
         emit(f"Preview only; no changes made. Use --apply to {verb.lower()} labels.")
         return 0
+    if not remove:
+        from .bulk_labels import save_label_plans
+
+        return save_label_plans(
+            api, {contact_number: (person, additions)}, [contact_number], labels
+        )
     verified, created = 0, 0
     stage, name, state = "", "", CreationState()
     try:

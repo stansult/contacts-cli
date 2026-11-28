@@ -76,12 +76,20 @@ def email_rows(entries):
 
 
 def emit_list(
-    heading, rows, *, unit=("entry", "entries"), suffix="", primary=True, note=None, total=None
+    heading,
+    rows,
+    *,
+    unit=("entry", "entries"),
+    suffix="",
+    primary=True,
+    note=None,
+    total=None,
+    separator=": ",
 ):
     """Render a total followed by aligned, numbered rows; preserve supplied numbers."""
     rows = list(rows)
     count = len(rows) if total is None else total
-    emit(f"{heading}: {count} {unit[count != 1]}{suffix}", primary=primary)
+    emit(f"{heading}{separator}{count} {unit[count != 1]}{suffix}", primary=primary)
     if note:
         emit(note + "\n", primary=False)
     width = max((len(str(number)) for number, _ in rows), default=1)

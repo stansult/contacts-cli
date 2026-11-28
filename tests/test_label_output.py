@@ -98,8 +98,12 @@ def test_success_summary_is_not_repeated(remove, count, api, server, monkeypatch
     assert cli.main(args) == 0
     output = capsys.readouterr().out
     verb = "Removed" if remove else "Added"
-    assert output.count(f"{verb} and verified label:") == (count if count > 1 else 0)
-    assert f"{verb} and verified {count} label" in output
+    if remove:
+        assert output.count(f"{verb} and verified label:") == (count if count > 1 else 0)
+        assert f"{verb} and verified {count} label" in output
+    else:
+        assert output.count("Contacts: 1 verified;") == 1
+        assert f"Label additions: {count} saved" in output
 
 
 @pytest.mark.parametrize("answer", ["2", "3"])

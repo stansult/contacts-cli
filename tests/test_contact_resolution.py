@@ -184,12 +184,11 @@ def test_bulk_failure_stops_and_reports(api, server, monkeypatch, tmp_path, caps
     result = cli.main(["add-label", "--contact-file", str(path), "--label", "Test", "--apply"])
     assert result == {"identity": 1, "verify": 3, "interrupt": 130}[failure]
     assert server.writes == baseline + 1
-    assert "1 label addition verified" in capsys.readouterr().out
+    assert "Label additions: 1 saved" in capsys.readouterr().out
 
 
-def test_contact_file_exclusive_and_only_add(monkeypatch):
+def test_contact_file_only_add(monkeypatch):
     for args in [
-        ["add-label", "--contact", "c123", "--contact-file", "list.txt", "--label", "Test"],
         ["remove-label", "--contact", "c123", "--contact-file", "list.txt", "--label", "Test"],
     ]:
         with pytest.raises(SystemExit) as exc:
@@ -395,9 +394,11 @@ def test_unchanged_and_proposed_keep_match_numbers(api, server, monkeypatch, cap
     other["memberships"] = [{"contactGroupMembership": {"contactGroupResourceName": label}}]
     assert cli.main(["add-label", "--contact", "Jane Example", "--label", "Test"]) == 0
     output = capsys.readouterr().out
-    unchanged = output.split("Already have all requested labels:", 1)[1].split("Add label", 1)[0]
+    unchanged = output.split("Already have all requested labels:", 1)[1].split(
+        "Proposed label additions", 1
+    )[0]
     assert "  2. Jane Example (c456)" in unchanged
-    proposed = output.split("Add label 'Test':", 1)[1]
+    proposed = output.split("Proposed label additions: 'Test' —", 1)[1]
     assert "  1. Jane Example (c123)" in proposed
     assert server.writes == baseline + 1
 
@@ -429,7 +430,7 @@ def test_match_subset_keeps_original_numbers(api, server, monkeypatch, capsys):
     for person in (other, third):
         person["names"] = deepcopy(server.person["names"])
     assert cli.main(["add-label", "--contact", "Jane Example", "--label", "Test"]) == 0
-    output = capsys.readouterr().out.split("Add label 'Test':", 1)[1]
+    output = capsys.readouterr().out.split("Proposed label additions: 'Test' —", 1)[1]
     assert "  2. Jane Example (c456)" in output and "  3. Jane Example (c789)" in output
     assert label not in memberships(server.person) and label not in memberships(other)
     assert label in memberships(third) and server.writes == baseline + 1

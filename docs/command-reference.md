@@ -996,8 +996,9 @@ Keeping an existing label creates nothing; it is not applied to any contact.
 ### Contact identifiers and files
 
 With `--contact`, identify a saved contact by Google Contacts URL, bare ID, full name, email,
-or phone. Alternatively, use `--contact-file contacts.txt` for several identifiers. These options
-are mutually exclusive. Files are UTF-8 plain text, one identifier per line; blanks and lines
+or phone. Repeat `--contact` and optionally combine it with `--contact-file contacts.txt`.
+Inline identifiers are processed first, then file entries; each resolved contact is processed once.
+Files are UTF-8 plain text (a BOM is accepted), one identifier per line; blanks and lines
 starting with `#` are ignored. This is an identifier list, not the Person JSON used by `add-contact`:
 
 ```text
@@ -1079,15 +1080,26 @@ preview only.
 The CLI uses Google's additive group-membership operation, sending no membership removals or
 contact-field replacement. Existing memberships and other contact fields are preserved. It rereads
 the contact before each addition, skips memberships applied since preview, and independently reads
-back afterward to check the added label and prior memberships. It stops if the contact identity
-changes or verification fails.
+back afterward to check the added label and prior memberships. A stale contact identity is a
+contact-specific failure.
 
-Operations run sequentially; only explicit transient rate-limit rejections retry automatically.
-On failure or interruption, the
-command reports verified additions and newly created labels; completed changes remain saved.
-A newly created label may remain empty if adding the contact fails. Inspect the contact before
-retrying; a new preview skips labels already applied. HTTP errors use the shared local error logs.
-The command adds no Created or Duplicate custom field.
+After approval, all missing labels needed by selected contacts are created and verified before
+any contact is changed. Shared-label creation failure stops; created labels remain saved.
+
+Contacts are processed sequentially with a progress counter. Explicit contact-specific failures
+and saved-content verification mismatches are reported, and later contacts continue. Shared-label,
+authorization, connection, unrecovered quota, uncertain-write, and verification-read failures stop.
+Only explicit transient rate-limit rejections retry automatically.
+
+The summary separates verified, failed, unverified, and unattempted contacts, plus unchanged and
+unselected contacts when applicable. A contact is verified only if every selected label is
+satisfied. If an addition fails midway, the output names labels already verified on that contact,
+the failed or unverified label, and labels not attempted. Completed changes remain saved.
+Saved additions and labels applied concurrently since preview are counted separately.
+
+Exit status is 1 for failures, 3 for unverified writes, or 130 for interruption. Inspect uncertain
+results before retrying; a new preview skips labels already applied. HTTP errors use shared local
+error logs. See the [shared batch rules](batch-contacts.md). No Created or Duplicate field is added.
 
 API contract: [modify contact group members](https://developers.google.com/people/api/rest/v1/contactGroups.members/modify).
 
